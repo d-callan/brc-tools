@@ -1,0 +1,5 @@
+##gff-version 3
+chr1	src	gene	1	100	.	+	.	ID=geneA;biotype=protein_coding_gene
+chr1	src	mRNA	1	100	.	+	.	ID=txA;Parent=geneA
+chr1	src	gene	200	300	.	+	.	ID=geneB
+chr1	src	mRNA	200	300	.	+	.	ID=txB;Parent=geneB

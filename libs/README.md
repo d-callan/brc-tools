@@ -13,13 +13,13 @@ Lightweight library for parsing and processing genomic data formats (BED, GFF3, 
 
 See `genome-io/README.md` for details.
 
-## Future: `pangenome-helpers`
+## `pangenome-helpers`
 
-Orchestration logic for pangenome workflows (manifest loading, orthogroup filtering, CDS grouping, etc.). Will depend on `genome-io`.
+Pangenome workflow orchestration helpers built on top of `genome-io` (manifest loading, orthogroup filtering, CDS grouping, triage/merge stages, UCSC hub builders).
 
-- **PyPI**: `pangenome-helpers`
+- **PyPI**: `pangenome-helpers` (in repo; PyPI/Conda release upcoming)
 - **Bioconda**: `pangenome-helpers`
-- **Status**: Planned
+- **Status**: Active development (triage, orthology, merge, and hub builders implemented)
 - **Dependencies**: `genome-io>=0.1.0`
 
 ---
