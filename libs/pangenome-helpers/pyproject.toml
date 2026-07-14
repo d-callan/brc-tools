@@ -28,6 +28,9 @@ dependencies = [
     "genome-io>=0.1.0",
 ]
 
+[project.scripts]
+pangenome-helpers = "pangenome_helpers.cli:main"
+
 [project.optional-dependencies]
 test = [
     "pytest>=7.0",

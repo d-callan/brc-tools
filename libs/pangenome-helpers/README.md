@@ -28,6 +28,19 @@ cd libs/pangenome-helpers
 pytest
 ```
 
+## Command-line interface
+
+A comprehensive CLI is available for running pangenome orchestration functions directly:
+
+```bash
+pangenome-helpers --help
+pangenome-helpers triage --help
+pangenome-helpers consensus --help
+# ... etc
+```
+
+See [CLI.md](CLI.md) for complete documentation of all commands and examples.
+
 ## Modules (available today)
 
 | Module | Source tool(s) | Purpose |
