@@ -1,0 +1,2 @@
+reference_gene_id	query_gene_id	source	intactness	query_chrom	query_start	query_end
+anchorGene	queryGene	cesar2	I	chr2	0	100
