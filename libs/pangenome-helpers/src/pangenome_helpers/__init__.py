@@ -1,4 +1,13 @@
 from .orthology import Orthogroup, load_intact_orthogroups
+from .merge import (
+    MergeOutputs,
+    load_liftoff_clean,
+    load_query_bed,
+    load_reference_genes,
+    load_toga_loss_summary,
+    load_toga_orthology,
+    merge_annotations,
+)
 """Pangenome workflow orchestration helpers built on genome-io."""
 
 from .anchors import AnchorPrepResult, prepare_anchor_inputs
@@ -29,6 +38,7 @@ __all__ = [
     "ConsensusResult",
     "OrthogroupSequences",
     "Orthogroup",
+    "MergeOutputs",
     "TriageResult",
     "TriageSettings",
     "GeneRecord",
@@ -45,6 +55,12 @@ __all__ = [
     "derive_multiz_order",
     "iter_orthogroup_sequences",
     "load_intact_orthogroups",
+    "load_liftoff_clean",
+    "load_toga_loss_summary",
+    "load_toga_orthology",
+    "load_query_bed",
+    "load_reference_genes",
+    "merge_annotations",
     "compute_rbest_edges",
     "compute_graph_edges",
     "build_consensus_table",

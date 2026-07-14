@@ -1,0 +1,2 @@
+t_gene	t_transcript	q_gene	q_transcript	orthology_class
+refGene	gene1.t1	qGene1	gene1.t1#chain1	one2one
