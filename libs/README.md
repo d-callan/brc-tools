@@ -19,7 +19,7 @@ Pangenome workflow orchestration helpers built on top of `genome-io` (manifest l
 
 - **PyPI**: `pangenome-helpers` (in repo; PyPI/Conda release upcoming)
 - **Bioconda**: `pangenome-helpers`
-- **Status**: Active development (triage, orthogroup, Phase E orchestration implemented)
+- **Status**: Active development (triage, orthology, merge, and hub builders implemented)
 - **Dependencies**: `genome-io>=0.1.0`
 
 ---

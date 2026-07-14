@@ -41,13 +41,12 @@ pytest
 | `pangenome_helpers.graph_edges` | `phase_e_graph_edges` | PGGB path co-membership edges |
 | `pangenome_helpers.consensus` | `phase_e_consensus` | Orthogroup consensus builder (UnionFind + labels) |
 | `pangenome_helpers.triage` | `phase_c2_triage` | R1–R8 rule engine + summaries |
-
-## Modules (planned / in progress)
-
-| Module | Source tool(s) | Purpose |
-| --- | --- | --- |
 | `pangenome_helpers.orthology` | `group_cds_by_og` | Orthogroup filtering utilities shared across stages |
 | `pangenome_helpers.merge` | `phase_c4_merge` | Merge Liftoff + TOGA annotations, emit classification TSV + merged GFF |
 | `pangenome_helpers.hub` | `build_genomes_txt`, `build_trackdb`, `build_hub_bb` | UCSC browser hub manifest/track builders |
+| `pangenome_helpers.selection` | `build_hub_bb` | Selection BED builders + BUSTED parsing + visualization helpers |
+| `pangenome_helpers.phase_c2` | `phase_c2_triage` | Triage orchestration + TSV/BED/GFF/JSON reporting |
 
-Follow-up releases will continue landing the remaining modules as they are extracted and tested.
+## Modules (planned / in progress)
+
+None at this time. All core workflow orchestration helpers are implemented and tested.
