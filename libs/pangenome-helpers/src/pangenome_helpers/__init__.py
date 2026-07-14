@@ -1,3 +1,4 @@
+from .orthology import Orthogroup, load_intact_orthogroups
 """Pangenome workflow orchestration helpers built on genome-io."""
 
 from .anchors import AnchorPrepResult, prepare_anchor_inputs
@@ -27,6 +28,7 @@ __all__ = [
     "AnchorPrepResult",
     "ConsensusResult",
     "OrthogroupSequences",
+    "Orthogroup",
     "TriageResult",
     "TriageSettings",
     "GeneRecord",
@@ -42,6 +44,7 @@ __all__ = [
     "process_maf_file",
     "derive_multiz_order",
     "iter_orthogroup_sequences",
+    "load_intact_orthogroups",
     "compute_rbest_edges",
     "compute_graph_edges",
     "build_consensus_table",
