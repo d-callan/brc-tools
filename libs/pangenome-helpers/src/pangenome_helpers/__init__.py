@@ -1,6 +1,7 @@
 """Pangenome workflow orchestration helpers built on genome-io."""
 
 from .anchors import AnchorPrepResult, prepare_anchor_inputs
+from .cds import OrthogroupSequences, iter_orthogroup_sequences
 from .consensus import ConsensusResult, build_consensus_table, summarize_labels
 from .graph_edges import compute_graph_edges
 from .manifest import (
@@ -16,6 +17,7 @@ from .overlap import RbestEdge, compute_rbest_edges
 __all__ = [
     "AnchorPrepResult",
     "ConsensusResult",
+    "OrthogroupSequences",
     "RbestEdge",
     "ManifestError",
     "PansnError",
@@ -27,6 +29,7 @@ __all__ = [
     "prepare_anchor_inputs",
     "process_maf_file",
     "derive_multiz_order",
+    "iter_orthogroup_sequences",
     "compute_rbest_edges",
     "compute_graph_edges",
     "build_consensus_table",
