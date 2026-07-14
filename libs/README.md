@@ -17,9 +17,9 @@ See `genome-io/README.md` for details.
 
 Pangenome workflow orchestration helpers built on top of `genome-io` (manifest loading, orthogroup filtering, CDS grouping, triage/merge stages, UCSC hub builders).
 
-- **PyPI**: `pangenome-helpers` (scaffolding in progress)
+- **PyPI**: `pangenome-helpers` (in repo; PyPI/Conda release upcoming)
 - **Bioconda**: `pangenome-helpers`
-- **Status**: 0.1.0 scaffold (logic landing in subsequent releases)
+- **Status**: Active development (triage, orthogroup, Phase E orchestration implemented)
 - **Dependencies**: `genome-io>=0.1.0`
 
 ---
