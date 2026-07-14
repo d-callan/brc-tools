@@ -13,11 +13,23 @@ from .manifest import (
 from .maf import MafProcessResult, derive_multiz_order, process_maf_file
 from .pansn import PansnError, rename_fasta
 from .overlap import RbestEdge, compute_rbest_edges
+from .triage import (
+    GeneRecord,
+    TriageResult,
+    TriageSettings,
+    parse_liftoff_gff,
+    read_family_list,
+    read_reference_bed,
+    run_triage,
+)
 
 __all__ = [
     "AnchorPrepResult",
     "ConsensusResult",
     "OrthogroupSequences",
+    "TriageResult",
+    "TriageSettings",
+    "GeneRecord",
     "RbestEdge",
     "ManifestError",
     "PansnError",
@@ -34,4 +46,8 @@ __all__ = [
     "compute_graph_edges",
     "build_consensus_table",
     "summarize_labels",
+    "parse_liftoff_gff",
+    "read_reference_bed",
+    "read_family_list",
+    "run_triage",
 ]
