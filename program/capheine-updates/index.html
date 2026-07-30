@@ -1,0 +1,993 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Coordination plan and design docs for the comparative & population genomics program across PANTEON, ANCOR, PLAIG, and CAPHEINE.">
+      
+      
+      
+        <link rel="canonical" href="https://nekrut.github.io/brc-tools/program/capheine-updates/">
+      
+      
+        <link rel="prev" href="../ancor-reference/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CAPHEINE Updates - BRC Pathogen Comparative Genomics Program</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#capheine-updates-reference-doc" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="BRC Pathogen Comparative Genomics Program" class="md-header__button md-logo" aria-label="BRC Pathogen Comparative Genomics Program" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BRC Pathogen Comparative Genomics Program
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CAPHEINE Updates
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../comparative-genomics-program/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Program
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="BRC Pathogen Comparative Genomics Program" class="md-nav__button md-logo" aria-label="BRC Pathogen Comparative Genomics Program" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    BRC Pathogen Comparative Genomics Program
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Program
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Program
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparative-genomics-program/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordination Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plaig-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PLAIG Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../panteon-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PANTEON Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ancor-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ANCOR Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CAPHEINE Updates
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CAPHEINE Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-capheine-is-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What CAPHEINE is today
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-must-change-program-drivers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it must change (program drivers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pluggable-preprocessing-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable preprocessing design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pluggable preprocessing design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#open-items-before-building" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open items before building
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequencing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-capheine-is-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What CAPHEINE is today
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-must-change-program-drivers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it must change (program drivers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pluggable-preprocessing-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable preprocessing design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pluggable preprocessing design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#open-items-before-building" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open items before building
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequencing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="capheine-updates-reference-doc">CAPHEINE Updates — Reference Doc<a class="headerlink" href="#capheine-updates-reference-doc" title="Permanent link">&para;</a></h1>
+<p><em>Companion to <code>comparative-genomics-program.md</code> (§3, §3.1). What CAPHEINE is today, and the specific changes required for it to serve as the program's single selection-analysis engine.</em></p>
+<p>Status: in IWC (maintained by this group); updates at design stage, 2026-07-30</p>
+<h2 id="what-capheine-is-today">What CAPHEINE is today<a class="headerlink" href="#what-capheine-is-today" title="Permanent link">&para;</a></h2>
+<p><strong>CAPHEINE — Comprehensive Automated Pipeline using HyPhy for Evolutionary Inference with NExtflow</strong> — Galaxy implementation of the HyPhy comparative-genomics pipeline, in IWC at <code>workflows/comparative_genomics/hyphy/</code>. Nextflow sibling: <code>veg/CAPHEINE</code>. Currently <strong>viral-tuned</strong> (authored for FASTQ viral genomes, HIV-1 test data).</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hyphy-preprocessing</code></td>
+<td>reference-anchored codon alignment: gffread → remove terminal stops → <strong>cawlign</strong> → cleanup → <strong>hyphy-cln</strong> → IQ-TREE</td>
+</tr>
+<tr>
+<td><code>hyphy-core</code></td>
+<td><strong>MEME, PRIME, BUSTED, FEL</strong></td>
+</tr>
+<tr>
+<td><code>hyphy-compare</code></td>
+<td><strong>CFEL, RELAX</strong></td>
+</tr>
+<tr>
+<td><code>capheine-core-and-compare</code></td>
+<td>orchestrator over the three subworkflows</td>
+</tr>
+</tbody>
+</table>
+<p>Inputs today: reference GTF + FASTA + per-sample unaligned FASTAs. HyPhy pinned 2.5.96.</p>
+<h2 id="why-it-must-change-program-drivers">Why it must change (program drivers)<a class="headerlink" href="#why-it-must-change-program-drivers" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Crypto protocol Module 3 (§8.5)</strong> mandates the full HyPhy suite with mandatory GARD — CAPHEINE covers roughly half the method list and has no GARD step.</li>
+<li><strong>Pangenome WF-H reroute</strong> — PANTEON's per-OG BUSTED should become a CAPHEINE invocation (program doc §2.1 item 1), but per-OG pangenome inputs have no single reference, so cawlign-only preprocessing can't serve them.</li>
+<li><strong>Eukaryotic scope</strong> — internal stop codons, multi-exon CDS, frameshifts: current preprocessing assumes clean viral CDS.</li>
+</ol>
+<h2 id="required-changes">Required changes<a class="headerlink" href="#required-changes" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>GARD pre-check</strong> — GARD on every alignment, partition-specific topologies for recombining alignments (crypto §8.5 + Appendix B; CAPHEINE's own README already warns recombination misleads estimates). Add to <code>hyphy-preprocessing</code> or as an optional profile. <code>hyphy_gard</code> already IUC-wrapped. <strong>Must be post-alignment and common to all aligner paths</strong> — not bypassable by aligner choice.</li>
+<li><strong>Method coverage</strong> — crypto §8.5.1 requires: SLAC, BUSTED (SRV enabled), aBSREL, FUBAR (+ FEL follow-up), MEME, RELAX, Contrast-FEL. Have: MEME/PRIME/BUSTED/FEL + CFEL/RELAX. <strong>Add: aBSREL, FUBAR, SLAC</strong> (all IUC-wrapped). Also confirm the BUSTED wrapper exposes <code>--srv</code> (program doc §2.1: pinned 2.5.96+galaxy0 does not — bump or patch).</li>
+<li><strong>Eukaryotic input handling</strong> — strict alignment QC gates for internal stops / multi-exon CDS; fail loudly, never silently estimate.</li>
+<li><strong>Pluggable preprocessing (aligner choice)</strong> — see design below.</li>
+<li><strong>Ledger-based input adapter</strong> — thin front-end subworkflow: orthology ledger (per-OG sequence sets from PANTEON / crypto Module 3) → per-OG sequence collections → CAPHEINE core inputs, via the normalization layer.</li>
+<li><strong>Branch-set parameterization</strong> — <code>hyphy-compare</code> foreground labeling (regex/list) already exists; publish crypto §8.5.2 contrasts (human-infecting vs restricted, anthroponotic vs zoonotic, intestinal vs gastric, ruminant-associated) as <strong>named preset lists</strong> — documentation, no new workflow.</li>
+</ol>
+<h2 id="pluggable-preprocessing-design">Pluggable preprocessing design<a class="headerlink" href="#pluggable-preprocessing-design" title="Permanent link">&para;</a></h2>
+<p>Uniform contract: every path takes normalized input, emits codon-alignment collection (FASTA) + gene-tree collection (nwk) + QC report; <code>hyphy-core</code>/<code>hyphy-compare</code>/GARD ingest unchanged. Cleanup (hyphy-cln), IQ-TREE, and GARD stay post-alignment and shared.</p>
+<table>
+<thead>
+<tr>
+<th>Aligner</th>
+<th>Input regime</th>
+<th>Caveat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cawlign</td>
+<td>reference-anchored (many samples vs one reference gene set; current viral case)</td>
+<td>requires a reference</td>
+</tr>
+<tr>
+<td>MACSE</td>
+<td>de novo per-OG codon MSA; tolerates internal stops/frameshifts — <strong>eukaryotic/pangenome default</strong></td>
+<td>slower; <strong>not yet wrapped</strong> (needs IUC wrapper)</td>
+</tr>
+<tr>
+<td>PRANK</td>
+<td>crypto protocol's named alternative to MACSE for the same de novo regime (§7.2.1: "MACSE or PRANK in codon mode") — a second tool under the MACSE branch, not a fourth path</td>
+<td>not yet wrapped</td>
+</tr>
+<tr>
+<td>MAFFT</td>
+<td>clean conserved in-frame CDS; fastest</td>
+<td>not codon-aware: aa-align + back-translate only (pal2nal), or gate to verified in-frame inputs; frame-breaks silently. Note: PANTEON WF-F already uses exactly this sanctioned path (MAFFT L-INS-I + pal2nal + trimAL)</td>
+</tr>
+</tbody>
+</table>
+<p>Normalization front-end maps input classes to the contract: (a) GTF+genome+per-sample FASTAs (current gffread path); (b) per-OG CDS collections from the ledger; (c) protein-only (back-translate); (d) pre-aligned (skip alignment — crypto Module 2 case). QC severity is aligner-dependent: internal stops tolerated on MACSE/cawlign, hard-filtered on MAFFT.</p>
+<h3 id="open-items-before-building">Open items before building<a class="headerlink" href="#open-items-before-building" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>VERIFY</strong>: does <code>hyphy-cln</code>'s filtering hold for MACSE output containing documented frameshifts/internal stops? Most likely silent-sequence-drop seam. Test with a frameshift-containing OG, confirm retention; decide whether hyphy-cln needs a codon-tolerant mode or frameshift OGs bypass it (with justification). (Program doc §10 open question.)</li>
+<li><strong>Galaxy mechanics</strong>: Option A — single workflow, <code>aligner</code> parameter + <code>when</code>-conditional branches + expression-tool output coalescing (less trodden in IWC review); Option B — three aligner-specific preprocessing subworkflows + thin dispatch parent (matches existing modular style). <strong>Default: Option B</strong> unless conditional execution is confirmed acceptable to IWC reviewers.</li>
+</ul>
+<h2 id="tool-availability">Tool availability<a class="headerlink" href="#tool-availability" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Already wrapped (IUC): full HyPhy suite — gard, slac, fel, meme, fubar, busted, absrel, relax, cfel (+ cawlign, hyphy_cln, gffread, IQ-TREE as preprocessing deps).</li>
+<li><strong>Needs new wrappers</strong>: MACSE and/or PRANK (de novo codon alignment). Wrapper ownership: PLAIG (program doc §6).</li>
+</ul>
+<h2 id="sequencing">Sequencing<a class="headerlink" href="#sequencing" title="Permanent link">&para;</a></h2>
+<ol>
+<li>GARD + method-coverage + euk-QC PR to CAPHEINE (independent of aligner work).</li>
+<li>MACSE/PRANK wrapper → pluggable preprocessing (Option B) → VERIFY hyphy-cln seam.</li>
+<li>Ledger input adapter (after PANTEON WF-E ledger sidecars exist).</li>
+<li><strong>Only then</strong> reroute PANTEON WF-H as a thin CAPHEINE parent — do not churn WF-H twice (program doc §2.1).</li>
+</ol>
+<p>Result: pangenome per-OG BUSTED and crypto Module 3's full suite both execute as CAPHEINE invocations with different inputs/profiles — one workflow family to maintain, one to defend in IWC review.</p>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>IWC: <code>galaxyproject/iwc</code> → <code>workflows/comparative_genomics/hyphy/</code> (README, <code>hyphy-preprocessing.ga</code> step list)</li>
+<li>Crypto protocol v2.1c §7.2.1 (alignment), §8.5/8.5.1/8.5.2 (HyPhy suite + contrasts), Appendix B (GARD failure mode)</li>
+<li>Program doc §3/§3.1 (decisions), §2.1 item 1 (WF-H reroute), §10 (open questions)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

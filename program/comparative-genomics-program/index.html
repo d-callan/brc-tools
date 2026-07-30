@@ -1,0 +1,1409 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Coordination plan and design docs for the comparative & population genomics program across PANTEON, ANCOR, PLAIG, and CAPHEINE.">
+      
+      
+      
+        <link rel="canonical" href="https://nekrut.github.io/brc-tools/program/comparative-genomics-program/">
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../plaig-design/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Coordination Plan - BRC Pathogen Comparative Genomics Program</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#comparative-population-genomics-program-coordination-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="BRC Pathogen Comparative Genomics Program" class="md-header__button md-logo" aria-label="BRC Pathogen Comparative Genomics Program" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BRC Pathogen Comparative Genomics Program
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Coordination Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Program
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="BRC Pathogen Comparative Genomics Program" class="md-nav__button md-logo" aria-label="BRC Pathogen Comparative Genomics Program" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    BRC Pathogen Comparative Genomics Program
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Program
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Program
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordination Plan
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordination Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-from-assets-you-know-to-suites-were-proposing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. From assets you know to suites we're proposing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-three-timescale-story-program-narrative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The three-timescale story (program narrative)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. The three-timescale story (program narrative)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-what-needs-to-change-in-panteon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 What needs to change in PANTEON
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-capheine-extend-dont-fork" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. CAPHEINE — extend, don't fork
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-shared-foundation-the-redundancy-sinks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Shared foundation (the redundancy sinks)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Shared foundation (the redundancy sinks)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-orthology-ledger-common-format-for-brc-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Orthology ledger — common format for BRC integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-shared-infrastructure-cross-cutting-not-suite-specific" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Shared infrastructure (cross-cutting, not suite-specific)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-plaig-new-suite-from-crypto-modules-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. PLAIG — new suite from crypto Modules 1–2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-wrapper-ownership-no-overlap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Wrapper ownership — no overlap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-generalization-across-organisms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Generalization across organisms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Generalization across organisms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-already-general-no-changes-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Already general (no changes needed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-porting-to-a-new-organism-workflow-parameters-not-code-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Porting to a new organism = workflow parameters, not code changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-suite-specific-generality-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Suite-specific generality notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-adjacent-efforts-non-competing-credited-borrowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Adjacent efforts (non-competing, credited borrowing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-community-demand-euk-pathogen-priority-for-effort-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Community demand (euk-pathogen priority, for effort sequencing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-toolshed-audit-summary-2026-07-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. ToolShed audit summary (2026-07-30)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-documentation-policy-different-tools-for-similar-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Documentation policy — "different tools for similar jobs"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Next steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Next steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#appendix-source-documents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix: source documents
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plaig-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PLAIG Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../panteon-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PANTEON Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ancor-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ANCOR Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capheine-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CAPHEINE Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-from-assets-you-know-to-suites-were-proposing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. From assets you know to suites we're proposing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-three-timescale-story-program-narrative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The three-timescale story (program narrative)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. The three-timescale story (program narrative)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-what-needs-to-change-in-panteon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 What needs to change in PANTEON
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-capheine-extend-dont-fork" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. CAPHEINE — extend, don't fork
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-shared-foundation-the-redundancy-sinks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Shared foundation (the redundancy sinks)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Shared foundation (the redundancy sinks)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-orthology-ledger-common-format-for-brc-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Orthology ledger — common format for BRC integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-shared-infrastructure-cross-cutting-not-suite-specific" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Shared infrastructure (cross-cutting, not suite-specific)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-plaig-new-suite-from-crypto-modules-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. PLAIG — new suite from crypto Modules 1–2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-wrapper-ownership-no-overlap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Wrapper ownership — no overlap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-generalization-across-organisms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Generalization across organisms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Generalization across organisms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-already-general-no-changes-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Already general (no changes needed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-porting-to-a-new-organism-workflow-parameters-not-code-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Porting to a new organism = workflow parameters, not code changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-suite-specific-generality-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Suite-specific generality notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-adjacent-efforts-non-competing-credited-borrowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Adjacent efforts (non-competing, credited borrowing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-community-demand-euk-pathogen-priority-for-effort-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Community demand (euk-pathogen priority, for effort sequencing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-toolshed-audit-summary-2026-07-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. ToolShed audit summary (2026-07-30)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-documentation-policy-different-tools-for-similar-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Documentation policy — "different tools for similar jobs"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Next steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Next steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#appendix-source-documents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix: source documents
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="comparative-population-genomics-program-coordination-plan">Comparative &amp; Population Genomics Program — Coordination Plan<a class="headerlink" href="#comparative-population-genomics-program-coordination-plan" title="Permanent link">&para;</a></h1>
+<p>Working doc capturing the coordination story across the group's parallel efforts.
+Goal: one coherent program, no redundant wrappers or near-identical workflows, clean IWC submissions.</p>
+<p>Status: DRAFT, 2026-07-30</p>
+<p>Hosting context: ties into <strong>BRC Analytics</strong> — workflows target IWC and will be hosted/runnable on the BRC site, with the group's own runs and outputs viewable by others. Provenance via IWC workflow invocations. The BRC site is planned to gain a <strong>pangenome view with orthogroup awareness</strong> — the orthology ledger (§4.1) is the data contract that view consumes.</p>
+<hr />
+<h2 id="1-from-assets-you-know-to-suites-were-proposing">1. From assets you know to suites we're proposing<a class="headerlink" href="#1-from-assets-you-know-to-suites-were-proposing" title="Permanent link">&para;</a></h2>
+<p>You know one or more of these assets. Nobody knows the suite names yet — we just coined them here. This table is the translation:</p>
+<table>
+<thead>
+<tr>
+<th>Asset you know</th>
+<th>→ Suite</th>
+<th>What it is</th>
+<th>What changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Crypto protocol</strong> (v2.1c docx) — Module 1 read-level popgen, Module 2 MK divergence</td>
+<td>→ <strong>PLAIG</strong></td>
+<td>Read-level population genomics suite for haploid pathogens</td>
+<td>New: generalize from <em>Cryptosporidium</em> study design into reusable Galaxy workflows</td>
+</tr>
+<tr>
+<td><strong>Crypto protocol</strong> — Module 3 orthology/synteny/ancestry/gene-family layer (§8.1–8.4, 8.6–8.8)</td>
+<td>→ <strong>ANCOR</strong></td>
+<td>Cross-species comparative suite: OrthoFinder → synteny → ancestral reconstruction → gene-family evolution</td>
+<td>Existing designs; add ledger output + assembly QC gate</td>
+</tr>
+<tr>
+<td><strong>Crypto protocol</strong> — Module 3 HyPhy layer (§8.5)</td>
+<td>→ <strong>CAPHEINE</strong> (extend)</td>
+<td>Shared selection-analysis engine (HyPhy suite)</td>
+<td>Already in IWC but viral-tuned; extend for eukaryotes + full method coverage</td>
+</tr>
+<tr>
+<td><strong>Pangenome workflows</strong> (<code>brc-tools</code>, <code>pangenome-helpers</code>) — PGGB, Liftoff/TOGA2, consensus orthogroups, per-OG BUSTED, UCSC hubs</td>
+<td>→ <strong>PANTEON</strong></td>
+<td>Within-species pangenome pipeline</td>
+<td>Has a working prototype (unlike PLAIG/ANCOR which are plan-only); add ledger sidecars, reroute selection through CAPHEINE</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key insight:</strong> ANCOR ≈ crypto Module 3's orthology/synteny/ancestry/gene-family layer, generalized. Module 3's HyPhy layer is CAPHEINE's job, not ANCOR's. PANTEON is the within-species layer the crypto protocol lacks. CAPHEINE sits underneath both PANTEON and ANCOR as the shared selection engine.</p>
+<blockquote>
+<p>Suite names are working titles — tentative, changeable, but better than generic letters.</p>
+</blockquote>
+<p>Companion docs (details live there, decisions live here): <strong><a href="../plaig-design/"><code>plaig-design.md</code></a></strong> (PLAIG design), <strong><a href="../ancor-reference/"><code>ancor-reference.md</code></a></strong> (ANCOR reference), <strong><a href="../panteon-reference/"><code>panteon-reference.md</code></a></strong> (PANTEON reference), <strong><a href="../capheine-updates/"><code>capheine-updates.md</code></a></strong> (CAPHEINE change spec).</p>
+<h2 id="2-the-three-timescale-story-program-narrative">2. The three-timescale story (program narrative)<a class="headerlink" href="#2-the-three-timescale-story-program-narrative" title="Permanent link">&para;</a></h2>
+<p>One umbrella program, three suites at three strata of the same question:</p>
+<ul>
+<li><strong>PLAIG — Pathogen Lineage Analysis &amp; Inference of Genotypes</strong> (new, from crypto Modules 1–2) — read-level population genomics: reads → haploid VCF → polymorphism, structure, recombination, sweeps, demography, MK divergence</li>
+<li><strong>PANTEON — PANgenome Trees &amp; Evolutionary Orthology Networks</strong> (existing pangenome) — within-species assemblies: graph variation, PAV/CNV, consensus orthogroups, per-OG selection</li>
+<li><strong>ANCOR — Analysis of Networked Core Orthologs for Reconstruction</strong> (existing designs) — cross-species assemblies: synteny, ancestral reconstruction, gene-family evolution</li>
+</ul>
+<p>CAPHEINE sits underneath PANTEON and ANCOR as the shared HyPhy engine.</p>
+<p>Each stratum is the others' control: read-level allele frequencies are immune to assembly-collapse artifacts; assembly PAV is immune to capture/WGA coverage bias; cross-species divergence contextualizes both.</p>
+<h3 id="21-what-needs-to-change-in-panteon">2.1 What needs to change in PANTEON<a class="headerlink" href="#21-what-needs-to-change-in-panteon" title="Permanent link">&para;</a></h3>
+<p>PANTEON is the only timescale suite with a working prototype (PLAIG and ANCOR are design-only). Changes are integration, not rebuild: add GARD + SRV to the selection step, emit orthology-ledger-format sidecars from the consensus step, add an assembly QC gate, and parameterize hardcoded <em>P. vivax</em> assumptions. Full change list with workflow-level detail: <strong><a href="../panteon-reference/"><code>panteon-reference.md</code></a></strong>.</p>
+<blockquote>
+<p>Specific workflow names and step descriptions throughout this doc and its companions are tentative — actual workflow structure may change as planning continues.</p>
+</blockquote>
+<h2 id="3-capheine-extend-dont-fork">3. CAPHEINE — extend, don't fork<a class="headerlink" href="#3-capheine-extend-dont-fork" title="Permanent link">&para;</a></h2>
+<p>Decision: <strong>all HyPhy work routes through CAPHEINE.</strong> No new HyPhy workflow family. CAPHEINE is currently viral-tuned; extending it for eukaryotic/pathogen reuse requires: mandatory GARD pre-check (crypto §8.5), full method coverage (add aBSREL/FUBAR/SLAC to existing MEME/PRIME/BUSTED/FEL/CFEL/RELAX), eukaryotic input handling (internal stops, multi-exon CDS), pluggable aligner stage (cawlign/MACSE/MAFFT behind a uniform output contract), and a ledger-based input adapter so per-orthogroup inputs from PANTEON or ANCOR feed in directly.</p>
+<p><em>Full change spec, pluggable preprocessing design, tool availability, and build sequencing: </em><em><a href="../capheine-updates/"><code>capheine-updates.md</code></a></em><em>.</em></p>
+<h2 id="4-shared-foundation-the-redundancy-sinks">4. Shared foundation (the redundancy sinks)<a class="headerlink" href="#4-shared-foundation-the-redundancy-sinks" title="Permanent link">&para;</a></h2>
+<h3 id="41-orthology-ledger-common-format-for-brc-integration">4.1 Orthology ledger — common format for BRC integration<a class="headerlink" href="#41-orthology-ledger-common-format-for-brc-integration" title="Permanent link">&para;</a></h3>
+<p>Both PANTEON (within-species) and ANCOR (cross-species) produce orthogroup assignments. They won't be compared directly — different taxon scopes — but both should emit the <strong>same TSV format</strong> so downstream consumers (CAPHEINE, the BRC site's planned orthogroup-aware view) can ingest either without custom adapters.</p>
+<p><strong>Common emission format (the contract):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>orthogroup_id  label (CORE-1:1 | CORE-VAR | FAMILY)  &lt;per-taxon gene id columns...&gt;
+</code></pre></div>
+<ul>
+<li>PANTEON <code>consensus</code> already emits ~95% of this (within-species, graph-based).</li>
+<li>ANCOR <code>orthofinder-core</code> emits it with one formatting step (cross-species).</li>
+<li>Label rules (presence fraction, copy-number cutoffs, tandem-collapse handling) defined once, versioned — "FAMILY" means the same thing regardless of engine.</li>
+<li>Consumed by: CAFE5 (count matrix), synteny/AGORA (CORE-1:1 filter), CAPHEINE (per-OG sequence extraction), crypto Module 2 (MK ortholog set).</li>
+<li>
+<p>Provenance is tracked by Galaxy workflow invocations — no separate bookkeeping needed.</p>
+</li>
+<li>
+<p>Satisfies crypto protocol §4.3 "Unified Orthology Ledger".</p>
+</li>
+</ul>
+<h3 id="42-shared-infrastructure-cross-cutting-not-suite-specific">4.2 Shared infrastructure (cross-cutting, not suite-specific)<a class="headerlink" href="#42-shared-infrastructure-cross-cutting-not-suite-specific" title="Permanent link">&para;</a></h3>
+<p>These are preparatory and connective components — QC gates, data-format contracts, and coordinate-transfer machinery that enable the suites but aren't themselves the science:</p>
+<ul>
+<li><strong><code>assembly-qc-gate</code></strong> — BUSCO ≥85% + contig N50 check. Intake step 0 for PANTEON and ANCOR. New, small, no existing coverage.</li>
+<li><strong><code>read-qc-decontam</code></strong> — reuse existing IWC read-QC workflows + crypto's competitive-mapping pass 2 as an optional extension.</li>
+<li><strong><code>haploid-read-to-vcf</code></strong> — PLAIG's all-sites haploid variant calling. Justified vs existing IWC workflows (those are variants-only, per-sample, no joint genotyping). Details: <strong><a href="../plaig-design/"><code>plaig-design.md</code></a></strong>.</li>
+<li><strong>Annotation harmonization</strong> — PANTEON's Liftoff/TOGA2/triage layer; ANCOR gains an optional entry point calling it.</li>
+<li><strong>Liftover/chains</strong> — produced once by PANTEON (<code>align_chain_project</code>, <code>vcf_projection</code>), consumed by crypto §4.3.</li>
+</ul>
+<h2 id="5-plaig-new-suite-from-crypto-modules-12">5. PLAIG — new suite from crypto Modules 1–2<a class="headerlink" href="#5-plaig-new-suite-from-crypto-modules-12" title="Permanent link">&para;</a></h2>
+<p>PLAIG generalizes the crypto protocol's read-level popgen (Module 1) and MK divergence (Module 2) into a reusable Galaxy suite for any haploid-dominant eukaryotic pathogen. Four generic subworkflows (read QC, variant calling, population analysis, MK divergence) + a thin organism-specific parent. The population analysis subworkflow bundles structure, diversity, recombination, selection scans, and demography as toggleable steps sharing one VCF input. Largest user base, worst current Galaxy tooling story (pixy, selscan, pyrho, dadi-cli all need wrappers).</p>
+<p><em>Full design (scope, workflow decomposition, config bundle, caller policy, open questions): </em><em><a href="../plaig-design/"><code>plaig-design.md</code></a></em><em>.</em></p>
+<h2 id="6-wrapper-ownership-no-overlap">6. Wrapper ownership — no overlap<a class="headerlink" href="#6-wrapper-ownership-no-overlap" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Owner</th>
+<th>Wrappers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ANCOR</td>
+<td>MCScanX, CAFE5, AGORA, jcvi</td>
+</tr>
+<tr>
+<td>PLAIG</td>
+<td>pixy, selscan, pyrho, MACSE or PRANK, dadi-cli</td>
+</tr>
+<tr>
+<td>Shared</td>
+<td><code>orthofinder-core</code> (design stage; core dependency OrthoFinder is IUC-wrapped), CAPHEINE extensions, <code>assembly-qc-gate</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-generalization-across-organisms">7. Generalization across organisms<a class="headerlink" href="#7-generalization-across-organisms" title="Permanent link">&para;</a></h2>
+<p>Principle: the architecture is organism-agnostic; the real boundaries are <strong>ploidy and reproductive mode, not taxonomy</strong>. Config-level porting covers any haploid-dominant eukaryotic pathogen.</p>
+<h3 id="71-already-general-no-changes-needed">7.1 Already general (no changes needed)<a class="headerlink" href="#71-already-general-no-changes-needed" title="Permanent link">&para;</a></h3>
+<p>CAPHEINE (coding sequences in, selection out), ANCOR (any clade with decent assemblies), the orthology ledger format, <code>assembly-qc-gate</code>, read QC/trimming, and UCSC hubs/chains/PGGB machinery are all organism-neutral by design.</p>
+<h3 id="72-porting-to-a-new-organism-workflow-parameters-not-code-changes">7.2 Porting to a new organism = workflow parameters, not code changes<a class="headerlink" href="#72-porting-to-a-new-organism-workflow-parameters-not-code-changes" title="Permanent link">&para;</a></h3>
+<p>Each new organism should require only workflow parameters (reference assembly, gene-family lists, outgroups, masks, etc.) — no code changes. The principle: <strong>only parameterize what can't be ascertained from the data itself.</strong> Things like ploidy, reference strain, and decontamination panel must be supplied; things like gene counts and assembly stats can be computed. Per-suite parameter details: <strong><a href="../plaig-design/"><code>plaig-design.md</code></a></strong>, <strong><a href="../panteon-reference/"><code>panteon-reference.md</code></a></strong>.</p>
+<h3 id="73-suite-specific-generality-notes">7.3 Suite-specific generality notes<a class="headerlink" href="#73-suite-specific-generality-notes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>PLAIG</strong>: constraint is a <strong>haploid-dominant life stage</strong>. Clean fit: Plasmodium, Toxoplasma, Babesia, Theileria, Trypanosoma, haploid fungi (Cryptococcus, Aspergillus). Edge case: <strong>Leishmania</strong> — haploid calling is standard but aneuploidy is first-class biology; promote the depth/CNV module from provisional to primary there. Diploid/polyploid organisms are out of scope for v1 — see <a href="../plaig-design/"><code>plaig-design.md</code></a> for what a diploid extension would require.</li>
+<li><strong>PANTEON</strong>: class boundary is paralogy-rich/subtelomeric biology, not apicomplexa — T. brucei (VSG), Leishmania (amastins), fungal adhesin families all fit the triage design.</li>
+<li><strong>Out of scope by design</strong>: bacteria (mature separate ecosystem: snippy/roary etc.), diploid pathogens and helminths (need a genuinely different QC/popgen layer), Giardia (ploidy weirdness). <strong>State this scope explicitly in each suite README</strong> — preempts "does this work for Candida?" IWC review questions.</li>
+</ul>
+<h3 id="74-adjacent-efforts-non-competing-credited-borrowing">7.4 Adjacent efforts (non-competing, credited borrowing)<a class="headerlink" href="#74-adjacent-efforts-non-competing-credited-borrowing" title="Permanent link">&para;</a></h3>
+<p>Two nf-core surveillance pipelines tile adjacent space — no functional overlap with this program, and both are Nextflow-only (no Galaxy-side conflict):</p>
+<ul>
+<li><strong><code>nf-core/pathogensurveillance</code></strong> — broad-shallow triage: manifest-driven, kmer species ID → best-reference mapping → SNP phylogeny in context of NCBI-fetched references → poppr-style assignment → HTML report. Answers "what is this sample and where does it sit?" Overlaps only PLAIG's front half (assignment/mapping); none of the inference layer (diversity, LD, sweeps, MK, tiers, mixed infection). Natural flow: pathogensurveillance triage → PLAIG deep inference. <strong>Source of two borrowed patterns</strong> (§7.2): reference usage flags and NCBI-query reference fetching.</li>
+<li><strong><code>PlasmoGenEpi/plasmodiumdrugres</code></strong> (nf-core-bound) — deep-narrow surveillance reporting: PMO/allele-table input → prevalence of known resistance alleles and multilocus haplotypes per user-defined population. Downstream of amplicon calling, locus-targeted. Their "population assignment" = our manifest covariates. Sibling repos of note: <code>recombuddy</code> (simulates P. falciparum polyclonality/relatedness — candidate validation harness for PLAIG's mixed-infection handling) and the <strong>PMO format</strong> (candidate PLAIG export, §5).</li>
+</ul>
+<p>Positioning: pathogensurveillance = broad-shallow identification triage; plasmodiumdrugres = deep-narrow surveillance reporting; this program = deep-broad evolutionary inference on the Galaxy/IWC side. They tile the space.</p>
+<h3 id="75-community-demand-euk-pathogen-priority-for-effort-sequencing">7.5 Community demand (euk-pathogen priority, for effort sequencing)<a class="headerlink" href="#75-community-demand-euk-pathogen-priority-for-effort-sequencing" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>PLAIG</strong> — largest user base: drug-resistance surveillance, transmission/outbreak tracking, vaccine escape (malaria-scale communities); also the worst current Galaxy tooling story (ToolShed gaps, §8).</li>
+<li><strong>CAPHEINE (extended)</strong> — "which genes are under selection" is the universal second question; cheap extension, already branded in IWC.</li>
+<li><strong>PANTEON</strong> — PAV/antigenic-family demand rising; per-species power-user analysis.</li>
+<li><strong>ANCOR</strong> — smallest audience (methods-paper territory); CAFE5 component has broadest standalone demand.</li>
+</ol>
+<h2 id="8-toolshed-audit-summary-2026-07-30">8. ToolShed audit summary (2026-07-30)<a class="headerlink" href="#8-toolshed-audit-summary-2026-07-30" title="Permanent link">&para;</a></h2>
+<p>Available (IUC unless noted): fastp, MultiQC, Kraken2 (+DMs), bwa_mem2, minimap2, samtools/bcftools, GATK4, PLINK (1.9-era), OrthoFinder, IQ-TREE, ASTRAL, <strong>full HyPhy suite</strong> (gard, slac, fel, meme, fubar, busted, absrel, relax, cfel), DIAMOND, BUSCO, CrossMap, mosdepth, quast, sra_tools, seqkit, sourmash; ADMIXTURE (dereeper, vet before use).</p>
+<p>Missing (need wrappers): pixy, selscan, pyrho, LDhat, SweeD/OmegaPlus, dadi-cli, stairwayplot2, MACSE, PRANK, fineSTRUCTURE, MCScanX, SynNet, AGORA, CAFE5, EDirect.</p>
+<p>Best-practice swaps adopted: BWA-MEM → BWA-MEM2; LDhat → pyrho-primary.</p>
+<h2 id="9-documentation-policy-different-tools-for-similar-jobs">9. Documentation policy — "different tools for similar jobs"<a class="headerlink" href="#9-documentation-policy-different-tools-for-similar-jobs" title="Permanent link">&para;</a></h2>
+<p>Rule: where two suites use different tools for a similar job, the choice must be documented and justified in one place (this doc + workflow READMEs), so IWC reviewers see intentionality, not sprawl.</p>
+<p>Current justified divergences:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>PANTEON choice</th>
+<th>ANCOR choice</th>
+<th>Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Orthology</td>
+<td>Graph consensus (PGGB + rbest edges)</td>
+<td>OrthoFinder</td>
+<td>Within-species paralogy resolution vs cross-species orthogrouping; ledger unifies outputs</td>
+</tr>
+<tr>
+<td>Synteny</td>
+<td>chain/liftover projections</td>
+<td>MCScanX/jcvi</td>
+<td>Within-species liftover vs cross-species block detection</td>
+</tr>
+<tr>
+<td>Codon alignment</td>
+<td>(via CAPHEINE)</td>
+<td>(via CAPHEINE)</td>
+<td>single engine</td>
+</tr>
+<tr>
+<td>Selection</td>
+<td>CAPHEINE BUSTED profile</td>
+<td>CAPHEINE full suite</td>
+<td>same workflow, different profiles — the model case</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-open-questions">10. Open questions<a class="headerlink" href="#10-open-questions" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] Umbrella program name (suite brands set: ANCOR, CAPHEINE, PANTEON, PLAIG)</li>
+<li>[ ] CAFE5 ultrametric tree: require user-provided, or add TreePL/r8s dating step? (crypto stance: relative branch lengths unless calibrations defensible)</li>
+<li>[ ] Species tree for ANCOR/CAFE5/AGORA: OrthoFinder STAG tree vs IQ-TREE+ASTRAL (crypto prefers latter, gCF/sCF)</li>
+<li>[ ] fineSTRUCTURE worth wrapping? (painful deps; ADMIXTURE+PCA+LD may suffice)</li>
+<li>[x] ~~Does PANTEON route its existing BUSTED step through CAPHEINE?~~ Resolved §2.1: yes, reroute WF-H after CAPHEINE extension lands.</li>
+<li>[ ] hyphy-cln vs MACSE frameshift/stop retention — decide whether hyphy-cln needs a codon-tolerant mode or whether frameshift OGs bypass it with documented justification</li>
+<li>[ ] UCSC assembly hub output: PANTEON produces hubs (WF-K). Should PLAIG and ANCOR also emit hubs for visualization on the BRC site?</li>
+</ul>
+<h2 id="11-next-steps">11. Next steps<a class="headerlink" href="#11-next-steps" title="Permanent link">&para;</a></h2>
+<ol>
+<li>[ ] Group sign-off on this doc + orthology ledger spec (one page)</li>
+<li>[ ] PLAIG: start <code>haploid-read-to-vcf</code> (all existing tools, highest reuse)</li>
+<li>[ ] CAPHEINE: GARD + eukaryotic-scope PR (itemized in §3)</li>
+<li>[ ] ANCOR: proceed per existing design doc (Option B modular), add <code>assembly-qc-gate</code> + ledger output format</li>
+<li>[ ] PANTEON change list per §2.1 (GARD+SRV in WF-H first; ledger sidecars in WF-E)</li>
+<li>[ ] Wrapper queue per §6 ownership</li>
+</ol>
+<hr />
+<h3 id="appendix-source-documents">Appendix: source documents<a class="headerlink" href="#appendix-source-documents" title="Permanent link">&para;</a></h3>
+<p>Companion reference docs (linked throughout this doc):
+- <a href="../plaig-design/"><code>plaig-design.md</code></a> — PLAIG (crypto Modules 1–2) Galaxy suite design
+- <a href="../ancor-reference/"><code>ancor-reference.md</code></a> — ANCOR consolidated reference
+- <a href="../panteon-reference/"><code>panteon-reference.md</code></a> — PANTEON pangenome reference
+- <a href="../capheine-updates/"><code>capheine-updates.md</code></a> — CAPHEINE required changes</p>
+<p>Primary sources:
+- Crypto protocol: <code>Cryptosporidium_Protocol_v2_1c_Evolutionary_Genetics.docx</code>
+- ANCOR designs: <code>ancor-workflow-designs.md</code>, <code>ANCOR_workflows.md</code>, <code>ANCOR_workflows_detailed.md</code>, <code>ancor-core.ga</code>
+- Pangenome: <code>brc-tools/libs/pangenome-helpers/</code>
+- CAPHEINE: <code>galaxyproject/iwc</code> → <code>workflows/comparative_genomics/hyphy/</code>; Nextflow sibling <code>veg/CAPHEINE</code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
