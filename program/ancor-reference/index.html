@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://nekrut.github.io/brc-tools/program/ancor-reference/">
+        <link rel="canonical" href="https://d-callan.github.io/brc-tools/program/ancor-reference/">
       
       
         <link rel="prev" href="../panteon-reference/">
@@ -194,7 +194,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/d-callan/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -294,7 +294,7 @@
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/d-callan/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -595,6 +595,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Suite architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow diagram
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -753,6 +770,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Suite architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow diagram
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -850,6 +884,72 @@
 <blockquote>
 <p>Specific workflow names and step descriptions are tentative — actual workflow structure may change as planning continues.</p>
 </blockquote>
+<h3 id="workflow-diagram">Workflow diagram<a class="headerlink" href="#workflow-diagram" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    proteomes[/"Proteomes (FASTA)"/]
+    gffs[/"Gene annotations (GFF3)"/]
+    sptree[/"Species tree&lt;br/&gt;(optional)"/]
+    ultratree[/"Ultrametric tree&lt;br/&gt;(for CAFE5)"/]
+
+    subgraph WF1["1 — orthofinder-core (shared subworkflow)"]
+        direction TB
+        validate["Header / filename validation"]
+        seqkit["seqkit stats QC"]
+        orthofinder[OrthoFinder]
+        flatten["Flatten output dir&lt;br/&gt;+ summary stats/plots"]
+        validate --&gt; seqkit --&gt; orthofinder --&gt; flatten
+    end
+
+    subgraph WF2["2 — Synteny Analysis"]
+        direction TB
+        gffread[gffread] --&gt; diamond["DIAMOND all-vs-all"]
+        diamond --&gt; anchor["OG-constrained&lt;br/&gt;anchor filtering + tandem collapse"]
+        anchor --&gt; mcscanx["MCScanX or jcvi"]
+    end
+
+    subgraph WF3["3 — Core Genome Ancestral Reconstruction"]
+        direction TB
+        agora[AGORA]
+        carfilter["CAR filtering&lt;br/&gt;(min 5–10 genes)"]
+        mapcar["Map CARs to&lt;br/&gt;extant chromosomes"]
+        agora --&gt; carfilter --&gt; mapcar
+    end
+
+    subgraph WF4["4 — Gene Family Evolution"]
+        direction TB
+        filter["Filter extreme OGs&lt;br/&gt;(&gt;100 copies)"]
+        cafe5["CAFE5 birth-death model"]
+        enrich["GO / KEGG enrichment"]
+        filter --&gt; cafe5 --&gt; enrich
+    end
+
+    subgraph WF5["5 — ANCOR Suite"]
+        suite["Unified report&lt;br/&gt;(imports 1–4)"]
+    end
+
+    proteomes --&gt; WF1
+    sptree --&gt; WF1
+    WF1 --&gt;|"orthogroups.tsv&lt;br/&gt;+ gene trees + species tree"| WF2
+    gffs --&gt; WF2
+    WF1 --&gt;|"core-OG gene order&lt;br/&gt;+ species tree"| WF3
+    WF1 --&gt;|"orthogroup count matrix"| WF4
+    ultratree --&gt; WF4
+    WF1 --&gt; WF5
+    WF2 --&gt; WF5
+    WF3 --&gt; WF5
+    WF4 --&gt; WF5
+
+    WF1 --&gt; ogout[/"orthogroups.tsv (ledger)&lt;br/&gt;gene trees + species tree&lt;br/&gt;QC report"/]
+    WF2 --&gt; synout[/"collinear blocks&lt;br/&gt;rearrangement counts&lt;br/&gt;dotplots"/]
+    WF3 --&gt; ancout[/"CARs + per-branch&lt;br/&gt;rearrangement events"/]
+    WF4 --&gt; famout[/"expansions / contractions&lt;br/&gt;GO/KEGG enrichment"/]
+    WF5 --&gt; suiteout[/"unified report"/]
+
+    style WF1 fill:none,stroke:#999,stroke-dasharray:5 5
+    style WF2 fill:none,stroke:#999,stroke-dasharray:5 5
+    style WF3 fill:none,stroke:#999,stroke-dasharray:5 5
+    style WF4 fill:none,stroke:#999,stroke-dasharray:5 5
+    style WF5 fill:none,stroke:#999,stroke-dasharray:5 5</code></pre>
 <h2 id="tools-and-availability">Tools and availability<a class="headerlink" href="#tools-and-availability" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1043,6 +1143,8 @@
     
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mermaid.js"></script>
       
     
   </body>

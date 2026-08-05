@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://nekrut.github.io/brc-tools/program/panteon-reference/">
+        <link rel="canonical" href="https://d-callan.github.io/brc-tools/program/panteon-reference/">
       
       
         <link rel="prev" href="../plaig-design/">
@@ -194,7 +194,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/d-callan/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -294,7 +294,7 @@
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/nekrut/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/d-callan/brc-tools" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -556,6 +556,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Workflow inventory (phases A–K)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow diagram
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -752,6 +769,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Workflow inventory (phases A–K)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow diagram
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -950,6 +984,99 @@
 </tr>
 </tbody>
 </table>
+<h3 id="workflow-diagram">Workflow diagram<a class="headerlink" href="#workflow-diagram" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    assemblies[/"Strain panel&lt;br/&gt;assemblies + annotations"/]
+    cohortvcf[/"Cohort VCF&lt;br/&gt;(reference coords)"/]
+
+    subgraph WFA["A — inventory"]
+        direction TB
+        sourmash[sourmash] --&gt; busco[BUSCO]
+    end
+
+    subgraph WFB["B — softmask"]
+        direction TB
+        longdust[longdust] --&gt; sdust[sdust]
+    end
+
+    subgraph WFC["C — align_chain"]
+        direction TB
+        minimap2[minimap2] --&gt; paftools["paftools&lt;br/&gt;→ cleaned rb chains"]
+    end
+
+    subgraph WFC2["C2 — project_annotations"]
+        direction TB
+        liftoff[Liftoff] --&gt; triage["triage rule engine&lt;br/&gt;(R1–R8)"]
+        triage --&gt; toga2[TOGA2]
+        toga2 --&gt; merge["merge → merged GFF&lt;br/&gt;+ classification TSV"]
+    end
+
+    subgraph WFD["D — pggb-pangenome-build"]
+        direction TB
+        pansn["PanSN rename"] --&gt; pggb["PGGB&lt;br/&gt;wfmash→seqwish→smoothxg→gfaffix→odgi"]
+        pggb --&gt; odgi["odgi stats / layout / viz&lt;br/&gt;+ vg deconstruct VCF"]
+    end
+
+    subgraph WFE["E — consensus_orthology"]
+        direction TB
+        consensus["UnionFind consensus&lt;br/&gt;(chains + graph edges + annotations)"]
+        consensus --&gt; ogtbl["orthogroups.tsv&lt;br/&gt;(ledger format)"]
+    end
+
+    subgraph WFCAP["F/G/H → CAPHEINE"]
+        direction TB
+        msa["MAFFT → pal2nal → trimAL&lt;br/&gt;(to be replaced by CAPHEINE)"]
+        tree["IQ-TREE&lt;br/&gt;(to be replaced by CAPHEINE)"]
+        busted["BUSTED&lt;br/&gt;(to be replaced by CAPHEINE)"]
+        msa --&gt; tree --&gt; busted
+    end
+
+    subgraph WFI["I — multiz"]
+        multiz["Progressive multiz&lt;br/&gt;→ multi-way MAF"]
+    end
+
+    subgraph WFJ["J — vcf_projection"]
+        crossmap["CrossMap&lt;br/&gt;→ projected VCFs"]
+    end
+
+    subgraph WFK["K — ucsc_hub"]
+        hub["UCSC assembly hub&lt;br/&gt;bigMaf + bigChain + selection tracks&lt;br/&gt;+ orthogroup tracks"]
+    end
+
+    assemblies --&gt; WFA
+    WFA --&gt; WFB
+    WFB --&gt; WFC
+    WFB --&gt; WFD
+    WFC --&gt; WFC2
+    WFC --&gt; WFE
+    WFD --&gt; WFE
+    WFC2 --&gt; WFE
+    WFE --&gt;|"per-OG sequences"| WFCAP
+    WFC --&gt; WFI
+    WFC --&gt; WFJ
+    cohortvcf --&gt; WFJ
+    WFCAP --&gt; WFK
+    WFI --&gt; WFK
+    WFJ --&gt; WFK
+    WFC2 --&gt; WFK
+    WFD --&gt; WFK
+
+    WFE --&gt; ogout[/"orthogroups.tsv&lt;br/&gt;(ledger)"/]
+    WFCAP --&gt; capout[/"per-OG alignments&lt;br/&gt;trees + selection"/]
+    WFI --&gt; mafout[/"multi-way MAF"/]
+    WFJ --&gt; vcfout[/"projected VCFs"/]
+    WFK --&gt; hubout[/"UCSC assembly hub"/]
+
+    style WFA fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFB fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFC fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFC2 fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFD fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFE fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFCAP fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFI fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFJ fill:none,stroke:#999,stroke-dasharray:5 5
+    style WFK fill:none,stroke:#999,stroke-dasharray:5 5</code></pre>
 <p><strong>WF-F, G, H will be replaced by CAPHEINE</strong> before IWC submission. CAPHEINE's pluggable preprocessing (MAFFT/MACSE/PRANK path) + tree building + full HyPhy suite subsumes all three. PANTEON will invoke CAPHEINE with per-OG inputs from WF-E instead of running its own alignment/tree/selection steps.</p>
 <p><strong>Custom wrapper triage</strong>: several tools have custom wrappers in <code>brc-tools/tools/</code> that are already ported to IUC and will be used from there instead. The remaining custom wrappers (those with custom Python logic in <code>pangenome-helpers</code>) are in triage to decide whether they can be replaced with existing Galaxy tools or need to be wrapped fresh through the planned <code>pangenome-helpers</code> Bioconda package.</p>
 <h2 id="validation-status">Validation status<a class="headerlink" href="#validation-status" title="Permanent link">&para;</a></h2>
@@ -1107,6 +1234,8 @@
     
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mermaid.js"></script>
       
     
   </body>
