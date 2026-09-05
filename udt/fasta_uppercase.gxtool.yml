@@ -2,9 +2,9 @@
 # Edit the wrapper under tools/ (the awk/Python helpers are read from there) and regenerate.
 class: GalaxyUserTool
 id: brc-fasta-uppercase
-version: "0.1.0"
+version: "0.2.0"
 name: Uppercase a FASTA (BRC UDT)
-description: Strip any existing soft-mask so the workflow's output is its OWN mask and nothing else
+description: Optionally strip an existing soft-mask so the workflow's output is its OWN mask
 container: quay.io/biocontainers/python:3.12
 shell_command: |
   set -o pipefail
@@ -21,6 +21,20 @@ shell_command: |
   op = (lambda p: gzip.open(p, 'rt', encoding='utf-8', errors='replace')) if gzipped \
       else (lambda p: open(p, 'rt', encoding='utf-8', errors='replace'))
 
+  # ⛔ WHETHER TO STRIP IS A PARAMETER, AND THE REASON IS MEASURED. Discarding the mask an
+  # assembly arrived with is NOT free downstream: on Salk_SRIb chr7 x Salk_HAWb chr7, a 1.06%
+  # difference in masked bases produced 8.85% more aligned bases from LASTZ and 9.17% more
+  # chained bases from axtChain -- and the effect was LARGEST in long chains, 14.6% more at
+  # >= 10 kb, which is what the projection workflows actually consume. The extra alignment
+  # SURVIVES chaining, so it is not repeat noise that filters itself out.
+  #
+  # ⚠ SO THIS IS A CHOICE BETWEEN TWO DEFENSIBLE THINGS, not a bug fix. `true` gives a
+  # published FASTA whose every lower-case base is this pipeline's own, which is what makes
+  # the BED tracks and the FASTA agree. `false` keeps whatever the submitter shipped, which
+  # is the historical behaviour and the more conservative alignment. A workflow that picks
+  # one SILENTLY is the thing worth avoiding.
+  strip = $(inputs.strip_existing_mask)
+
   lower = total = seqs = 0
   with op(src) as fin, open('uppercased.fasta', 'w', encoding='utf-8') as out:
       for line in fin:
@@ -31,7 +45,7 @@ shell_command: |
           s = line.rstrip('\n')
           total += len(s)
           lower += sum(1 for c in s if 'a' <= c <= 'z')
-          out.write(s.upper())
+          out.write(s.upper() if strip else s)
           out.write('\n')
 
   if seqs == 0:
@@ -42,12 +56,23 @@ shell_command: |
   frac = lower / total
   print(f'sequences: {seqs:,}')
   print(f'residues:  {total:,}')
-  print(f'soft-masked residues removed: {lower:,} ({frac:.1%})')
-  if lower == 0:
-      print('NOTE: input carried no soft-masking; this was a no-op')
-  elif frac > 0.10:
-      print(f'NOTE: a substantial existing mask ({frac:.1%}) was discarded. That is intended here '
-            f'-- the workflow re-masks from scratch -- and is data loss anywhere else.')
+  # ⛔ THE LOG MUST SAY WHICH MODE RAN. A tool that reports "removed 462,181,305" whether or not
+  # it removed anything makes the one number a reader checks meaningless, and this tool's
+  # whole purpose is that the two modes produce measurably different downstream results.
+  if strip:
+      print(f'soft-masked residues removed: {lower:,} ({frac:.1%})')
+      if lower == 0:
+          print('NOTE: input carried no soft-masking; this was a no-op')
+      elif frac > 0.10:
+          print(f'NOTE: a substantial existing mask ({frac:.1%}) was discarded. That is '
+                f'intended when strip_existing_mask is true -- the workflow re-masks from '
+                f'scratch -- and is data loss anywhere else.')
+  else:
+      print(f'soft-masked residues KEPT: {lower:,} ({frac:.1%}) -- strip_existing_mask is '
+            f'false, so the sequence passed through unchanged.')
+      if lower:
+          print('NOTE: the published FASTA will carry this mask AND this workflow\'s own, '
+                'indistinguishably. The BED tracks report only the latter.')
   BRC_PY
 inputs:
   - name: input
@@ -55,6 +80,21 @@ inputs:
     format: fasta,fasta.gz
     label: Assembly FASTA
     help: plain or gzipped; soft-masked or not
+  - name: strip_existing_mask
+    type: boolean
+    # ⛔ DEFAULT false: THE CLASSIC WORKFLOW'S BEHAVIOUR IS THE DEFAULT. softmask.gxwf.yml masks the
+    # assembly AS IT ARRIVED, so a submitter's mask survives and this pipeline's mask layers on top
+    # of it. Defaulting true would have made the UDT edition quietly diverge from the classic on
+    # every panel that ships soft-masked -- which is most of them, and the cannabis panel's own cs10
+    # element is literally named `cs10_NCBI_RefSeq_softmasked`. Discarding the arriving mask is a
+    # deliberate act with measured downstream cost (see below); it is opt-IN.
+    value: false
+    label: Discard the soft-mask the assembly arrived with
+    help: >-
+      true makes every lower-case base in the published FASTA this workflow's own, so the
+      BED tracks and the FASTA agree. false keeps the submitter's mask as well. NOT a
+      cosmetic choice - measured on one cannabis chromosome pair, discarding gave 8.85%
+      more aligned bases and 14.6% more chains at 10 kb or longer.
 outputs:
   - name: output
     type: data
