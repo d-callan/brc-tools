@@ -17,15 +17,22 @@ doc: >-
   sketches and compares in ONE job -- which is what lets the identifier pairing sit inside a single
   assertion -- so the signatures were work-dir files no dataset pointed at. They come back as a
   DISCOVERED collection from that UDT, keyed by strain: nothing in this file could have fixed it.
-  ⚠ AND THEIR ELEMENT ORDER IS ALPHABETICAL, NOT PANEL ORDER. A map-over collection keeps the input
-  order; a discovered one is sorted by `sort_key`, whose every choice is the strain name. Same
-  elements, same identifiers, different sequence -- and nothing consumes them positionally.
-  ⚠ BOTH OF THOSE ARE MEASURED, NOT REASONED FROM THE SCHEMA: usegalaxy.org 26.1 on 2026-09-08,
-  history bbd44e69cb8906b54a726562e523b991. A panel handed over as `cs10, PvP01, strain.2` -- an
-  order chosen so that panel order and alphabetical order DIFFER, or the run could not have
-  contradicted the sentence above -- published a 3-element list keyed `PvP01, cs10, strain.2`, each
-  element `json`, each hidden while the collection is visible, and three distinct file sizes rather
-  than one file found three times.
+  ⚠ AND IT COMES BACK IN PANEL ORDER, WHICH TOOK AN INDEX PREFIX RATHER THAN A SETTING. Discovery
+  sorts on the whole filename but names each element from the pattern's `designation` group, so the
+  UDT copies its signatures out as `{index}_{strain}.sig`: the index orders the collection, the
+  group keys it. That matters because EVERY other output here is in panel order -- `sizes`,
+  `busco_summaries` and `fasta_index` are map-over collections, `self_pairs` and `relabel_map` are
+  built line-per-strain off the identifier list -- and one workflow publishing two orders is the
+  shape of the WF-C2 mis-pairing this project has already paid for.
+  ⚠ MEASURED, NOT REASONED FROM THE SCHEMA: usegalaxy.org 26.1 on 2026-09-08, history
+  bbd44e69cb8906b51601636ef7c09ef9. A panel handed over as `cs10, PvP01, strain.2` -- an order
+  chosen so panel order and alphabetical order DIFFER, or the run could not have told them apart --
+  published a 3-element list keyed `cs10, PvP01, strain.2` at indices 0,1,2, each element `json`,
+  each hidden while the collection is visible, three distinct file sizes rather than one file found
+  three times, and no `0000_` anywhere in the identifiers.
+  ⚠ AN EARLIER REVISION OF THIS DOC SAID PANEL ORDER WAS UNREACHABLE. It was reachable; the claim
+  was true only of the `sort_key` field, and it reached two merged PRs before the alternative was
+  tested. An impossibility claim needs a measurement as much as a number does.
 
   So the output sets now differ in two places, both ADDITIONS:
   `panel_identifiers` (the list three steps are keyed on, published so a reader can see it) and
@@ -105,9 +112,9 @@ outputs:
     outputSource: sourmash_panel/signatures
     doc: >-
       Per-strain sourmash signatures (.sig), BRC-reusable -- the classic's `signatures`, discovered
-      out of the one sketch+compare job rather than mapped over the panel. Keyed by strain;
-      alphabetical rather than in panel order, for the reason given in the workflow doc, and both
-      confirmed by a run on usegalaxy.org 26.1 (2026-09-08) rather than taken from the schema.
+      out of the one sketch+compare job rather than mapped over the panel. Keyed by strain and in
+      PANEL order, like every other output here; see the workflow doc for the index-prefix trick
+      that arranges it, and for the run on usegalaxy.org 26.1 (2026-09-08) that measured it.
   busco_summaries:
     outputSource: busco/busco_sum
     doc: Per-strain BUSCO short summaries.
