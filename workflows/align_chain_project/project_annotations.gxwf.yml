@@ -265,7 +265,19 @@ steps:
       # new identifier. Matches WF-C's relabel_cleaned / relabel_rbest steps.
       how:
         how_select: tabular
-        strict: false
+        # ⛔ STRICT, AND THE COUNTS WERE MEASURED BEFORE SETTING IT. Galaxy takes
+        # `default = None if strict else element_identifier`, so with strict off an
+        # element the map does not cover keeps its `A.B` name and the step still
+        # succeeds -- and TOGA2 downstream is keyed on the `A_B` form. Strict also
+        # compares row count against element count, which is why this needed
+        # checking rather than copying from WF-C: `gen_chain_grid` writes `keep`
+        # and `relabel` from ONE pairs list and `p_chain_keep` filters with
+        # `remove_if_absent` against that same `keep`, so the survivors equal the
+        # rows -- 21 and 21 for the documented 3-anchor, 8-strain panel.
+        # ⚠ IT REFUSES WHEN WF-C LEFT A GRID CELL UNPRODUCED (20 against 21), and
+        # that is the point: without strict the projection runs on an incomplete
+        # grid and reports success. scripts/check_relabel_strict.py checks both.
+        strict: true
     out:
       output: {}
     position: {top: 230, left: 230}

@@ -57,18 +57,31 @@ WF_DIR = ROOT / "workflows"
 #: DISTINCT pair -- n**2-n -- because strict mode compares that count against the collection.
 PRODUCERS = ("collection_relabel_map", "gen_wfc_config")
 
-#: The workflows whose relabel steps this script can VERIFY, because their map comes from a
-#: producer above. Any other relabel step in the repo is reported as unverified rather than passed
-#: or failed: `project_annotations.gxwf.yml`'s `p_chain` is fed by `collection_anchor_grid`, whose
-#: row count tracks a filtered grid rather than a cross product, and whether strict is safe there
-#: is a separate question that needs its own measurement -- exactly the reasoning that was skipped
-#: when strict was first recommended for WF-C.
-VERIFIED_WORKFLOWS = ("align_chain.gxwf.yml", "align_chain_udt.gxwf.yml")
-#: Relabel steps expected in each verified workflow. Asserted, because a guard that finds NOTHING
-#: must not pass: stubbing the scan to return [] once printed "0 relabel step(s) ... 0 problems"
-#: and exited 0, which is what a renamed workflow, a `steps:` list instead of a mapping, or a
-#: deleted step would have produced.
-EXPECTED_STEPS_PER_WORKFLOW = 2
+#: WF-C2's producer, checked on a DIFFERENT invariant. `collection_anchor_grid` does not emit a
+#: cross product, so "n**2-n rows" says nothing about it. What strict mode needs there is that the
+#: `keep` list it writes and the `relabel` map it writes describe the same cells in the same order,
+#: because `keep` is what selects the elements the map is then applied to.
+GRID_PRODUCER = "collection_anchor_grid"
+
+#: The workflows whose relabel steps this script verifies, and how many each must have. Asserted,
+#: because a guard that finds NOTHING must not pass: stubbing the scan to return [] once printed
+#: "0 relabel step(s) ... 0 problems" and exited 0, which is what a renamed workflow, a `steps:`
+#: list instead of a mapping, or a deleted step would have produced.
+#:
+#: ⚠ WF-C2 IS HERE ON A MEASUREMENT, NOT BY ANALOGY. `project_annotations.gxwf.yml`'s `p_chain` is
+#: fed by `collection_anchor_grid` rather than by a cross product, so it was reported as unverified
+#: until the count was actually checked: the tool writes `keep` and `relabel` from ONE pairs list,
+#: `p_chain_keep` filters with `remove_if_absent` against that same `keep`, and the survivors
+#: therefore equal the rows -- 21 and 21 for the documented 3-anchor, 8-strain panel. Strict
+#: refuses only when WF-C left a grid cell unproduced (20 against 21), which is the loud failure
+#: one wants: without it the projection silently runs on an incomplete grid. `project_annotations_
+#: udt.gxwf.yml` is absent from this list because it has no relabel step at all -- a WF-C2 parity
+#: question, not a strict-mode one.
+VERIFIED_WORKFLOWS = {
+    "align_chain.gxwf.yml": 2,
+    "align_chain_udt.gxwf.yml": 2,
+    "project_annotations.gxwf.yml": 1,
+}
 #: The only mode the replay below describes. `txt` relabels BY LINE ORDER with no key lookup
 #: (__init__.py:5019-5026), which would be catastrophic against a map keyed on `A_B`, and
 #: `tabular_extended` honours `from`/`to` columns this hardcodes to 1 and 2. `strict` would still
@@ -146,6 +159,53 @@ def emitted_map(producer: str, ids: list[str]) -> list[str]:
     return text.splitlines()
 
 
+def check_grid_producer() -> list[str]:
+    """Run collection_anchor_grid and hold its two outputs to what strict mode needs of them.
+
+    ⚠ THE INVARIANT IS NOT A ROW COUNT AGAINST n**2-n. It is that `keep` and `relabel` agree: the
+    filter selects on `keep`, the map is applied to whatever survived, and Galaxy compares those
+    two counts. Checking a cross-product formula here would have been a check of the wrong thing
+    that happened to pass.
+    """
+    bad = []
+    anchors = ["PvW1", "PAM", "PvSY56"]
+    strains = ["PvP01", "PvW1", "PAM", "PvSY56", "Sal-I", "PvT01", "PvC01", "MHC087"]
+    with tempfile.TemporaryDirectory() as td:
+        wd = pathlib.Path(td)
+        subprocess.run([sys.executable, str(ROOT / "tools/collection_anchor_grid/anchor_grid.py"),
+                        "--anchors", " ".join(anchors), "--strains", " ".join(strains),
+                        "--keep", str(wd / "keep.txt"), "--relabel", str(wd / "relabel.tsv"),
+                        "--order", str(wd / "order.txt")], check=True, capture_output=True)
+        keep = (wd / "keep.txt").read_text().splitlines()
+        rows = (wd / "relabel.tsv").read_text().splitlines()
+    want = len(anchors) * (len(strains) - 1)
+    print(f"  {GRID_PRODUCER:24} {len(rows):>4} rows against {len(keep)} kept cells "
+          f"(|anchors| x (n-1) = {want})")
+    if len(rows) != len(keep):
+        bad.append(f"{GRID_PRODUCER} writes {len(rows)} relabel rows for {len(keep)} kept cells. "
+                   f"`remove_if_absent` selects on `keep`, so strict mode compares those two and "
+                   f"refuses the step.")
+    if len(keep) != want:
+        bad.append(f"{GRID_PRODUCER} kept {len(keep)} cells, expected {want} -- the grid is "
+                   f"|anchors| x (n-1) once the anchor self-cells are dropped.")
+    first_col = [r.split("\t")[0] for r in rows]
+    if first_col != keep:
+        bad.append(f"{GRID_PRODUCER}'s relabel keys do not match its `keep` list. Every kept "
+                   f"element must have a row, or strict mode fails the lookup: "
+                   f"{sorted(set(keep) ^ set(first_col))[:3]}")
+    # And the replay must accept the real pair, and refuse an incomplete upstream.
+    got = galaxy_relabel(keep, rows, strict=True)
+    if not isinstance(got, list) or len(got) != len(keep):
+        bad.append(f"{GRID_PRODUCER}: strict mode would refuse its own complete output: {got}")
+    short = galaxy_relabel(keep[:-1], rows, strict=True)
+    if not isinstance(short, str):
+        bad.append(f"{GRID_PRODUCER}: strict mode accepted a map with one element MISSING "
+                   f"upstream, which is the incomplete grid it exists to refuse.")
+    print(f"  {'pass' if not bad else '⛔ FAIL'}  {GRID_PRODUCER}: complete grid accepted "
+          f"({len(keep)} cells), a missing upstream chain refused")
+    return bad
+
+
 def relabel_steps() -> list[tuple[str, str, dict]]:
     """(workflow file name, step name, the step's `how` state) for EVERY relabel step in the repo.
 
@@ -189,15 +249,18 @@ def check() -> list[str]:
         bad.append(f"the producers disagree on the map's content: {list(maps)}. They feed the same "
                    f"workflow input, so a run's behaviour would depend on which one made the file.")
 
+    bad += check_grid_producer()
+
     steps = relabel_steps()
     verified = [s for s in steps if s[0] in VERIFIED_WORKFLOWS]
     other = [s for s in steps if s[0] not in VERIFIED_WORKFLOWS]
-    want = len(VERIFIED_WORKFLOWS) * EXPECTED_STEPS_PER_WORKFLOW
     print(f"  relabel steps: {len(verified)} in the verified workflow(s), {len(other)} elsewhere")
-    if len(verified) != want:
-        bad.append(f"found {len(verified)} relabel step(s) in {list(VERIFIED_WORKFLOWS)}, expected "
-                   f"{want}. Finding none is not a pass -- a renamed workflow or a deleted step "
-                   f"would leave this guard green while the property it checks is gone.")
+    for wf, want in VERIFIED_WORKFLOWS.items():
+        got = sum(1 for w, _, _ in verified if w == wf)
+        if got != want:
+            bad.append(f"found {got} relabel step(s) in {wf}, expected {want}. Finding none is "
+                       f"not a pass -- a renamed workflow or a deleted step would leave this "
+                       f"guard green while the property it checks is gone.")
     for wf, step, how in verified:
         if how.get("strict") is not True:
             bad.append(f"{wf}: step `{step}` has strict={how.get('strict', '(unset)')!r}. With "
