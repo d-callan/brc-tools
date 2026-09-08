@@ -31,6 +31,13 @@ import urllib.request
 #: silently short is far worse than one that was never built.
 PROTEOMES = pathlib.Path(os.environ.get("WFA_PROTEOMES", "proteomes")).expanduser()
 
+#: ⚠ EXERCISED END TO END ON 2026-09-08, which is what this script was held back for. It staged
+#: the six on usegalaxy.org (history bbd44e69cb8906b5527ce2de06686d41: 4 assemblies copied from the
+#: raw panel, JL_Father and JL_Mother fetched from NCBI server-side, 6 proteomes and 2 anchors
+#: uploaded, 14 datasets and 3 collections, all ok). WF-A UDT then ran to completion against that
+#: input set on vgp -- invocation 5d295f4593883e8d, 19/19 jobs ok, all 13 outputs, with cs10's
+#: anchor_bed12s at exactly the 40,185 rows udt/anchor_prep.gxtool.yml records.
+#:
 #: Where the resulting collection ids are written, for the workflow driver to read.
 OUT_DIR = pathlib.Path(os.environ.get("WFA_OUT_DIR", ".")).expanduser()
 RAW_HDCA = "cab4808ec6fe5c51"          # the staged 19-genome raw panel
@@ -64,7 +71,18 @@ ANCHORS = {"cs10_NCBI_RefSeq_softmasked": "cs10", "ASM2916894v1": "ASM2916894v1"
 
 
 def creds() -> tuple[str, str]:
-    """Server chosen by $WFA_SERVER: "" for usegalaxy.org, "_3" for laila.
+    """Server chosen by $WFA_SERVER: "" for usegalaxy.org, "_2" for vgp, "_3" for laila.
+
+    ⚠ `_2` (vgp.usegalaxy.org) IS THE ONE TO REACH FOR ON A BIG PANEL. It has more resources
+    dedicated to it than main, and it could not run user-defined tools at all until
+    galaxyproject/usegalaxy-playbook#472 (deployed 2026-09-08) fixed two things: the app config
+    lacked `enable_beta_tool_formats`, and its TPV had no destination accepting
+    `tool_type_user_defined`, so an already-registered UDT was accepted at submit and then errored
+    with exit_code None.
+
+    ⚠ AND vgp SHARES MAIN'S DATABASE AND OBJECT STORE, so staging twice is waste: a history staged
+    here against usegalaxy.org -- datasets and collections both -- is visible and usable from vgp by
+    the same ids. Measured 2026-09-08.
 
     ⚠ ONE SCRIPT, TWO SERVERS, because the two staging runs must produce the SAME inputs. Forking it
     per server is how the collections quietly drift apart and a difference in the RESULT gets
