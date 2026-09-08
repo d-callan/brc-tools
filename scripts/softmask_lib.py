@@ -29,6 +29,12 @@ from bioblend.galaxy import GalaxyInstance
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 UDT_DIR = ROOT / "udt"
+
+# ⚠ scripts/ IS NOT A PACKAGE and these modules are run by path, so the sibling import resolves
+# only once its directory is on sys.path -- `python3 scripts/x.py` puts it there, `python3 -m` and
+# a symlinked entry point do not. Same insert, same reason, as check_workflow_ports.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from check_udt_definitions import pep440_ok      # noqa: E402, I001 -- must follow the path insert
 WORKFLOW = ROOT / "workflows/softmask/softmask_udt.gxwf.yml"
 
 #: The UDTs the softmask workflow needs, in dependency order.
@@ -69,6 +75,15 @@ def connect() -> GalaxyInstance:
 def register_one(gi: GalaxyInstance, name: str) -> tuple[str, str, str]:
     """Create ONE UDT from udt/<name>.gxtool.yml, returning (tool_id, version, uuid)."""
     doc = yaml.safe_load((UDT_DIR / f"{name}.gxtool.yml").read_text(encoding="utf-8"))
+    # ⛔ REFUSE A NON-PEP-440 VERSION HERE RATHER THAN LET THE SERVER DO IT. The create comes back
+    # `400 Tool failed lint checks: ToolVersionPEP404`, which names a linter and not the field, and
+    # arrives after the run has already set up a history. Worse, this helper registers a LIST of
+    # tools: one bad version fails the batch partway, leaving the earlier tools registered and the
+    # workflow un-runnable. Say which file and which value, before anything is created.
+    if not pep440_ok(str(doc.get("version", ""))):
+        sys.exit(f"{name}.gxtool.yml: version {doc.get('version')!r} is not PEP 440, and "
+                 f"/api/unprivileged_tools refuses it (400 ToolVersionPEP404). Use a release "
+                 f"(`0.2.0`), a dev release (`0.1.0.dev1`) or a local version (`0.1.0+probe1`).")
     created = gi.make_post_request(f"{gi.url}/unprivileged_tools",
                                    payload={"representation": doc}, params={"key": gi.key})
     return doc["id"], str(doc["version"]), created["uuid"]
