@@ -275,8 +275,26 @@ def main() -> int:
         label, sep, value = spec.partition("=")
         if not sep:
             sys.exit(f"--param {spec!r}: expected label=value")
-        inputs[label] = value
-        print(f"  param {label} = {value!r}")
+        # ⛔ TYPE THE VALUE HERE, WHERE IT IS KNOWN, RATHER THAN BETTING ON COERCION. argparse
+        # hands back a string, and this used to send `"false"` for a workflow `type: boolean`
+        # input. Whether Galaxy turns that back into False depends on which parameter path handles
+        # it, and the failure mode if it does not is SILENT: the invocation succeeds and runs the
+        # other branch. For WF-B that branch is not cosmetic -- `strip_arrived_mask` true vs false
+        # moved chained bases about 9% on a measured chromosome pair -- so the run would look fine
+        # and mean something else.
+        # ⚠ I HAVE NOT MEASURED WHICH WAY GALAXY COERCES IT, and that is the point: a client that
+        # sends the right type does not need to know. `true`/`false` (any case) become booleans, a
+        # bare integer becomes an int, everything else stays a string; the printed line shows the
+        # TYPED value, so the log says what was actually asked for. There is deliberately no way to
+        # pass the literal string "true" -- no workflow input here wants one.
+        if value.lower() in ("true", "false"):
+            typed = value.lower() == "true"
+        elif value.lstrip("-").isdigit():
+            typed = int(value)
+        else:
+            typed = value
+        inputs[label] = typed
+        print(f"  param {label} = {typed!r}")
     for spec in args.upload:
         label, _, path = spec.partition("=")
         up = gi.tools.upload_file(path, history["id"])
