@@ -140,8 +140,10 @@ another and TOGA2 will project transcripts it cannot map back to any gene, and d
 
 ### step:panel_relabel_map
 
-Writes a two-column table mapping `A_B` to `A.B` for every ordered pair, 64 rows for 8
-strains:
+Writes a two-column table mapping `A_B` to `A.B` for every ordered pair of DISTINCT
+identifiers -- 56 rows for 8 strains, not 64. The `A_A` diagonal is omitted because WF-C
+filters those cells out before relabelling, which makes the row count equal the element
+count and is what lets that step run in strict mode:
 
     PvW1_PvP01<TAB>PvW1.PvP01
     PvW1_PAM<TAB>PvW1.PAM

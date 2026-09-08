@@ -41,14 +41,18 @@ chainPreNet → chainNet → netChainSubset → chainStitchId = **20 directed cl
 chains** (both directions come straight from the cross product). The
 reciprocal-best branch (swap → sort → chainNet with swapped sizes → subset →
 stitch → swap → sort) yields the rbest chains. `relabel_from_file` rewrites both
-to `A.B`.
+to `A.B`, in **strict** mode: an element the map does not cover fails the step
+rather than keeping its `A_B` name, which is the only way a map built from the
+wrong collection can be caught. That requires `relabel_map` to have exactly one
+row per element, so it omits the `A_A` diagonal the self-pair filter removes —
+20 rows here, not 25.
 
 | Input | Type | Source |
 |---|---|---|
 | `masked_fastas` | list | WF-B softmasked FASTAs (id=strain) |
 | `sizes` | list | WF-A `.sizes` (id=strain) |
 | `self_pairs` | txt | strain self-pair ids `X_X` to exclude (WF-A) |
-| `relabel_map` | tabular | `A_B<TAB>A.B` id map for Phase E (WF-A) |
+| `relabel_map` | tabular | `A_B<TAB>A.B` id map for Phase E, no diagonal (WF-A) |
 
 **Outputs:** `cleaned_chains` (20, id `A.B`), `rbest_chains` (id `A.B`),
 `pairwise_axt`.

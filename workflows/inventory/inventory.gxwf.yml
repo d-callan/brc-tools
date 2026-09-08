@@ -78,7 +78,7 @@ outputs:
     doc: One X_X per strain (WF-C alignment-grid diagonal to exclude).
   relabel_map:
     outputSource: panel_relabel_map/output
-    doc: A_B<TAB>A.B for every ordered pair (Phase E ids; WF-C relabel).
+    doc: A_B<TAB>A.B per distinct ordered pair (Phase E ids; WF-C relabel).
   anchor_bed12s:
     outputSource: anchor_prep/bed12
     doc: >-
