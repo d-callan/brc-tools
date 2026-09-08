@@ -43,6 +43,14 @@ outputs:
   fasta_index:
     outputSource: faidx/output
     doc: Per-strain .fai indexes for the soft-masked FASTAs.
+  uppercased_fasta_index:
+    outputSource: faidx_ref/output
+    doc: >-
+      .fai for `uppercased_fasta`. Computed already -- `faidx_ref` exists to give `sort_bed` its
+      genome file -- and previously discarded, which the port checker flagged as a step output
+      nothing consumes. ⚠ UNLIKE WF-A's `fasta_index`, THESE BYTE OFFSETS ARE USABLE: uppercase
+      emits plain FASTA and brc-samtools-faidx only decompresses a gzipped input, so the indexed
+      bytes are the published bytes.
   sizes:
     outputSource: faidx/sizes
     doc: >-
