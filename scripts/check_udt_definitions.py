@@ -46,6 +46,55 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+
+# ---------------------------------------------------------------- the version, as PEP 440 ------
+#: PEP 440's own public-version grammar -- the `VERSION_PATTERN` from the specification, which is
+#: what `packaging.version.Version` compiles. Kept here as the FALLBACK, because this script's
+#: promise is that it runs with nothing but PyYAML: `packaging` is present in the planemo venv and
+#: in the system interpreter but NOT in the bioblend venv these deploy scripts actually run under
+#: (measured 2026-09-08), so a `packaging`-only implementation would silently not run where it
+#: matters most.
+_PEP440_RE = re.compile(r"""
+    ^\s*v?
+    (?:(?:[0-9]+)!)?                                        # epoch
+    [0-9]+(?:\.[0-9]+)*                                     # release
+    (?:[-_\.]?(?:alpha|a|beta|b|preview|pre|c|rc)[-_\.]?[0-9]*)?     # pre-release
+    (?:(?:-[0-9]+)|(?:[-_\.]?(?:post|rev|r)[-_\.]?[0-9]*))?          # post-release
+    (?:[-_\.]?dev[-_\.]?[0-9]*)?                            # dev release
+    (?:\+[a-z0-9]+(?:[-_\.][a-z0-9]+)*)?                    # local version
+    \s*$
+""", re.VERBOSE | re.IGNORECASE)
+
+try:
+    from packaging.version import InvalidVersion as _InvalidVersion
+    from packaging.version import Version as _Version
+    _PEP440_AUTHORITY = "(checked with `packaging`, the same library Galaxy uses.)"
+except ModuleNotFoundError:                                 # pragma: no cover -- env-dependent
+    _Version = None
+    _PEP440_AUTHORITY = ("(checked against PEP 440's own regex; `packaging` -- what Galaxy uses -- "
+                         "is not installed here, so an exotic edge case could differ.)")
+
+
+def pep440_ok(version: str) -> bool:
+    """Would Galaxy's `ToolVersionPEP404` linter accept this version string?
+
+    ⛔ A UDT REGISTRATION IS REFUSED OVER THIS, WHICH IS NOT WHAT GALAXY'S OWN LINTER IMPLIES.
+    `galaxy/tool_util/linters/general.py::ToolVersionPEP404` calls a non-PEP-440 version a
+    `lint_ctx.warn`, and every habit around linters says a warning is advisory -- but
+    `POST /api/unprivileged_tools` rejects the create outright with
+    `400 Tool failed lint checks: ToolVersionPEP404`. Measured on usegalaxy.org 26.1 (2026-09-08)
+    with `0.1.0-discovery-probe`, which cost a run. For a user-defined tool this warning is fatal,
+    so everything here treats it as an error.
+    """
+    if _Version is None:
+        return bool(_PEP440_RE.match(version))
+    try:
+        _Version(version.strip())
+    except _InvalidVersion:
+        return False
+    return True
+
+
 # ---------------------------------------------------------------- the schema, as data ----------
 #: `UserToolSource` is `extra="forbid"`, so an unknown field is a parse error rather than a warning.
 TOP_LEVEL = {"class", "id", "version", "name", "description", "container", "shell_command",
@@ -366,6 +415,13 @@ def lint(path, containers=True):                    # this IS a checklist; it is
                                   f"passes every check here and dies with `manifest unknown`.")
     if "version" in d and not str(d["version"]).strip():
         bad("BLANK-STRING", "`version` is blank (dynamic_tool.blank_string)")
+    elif "version" in d and not pep440_ok(str(d["version"])):
+        bad("VERSION-NOT-PEP440",
+            f"`version: {d['version']!r}` is not PEP 440, so REGISTRATION IS REFUSED: "
+            f"POST /api/unprivileged_tools answers 400 `Tool failed lint checks: "
+            f"ToolVersionPEP404`. Measured on usegalaxy.org 26.1 with `0.1.0-discovery-probe`. "
+            f"Use a release (`0.2.0`), a dev release (`0.1.0.dev1`) or a local version "
+            f"(`0.1.0+probe1`) -- a bare `-suffix` is not any of those. {_PEP440_AUTHORITY}")
     cmd = d.get("shell_command")
     if not isinstance(cmd, str) or not cmd.strip():
         bad("NO-COMMAND", "`shell_command` is missing or empty")
@@ -786,6 +842,11 @@ DEFECTS = [
      "    from_work_dir: chrom.sizes\n", "", "OUTPUT-UNCLAIMED"),
     ("udt/samtools_faidx.gxtool.yml", "from_work_dir names a file nothing writes",
      "from_work_dir: chrom.sizes", "from_work_dir: nosuchthing.tsv", "PHANTOM-OUTPUT"),
+    # ⚠ `-probe` LOOKS LIKE A VERSION AND IS NOT ONE. PEP 440 has no bare alphabetic suffix: the
+    # only `-x` it accepts is `-<digits>` (an implicit post-release), so `0.1.0-1` passes and this
+    # does not. That is exactly the shape a human reaches for when registering a throwaway.
+    ("udt/samtools_faidx.gxtool.yml", "a version that is not PEP 440",
+     'version: "0.1.0"', 'version: "0.1.0-probe"', "VERSION-NOT-PEP440"),
     ("udt/samtools_faidx.gxtool.yml", "reference to an undeclared input",
      "$(inputs.input.path)", "$(inputs.inputt.path)", "UNDECLARED-INPUT-REF"),
     ("udt/samtools_faidx.gxtool.yml", "data input used without .path",
