@@ -200,9 +200,9 @@ XML_ANCHORS = {
 #: container pinned in build() stays put -- and the two then run different software. This repo's own
 #: recent history is requirement edits to these very files.
 XML_REQUIREMENTS = {
-    "tools/dustmasker/dustmasker.xml": {"blast": "2.17.0"},
-    "tools/windowmasker/windowmasker.xml": {"blast": "2.17.0"},
-    "tools/tantan/tantan.xml": {"tantan": "51"},
+    "tools/dustmasker/dustmasker.xml": {"blast": "2.17.0", "python": "3.12"},
+    "tools/windowmasker/windowmasker.xml": {"blast": "2.17.0", "python": "3.12"},
+    "tools/tantan/tantan.xml": {"tantan": "51", "python": "3.12"},
     # ⚠ BOTH packages, because both are pinned in build(). `fastga` was left out, so the bump from
     # 1.5 to 1.5.20260729 (commit a45e0a7, on this branch) sailed past assert_sources_aligned while
     # `fastan_gdb` and `fastan_bed` kept their container -- the exact drift the header above claims
@@ -210,6 +210,17 @@ XML_REQUIREMENTS = {
     # 1.5's ANOtoBED cannot open a .1ano written by fastan 0.8, which is why the bump happened.
     "tools/fastan/fastan.xml": {"fastan": "0.8", "fastga": "1.5.20260729"},
     "tools/masking_table/masking_table.xml": {"python": "3.12"},
+}
+
+#: ⛔ DIGEST OF THE NORMALISED `<command>` OF EACH MIRRORED WRAPPER. Filled by
+#: `python3 scripts/build_softmask_udts.py --print-digests`; a mismatch means the wrapper's command
+#: changed in a way the presence-anchors above cannot detect (an option ADDED, or reordered).
+XML_COMMAND_DIGESTS: dict[str, str] = {
+    "tools/dustmasker/dustmasker.xml": "44ba77c505a3a1d9",
+    "tools/windowmasker/windowmasker.xml": "5e7222543a06ea8f",
+    "tools/tantan/tantan.xml": "75d35538a082d2c1",
+    "tools/fastan/fastan.xml": "6fd29cf164a54fea",
+    "tools/masking_table/masking_table.xml": "2d7cb425599d5daa",
 }
 
 #: Helper files duplicated across wrapper directories. They are byte-identical today; a fix applied
@@ -281,6 +292,19 @@ def assert_sources_aligned() -> None:
                          f"generator hardcodes.\n  The wrapper changed and the generated UDT would "
                          f"silently keep running the old command. Reconcile build() with the XML, "
                          f"then regenerate.")
+        # ⛔ AND THE ANCHORS ABOVE ARE PRESENCE TESTS, SO AN ADDED OPTION IS INVISIBLE TO THEM.
+        # `dustmasker -in in.fa -outfmt interval` becoming `dustmasker -in in.fa -level 20 -outfmt
+        # interval` leaves every anchor present: this function passes, --check passes, and the UDT
+        # keeps masking at defaults while the classic tool does not -- two copies running different
+        # software, which is the outcome this whole block exists to prevent. A digest of the
+        # normalised command catches an addition, a removal and a reordering alike.
+        digest = hashlib.sha256(" ".join(cmd.split()).encode("utf-8")).hexdigest()[:16]
+        expected = XML_COMMAND_DIGESTS.get(xml)
+        if expected and digest != expected:
+            sys.exit(f"REFUSING: the <command> of {xml} changed (digest {digest}, expected "
+                     f"{expected}).\n  Every hardcoded anchor is still present, so the change ADDED "
+                     f"or REORDERED something rather than removing it -- which the anchors cannot "
+                     f"see. Reconcile build() with the XML, then update XML_COMMAND_DIGESTS.")
     for xml, reqs in XML_REQUIREMENTS.items():
         root = ET.parse(ROOT / xml).getroot()
         got = {r.text.strip(): r.get("version") for r in root.iter("requirement")
@@ -422,7 +446,19 @@ shell_command: |
   # the BED tracks and the FASTA agree. `false` keeps whatever the submitter shipped, which
   # is the historical behaviour and the more conservative alignment. A workflow that picks
   # one SILENTLY is the thing worth avoiding.
-  strip = $(inputs.strip_existing_mask)
+  # ⛔ A TERNARY, NOT THE BARE BOOLEAN. Galaxy evaluates the dollar-parenthesis form as
+  # ECMAScript, so a `type: boolean` renders LOWERCASE -- `strip = true` -- which is a NameError in
+  # the Python this heredoc holds, before a single byte is written. Measured on usegalaxy.org 26.1
+  # with a probe tool: the bare form rendered `true`, the ternary below rendered `True`. This is the
+  # only `type: boolean` input in the repository, so nothing had ever rendered one, and neither
+  # templating gate sees it: UNQUOTED-SCALAR fires only on `text`, PATH-ON-SCALAR only on a
+  # `.path` tail.
+  # ⚠ AND THIS COMMENT DELIBERATELY DOES NOT SPELL THE SEQUENCE OUT. Galaxy scans the WHOLE
+  # shell_command, comments included: prose naming another tool's input in that form is
+  # `dynamic_tool.undeclared_input_ref` and a 400 at registration, and a bare one is
+  # NOT-A-GALAXY-EXPR. Both were hit while writing this note; check_udt_definitions.py catches
+  # either offline, so run it after editing a comment and not only after editing code.
+  strip = $(inputs.strip_existing_mask ? 'True' : 'False')
 
   lower = total = seqs = 0
   with op(src) as fin, open('uppercased.fasta', 'w', encoding='utf-8') as out:
@@ -493,7 +529,11 @@ outputs:
 help:
   format: markdown
   content: |
-    Rewrites every sequence line in uppercase and leaves header lines exactly as they were.
+    Rewrites every sequence line in uppercase -- WHEN `strip_existing_mask` is true -- and leaves
+    header lines exactly as they were either way. ⚠ THE DEFAULT IS **false**, which passes the
+    sequence through byte-for-byte, so the workflow masks the assembly as it ARRIVED and matches
+    the classic `softmask.gxwf.yml`. Uppercasing is opt-in because discarding the arriving mask
+    changes alignment measurably; the parameter's own help carries the numbers.
 
     ⛔ **Why the workflow needs this as a SEPARATE step even though each masker already uppercases
     internally.** The maskers uppercase their own working copy, so the BED tracks are computed on
@@ -502,11 +542,13 @@ help:
     lowercase*. For an assembly that arrives soft-masked -- cs10 ships **46.8%** masked from NCBI
     genome-wide, which on chromosome 1 is 34.6% of all bases or **47.8% of its non-N bases**,
     while the other assemblies here are 0.0-0.7% -- the published `softmasked_fasta` was then the
-    union of this workflow's mask AND NCBI's, indistinguishably. Feeding the uppercased FASTA to
-    `maskfasta` makes the output exactly the mask this workflow computed.
+    union of this workflow's mask AND NCBI's, indistinguishably -- which is still what happens
+    under the default, and is why `mask_union` is published as the authoritative record of what
+    this workflow masked. Feeding an UPPERCASED FASTA to `maskfasta` instead makes the published
+    FASTA exactly the mask this workflow computed; that is what `strip_existing_mask: true` buys.
 
-    **Reports the fraction it removed**, so a no-op and a discarded 47% mask are distinguishable in
-    the job log rather than both looking like success.
+    **Reports which mode ran, and the fraction involved**, so a kept mask, a no-op and a discarded
+    47% mask are three distinguishable lines in the job log rather than all looking like success.
 """
 
     out["samtools_faidx.gxtool.yml"] = HEADER + """class: GalaxyUserTool
@@ -688,8 +730,8 @@ help:
     out["fastan_bed.gxtool.yml"] = HEADER + FASTAN_NOTE + f"""class: GalaxyUserTool
 id: brc-fastan-bed
 version: "0.1.0"
-name: ANOtoBED -> BED6 (BRC UDT)
-description: Convert a FasTAN annotation to a content-annotated BED6, stage 3 of 3
+name: FasTAN .1ano -> BED6 (BRC UDT)
+description: Convert a FasTAN .1ano to a content-annotated BED6 via ONEview (NOT ANOtoBED), stage 3 of 3
 container: quay.io/biocontainers/fastga:1.5.20260729--h118bc1c_0
 shell_command: |
   cat > ano2bed6.awk <<'BRC_AWK'
@@ -713,11 +755,13 @@ outputs:
 help:
   format: markdown
   content: |
-    ⛔ **`grep -v` IS GUARDED, AND THE GUARD IS NOT DECORATION.** `grep` exits 1 when it selects no
-    lines, `set -o pipefail` is in force, and this is the last command in the tool -- so a sequence
-    with NO tandem arrays would fail the job outright when the correct answer is an empty BED6.
-    `{{ grep -v ... || [ $? -eq 1 ]; }}` tolerates "nothing matched" while still failing on grep's
-    exit 2, which is a real error.
+    ⚠ **`set -o pipefail` is on, so any filter added to this pipeline needs its own guard.**
+    There is no `grep` in this tool today -- the pipeline is
+    `ONEview | awk -f ano2bed6.awk | sort` -- but a `grep -v` inserted later exits 1 when it
+    filters everything out, and pipefail turns that into a failed job for an empty-BED6 case that
+    is legitimate. Wrap such a filter as `{{ grep -v ... || [ $? -eq 1 ]; }}`. An earlier version
+    of this help described that guard as already present, which would have led a maintainer to add
+    the filter unguarded.
 
     ⚠ **`ANOtoBED` does NOT need the GDB** -- the sequence names are carried inside the `.1ano`, so
     only stage 2 consumes the tarball. Verified by running it in a directory containing nothing but
@@ -799,6 +843,11 @@ help:
     strip its header and its own Sample column; nothing about the arithmetic is reimplemented.
 """
 
+    # ⛔ THE HEADER IS BUILT FROM `MASKER_COLUMNS`, NOT TYPED OUT. It used to be a literal
+    # printf, and `assert_column_order` compared MASKER_COLUMNS against masking_table.py while
+    # nothing compared it against the printf -- so the documented way to "reconcile the two"
+    # (edit the constant) turned the guard green while the PRINTED header stayed stale, which is
+    # exactly the mislabeled-percentages failure that guard exists to prevent. One source now.
     out["masking_header.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-masking-header
 version: "0.1.0"
@@ -807,7 +856,7 @@ description: Prepend the Sample/masker header to the collapsed per-strain rows
 container: quay.io/biocontainers/python:3.12
 shell_command: |
   set -o pipefail
-  printf 'Sample\\tdustmasker\\twindowmasker\\ttantan\\tfastan\\tunion\\n' > table.tabular &&
+  printf 'Sample\\t""" + "\\t".join(MASKER_COLUMNS) + """\\n' > table.tabular &&
   cat '$(inputs.rows.path)' >> table.tabular
 inputs:
   - name: rows

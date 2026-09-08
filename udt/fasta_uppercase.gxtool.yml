@@ -33,7 +33,19 @@ shell_command: |
   # the BED tracks and the FASTA agree. `false` keeps whatever the submitter shipped, which
   # is the historical behaviour and the more conservative alignment. A workflow that picks
   # one SILENTLY is the thing worth avoiding.
-  strip = $(inputs.strip_existing_mask)
+  # ⛔ A TERNARY, NOT THE BARE BOOLEAN. Galaxy evaluates the dollar-parenthesis form as
+  # ECMAScript, so a `type: boolean` renders LOWERCASE -- `strip = true` -- which is a NameError in
+  # the Python this heredoc holds, before a single byte is written. Measured on usegalaxy.org 26.1
+  # with a probe tool: the bare form rendered `true`, the ternary below rendered `True`. This is the
+  # only `type: boolean` input in the repository, so nothing had ever rendered one, and neither
+  # templating gate sees it: UNQUOTED-SCALAR fires only on `text`, PATH-ON-SCALAR only on a
+  # `.path` tail.
+  # ⚠ AND THIS COMMENT DELIBERATELY DOES NOT SPELL THE SEQUENCE OUT. Galaxy scans the WHOLE
+  # shell_command, comments included: prose naming another tool's input in that form is
+  # `dynamic_tool.undeclared_input_ref` and a 400 at registration, and a bare one is
+  # NOT-A-GALAXY-EXPR. Both were hit while writing this note; check_udt_definitions.py catches
+  # either offline, so run it after editing a comment and not only after editing code.
+  strip = $(inputs.strip_existing_mask ? 'True' : 'False')
 
   lower = total = seqs = 0
   with op(src) as fin, open('uppercased.fasta', 'w', encoding='utf-8') as out:
@@ -104,7 +116,11 @@ outputs:
 help:
   format: markdown
   content: |
-    Rewrites every sequence line in uppercase and leaves header lines exactly as they were.
+    Rewrites every sequence line in uppercase -- WHEN `strip_existing_mask` is true -- and leaves
+    header lines exactly as they were either way. ⚠ THE DEFAULT IS **false**, which passes the
+    sequence through byte-for-byte, so the workflow masks the assembly as it ARRIVED and matches
+    the classic `softmask.gxwf.yml`. Uppercasing is opt-in because discarding the arriving mask
+    changes alignment measurably; the parameter's own help carries the numbers.
 
     ⛔ **Why the workflow needs this as a SEPARATE step even though each masker already uppercases
     internally.** The maskers uppercase their own working copy, so the BED tracks are computed on
@@ -113,8 +129,10 @@ help:
     lowercase*. For an assembly that arrives soft-masked -- cs10 ships **46.8%** masked from NCBI
     genome-wide, which on chromosome 1 is 34.6% of all bases or **47.8% of its non-N bases**,
     while the other assemblies here are 0.0-0.7% -- the published `softmasked_fasta` was then the
-    union of this workflow's mask AND NCBI's, indistinguishably. Feeding the uppercased FASTA to
-    `maskfasta` makes the output exactly the mask this workflow computed.
+    union of this workflow's mask AND NCBI's, indistinguishably -- which is still what happens
+    under the default, and is why `mask_union` is published as the authoritative record of what
+    this workflow masked. Feeding an UPPERCASED FASTA to `maskfasta` instead makes the published
+    FASTA exactly the mask this workflow computed; that is what `strip_existing_mask: true` buys.
 
-    **Reports the fraction it removed**, so a no-op and a discarded 47% mask are distinguishable in
-    the job log rather than both looking like success.
+    **Reports which mode ran, and the fraction involved**, so a kept mask, a no-op and a discarded
+    47% mask are three distinguishable lines in the job log rather than all looking like success.

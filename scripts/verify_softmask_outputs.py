@@ -190,19 +190,34 @@ def main() -> int:
             failures += 1
             continue
 
-        ok_upper = (ulow == 0 and ures == res)
+        # ⛔ THE INVARIANT DEPENDS ON WHICH MODE RAN, AND THE MODE IS INFERRABLE FROM THIS OUTPUT.
+        # WF-B's `strip_arrived_mask` defaults to FALSE -- the classic behaviour -- so `uppercase`
+        # passes the assembly through and its output legitimately still carries the submitter's
+        # lower case. Checking `ulow == 0` unconditionally therefore prints `⛔ NOT UPPERCASE /
+        # LENGTH CHANGED` on every assembly that arrives soft-masked (cs10 ships 46.8% masked),
+        # which reads as a corrupt uppercase step rather than as the setting that was chosen. And
+        # the mask comparison below then reports a spurious applied-but-not-computed list, because
+        # the published FASTA carries BOTH masks while `mask_union` records only ours.
+        # ⚠ INFERRED, NOT ASKED FOR: `ulow == 0` IS the signature of the stripping mode, so no flag
+        # is needed and no caller can pass the wrong one. Only the length check is unconditional.
+        stripped = (ulow == 0)
+        ok_upper = (ures == res)
         # ⛔ AN EMPTY MASK IS A FAILURE, NOT A MATCH. Nothing masked against nothing computed is
         # 0 == 0, and the old total-based check printed ✅ for it -- certifying a run in which the
         # mask was never applied at all.
         ok_nonempty = bool(union)
         only_computed = union - applied
         only_applied = applied - union
-        ok_mask = ok_nonempty and not only_computed and not only_applied
+        # ⚠ `only_applied` IS EXPECTED WHEN THE ARRIVING MASK WAS KEPT: the published FASTA is the
+        # union of the submitter's mask and ours, and mask_union records only ours. What must hold
+        # in BOTH modes is that everything we computed was applied -- `only_computed` empty.
+        ok_mask = ok_nonempty and not only_computed and (not only_applied or not stripped)
         failures += (not ok_upper) + (not ok_mask)
 
         print(f"    {s}")
         print(f"      uppercased input : {ures:,} nt, {ulow} lowercase"
-              f"        {'ok' if ok_upper else '⛔ NOT UPPERCASE / LENGTH CHANGED'}")
+              f"        {'ok' if ok_upper else '⛔ LENGTH CHANGED'}"
+              f"  [{'mask stripped' if stripped else 'arriving mask KEPT (classic default)'}]")
         print(f"      merged union BED : {span(union):,} nt in {len(union):,} intervals "
               f"({span(union) / res:.2%})")
         print(f"      masked FASTA     : {low:,} lowercase in {len(applied):,} runs "
@@ -214,7 +229,8 @@ def main() -> int:
         else:
             print(f"      ⛔ computed-but-not-applied: {len(only_computed):,} intervals, "
                   f"{span(only_computed):,} nt")
-            print(f"      ⛔ applied-but-not-computed: {len(only_applied):,} intervals, "
+            print(f"      {'⛔' if stripped else 'ℹ'} applied-but-not-computed: "
+                  f"{len(only_applied):,} intervals, "
                   f"{span(only_applied):,} nt")
             for iv in sorted(only_computed)[:3]:
                 print(f"          only in BED  : {iv}")

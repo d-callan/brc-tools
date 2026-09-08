@@ -134,8 +134,18 @@ def main() -> int:
     else:
         hdca = upload_collection(gi, history["id"], args.fasta)
 
-    handles = gi.workflows.show_workflow(wf_id)["inputs"]
-    inputs = {sid: {"src": "hdca", "id": hdca} for sid in handles}
+    # ⛔ FILTER ON THE STEP TYPE, AND READ IT FROM `steps`, NOT FROM `inputs`. WF-B now has a
+    # `parameter_input` (`strip_arrived_mask`) beside the collection, and `show_workflow(...)`
+    # lists BOTH under "inputs"; handing the parameter step `{"src": "hdca", ...}` is an outright
+    # invoke refusal, deliberately, since nothing here sets allow_tool_state_corrections.
+    # ⚠ AND THE "inputs" ENTRIES DO NOT CARRY THE TYPE. Measured on 26.1: each value holds only
+    # `label`, `value` and `uuid`, so a `.get("step_type", ...)` filter silently keeps everything
+    # and looks fixed. The per-step `type` lives in the sibling "steps" map, keyed by the same id.
+    _wf = gi.workflows.show_workflow(wf_id)
+    _steps = _wf.get("steps") or {}
+    handles = _wf["inputs"]
+    inputs = {sid: {"src": "hdca", "id": hdca} for sid in handles
+              if (_steps.get(str(sid)) or {}).get("type") != "parameter_input"}
     # ⛔ NO allow_tool_state_corrections. Every parameter every step can take is named in the
     # workflow, so there is nothing for it to silence -- and it never fixed anything anyway: it only
     # swaps Galaxy's refusal for a log.debug on the server that no response exposes. A refusal here

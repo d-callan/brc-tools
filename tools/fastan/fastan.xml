@@ -45,8 +45,9 @@ ONEview gdb.1ano
 **FASTAN** (Gene Myers) — tandem-array finder. Detects tandem repeats and partitions
 them into units. Emitted as **BED6**: name = ``u<unit_size>`` (tandem unit length),
 score = unit identity (0-1000 grayscale), strand = real orientation. Complementary to
-the DUST/low-complexity tracks. Pipeline: ``FAtoGDB`` -> ``FasTAN -m -p`` (.1ano) ->
-``ANOtoBED``. Input is upper-cased first.
+the DUST/low-complexity tracks. Pipeline: ``FAtoGDB`` -> ``FasTAN -m -p`` (.1ano) -> ``ONEview`` +
+awk. NOT ``ANOtoBED``, which reports contig-relative coordinates under the scaffold name (see
+check_coordinates.py). Input is upper-cased first.
     ]]></help>
     <citations><citation type="doi">10.1101/2023.04.01.535214</citation></citations>
 </tool>
