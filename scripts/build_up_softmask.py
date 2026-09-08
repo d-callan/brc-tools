@@ -24,7 +24,7 @@ import time
 
 import yaml
 from bioblend.galaxy import GalaxyInstance
-from softmask_lib import SCHEDULING_IN_PROGRESS, WORKFLOW, await_dataset, connect, invoke, register_all
+from softmask_lib import JOBS_UNFINISHED, SCHEDULING_IN_PROGRESS, WORKFLOW, await_dataset, connect, invoke, register_all
 
 TIER_CEILING = 7200          # 2 h per tier; a real chromosome is slow and single-threaded
 
@@ -116,7 +116,7 @@ def run_tier(gi: GalaxyInstance, wf_id: str, hdca: str, history: str) -> tuple[b
     while time.monotonic() < deadline:
         detail = gi.invocations.show_invocation(inv["id"])
         states = gi.invocations.get_invocation_summary(inv["id"]).get("states", {})
-        pending = {k: v for k, v in states.items() if k in ("new", "queued", "running", "paused")}
+        pending = {k: v for k, v in states.items() if k in JOBS_UNFINISHED}
         if detail.get("state") not in SCHEDULING_IN_PROGRESS and states and not pending:
             timed_out = False
             break

@@ -165,11 +165,20 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("only", nargs="*", choices=sorted(CASES) or None, default=None,
                     help="run only these cases")
+    ap.add_argument("--allow-skip", action="store_true",
+                    help="exit 0 when a case cannot run at all (no docker, an image that will not "
+                         "pull). ⚠ Off by default: a skip is not a pass, and CI reads only the "
+                         "exit code.")
     args = ap.parse_args()
     if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+        # ⛔ NON-ZERO, BECAUSE THE MESSAGE ALREADY SAYS "NOT a pass" AND THE EXIT CODE SAID PASS.
+        # In CI only the exit code is read, so this returned green having checked nothing -- the
+        # same shape as the `bed == truth == []` pass the interval floor was added to close, and a
+        # direct contradiction of this file's own thesis. --allow-skip is there for a caller who
+        # genuinely wants "check if you can"; the default is that an unchecked run fails.
         print("  ⚠ SKIP — docker is not available, and the ground truth has to come from the tool "
               "itself. Nothing was checked. NOT a pass.")
-        return 0
+        return 0 if args.allow_skip else 1
 
     bad = skipped = 0
     for name in (args.only or sorted(CASES)):
@@ -205,7 +214,14 @@ def main() -> int:
     print(f"\n  {total - bad - skipped}/{total} coordinate case(s) agree with an independent "
           f"answer from the same run"
           + (f"; {skipped} SKIPPED and therefore unchecked" if skipped else ""))
-    return 1 if bad else 0
+    # ⛔ `skipped` COUNTS TOWARD FAILURE. `return 1 if bad else 0` ignored it, so an image-pull
+    # failure, a moved container entrypoint or a FAtoGDB/ONEview regression made every case return
+    # None and exited 0 -- printing "0/4 ... agree" while the job went green. A case that could not
+    # run is a case that did not agree.
+    if skipped and not args.allow_skip:
+        print(f"  ⛔ {skipped} case(s) could not run, so nothing verified them. Pass --allow-skip "
+              f"only if an unchecked run is genuinely acceptable to the caller.")
+    return 1 if bad or (skipped and not args.allow_skip) else 0
 
 
 if __name__ == "__main__":
