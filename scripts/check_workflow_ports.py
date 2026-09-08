@@ -29,6 +29,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
 import yaml
 
@@ -173,6 +174,13 @@ DEFECTS = [
      "outputSource: faidx/sizes", "outputSource: nosuch/sizes", "BROKEN-OUTPUT"),
     ("workflows/softmask/softmask_udt.gxwf.yml", "UDT parameter typo",
      "      input: assemblies", "      inputt: assemblies", "UNKNOWN-PARAM"),
+    # ⚠ THE INJECTED TEXT MUST BE INCOMPRESSIBLE, or it will not trip a check measured in
+    # compressed bytes -- 4 kB of one repeated word compresses to nothing and imports fine, which
+    # is the whole point of the check.
+    ("workflows/inventory/inventory_udt.gxwf.yml", "an annotation too big to import",
+     "doc: >-\n  WF-A ported to run on usegalaxy.org.",
+     "doc: >-\n  " + " ".join(f"w{i:04x}q{i*7:05d}" for i in range(400)) + "\n  WF-A ported to run on usegalaxy.org.",
+     "ANNOTATION-TOO-BIG"),
     ("workflows/inventory/inventory_udt.gxwf.yml", "handoff tag without the name: prefix",
      "{tags: name:wfc_sizes}", "{tags: wfc_sizes}", "PLAIN-TAG"),
     ("workflows/inventory/inventory_udt.gxwf.yml", "a rename string restyled away from its target",
@@ -298,6 +306,37 @@ def main() -> int:
 
     def bad(kind, where, msg):
         problems.append((kind, where, msg))
+
+    # -- 0. the annotation has to fit, and the limit is not the one anybody guesses ----------
+    #    ⛔ usegalaxy.org REFUSES THE IMPORT with a bare `500 {"err_msg": "Uncaught exception in
+    #    exposed API method:"}` once a workflow's annotation gets too big -- no traceback, and
+    #    gxformat2 converts the same file locally without complaint, so nothing points at the doc.
+    #    Measured on 26.1, 2026-09-08, varying only the top-level `doc` and repeating each variant
+    #    four times: 'a' * 4200 (28 compressed bytes) imported; 3,961 chars of this repository's
+    #    own prose (2,041 compressed) imported; 4,125 chars (2,111 compressed) FAILED; and
+    #    incompressible base64 failed at 3,000 chars (2,290 compressed). Three unrelated kinds of
+    #    text cross the boundary at roughly 2 KiB COMPRESSED while raw length ranges from 3,000 to
+    #    4,200 -- so length is the wrong thing to measure and a repetitive string of any size
+    #    sails through.
+    #
+    #    ⚠ zlib IS NOT WHAT THE SERVER USES, so this is a proxy and the threshold is deliberately
+    #    conservative: warn at 1,600 and refuse at 1,900 zlib bytes, against an observed failure at
+    #    2,111. A doc that trips this is not close to a limit, it is close to a 500 with no message.
+    #
+    #    ⚠ AND NOTHING ELSE WE RUN CATCHES IT. `planemo workflow_lint` and every CI job read the
+    #    file without importing it, which is how an un-importable workflow reached main (#53).
+    for _where, _text in [("doc", str(wf.get("doc") or ""))] + \
+            [(f"outputs.{k}.doc", str((v or {}).get("doc") or "")) for k, v in wf_out.items()] + \
+            [(f"steps.{k}.doc", str((v or {}).get("doc") or "")) for k, v in steps.items()]:
+        _z = len(zlib.compress(_text.encode("utf-8"), 9))
+        if _z >= 1900:
+            bad("ANNOTATION-TOO-BIG", _where,
+                f"compresses to {_z} bytes; usegalaxy.org 500s on import above roughly 2 KiB "
+                f"COMPRESSED (measured: 2,111 failed, 2,041 passed). Shorten it -- a tool's own "
+                f"`help` has no such cap.")
+        elif _z >= 1600:
+            notes.append(f"ANNOTATION-LARGE {_where}: compresses to {_z} bytes, and the import "
+                         f"starts failing around 2,000. Adding another paragraph will break it.")
 
     # -- 1. every `in:` reference resolves --------------------------------------------------
     for name, s in steps.items():
