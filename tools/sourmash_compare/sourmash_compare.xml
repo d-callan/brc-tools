@@ -8,16 +8,31 @@
     <command detect_errors="aggressive"><![CDATA[
 mkdir -p stage &&
 ## Stage every signature in the list collection under a name keyed by its
-## element_identifier so the strain order on the command line is stable and
-## the matrix row/col labels (the signature names) line up with the strains.
+## element_identifier, so the work dir is readable and the .sig files can be
+## named on the command line individually.
 #for $sig in $signatures
 ln -s '$sig' 'stage/${sig.element_identifier}.sig' &&
 #end for
+## ⛔ NAMED EXPLICITLY, NOT `stage/*.sig`. sourmash's CSV columns follow the
+## command line, and a glob is sorted by the SHELL -- so the matrix came out in
+## filename order (and, since bash sorts pathname expansion by LC_COLLATE, in an
+## order that depends on the job's locale). Every other WF-A output is in PANEL
+## order: `signatures` is this collection mapped over, `sizes` comes off the
+## assemblies, and `self_pairs`/`relabel_map` follow the element identifiers. The
+## matrix was the one artifact that disagreed, including with the `signatures`
+## collection published beside it out of this same workflow.
+## ⚠ AND ONE WORKFLOW PUBLISHING TWO ORDERS IS NOT A COSMETIC PROBLEM HERE. In
+## WF-C2, chains filtered out of WF-C arrived alphabetical against a panel-ordered
+## grid and every projection took the wrong chain, with correct-looking
+## identifiers throughout. This iterates the collection, so the order is the
+## panel's and nothing about the shell can change it.
 sourmash compare
     --ksize $ksize
     -o cmp
     --csv '$output'
-    stage/*.sig
+#for $sig in $signatures
+    'stage/${sig.element_identifier}.sig'
+#end for
 &&
 ## clustered heatmap + dendrogram (scipy hierarchical clustering; matplotlib in the env)
 sourmash plot --labels cmp
@@ -90,9 +105,11 @@ pair of signatures and writes the resulting symmetric N×N matrix as CSV.
 
 - *Signature list collection* — a ``list`` collection of sourmash signature
   files. Each element's identifier should be the strain name; elements are
-  staged as ``{strain}.sig`` so the command-line order (and therefore the
-  matrix column order) is stable. The matrix row/column **labels** are the
-  signature ``name`` fields, which normally match the strain names.
+  staged as ``{strain}.sig`` and then named individually on the command line,
+  **in collection order**, so the matrix column order is the panel's -- not the
+  shell's. (A `stage/*.sig` glob sorted by filename, and by the job's
+  ``LC_COLLATE`` at that.) The matrix row/column **labels** are the signature
+  ``name`` fields, which normally match the strain names.
 
 **Output**
 
@@ -113,8 +130,8 @@ pair of signatures and writes the resulting symmetric N×N matrix as CSV.
 **Implementation note**
 
 The wrapper symlinks every element of the list collection into a staging
-directory as ``{element_identifier}.sig`` and invokes
-``sourmash compare --csv '$output' stage/*.sig``.
+directory as ``{element_identifier}.sig`` and invokes ``sourmash compare`` with
+those paths listed explicitly, in collection order.
     ]]></help>
     <expand macro="citations"/>
 </tool>
