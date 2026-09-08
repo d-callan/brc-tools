@@ -45,6 +45,17 @@ ids = ([x for x in a.ids.split() if x] if a.ids is not None
        else [x.strip() for x in
              pathlib.Path(a.ids_file).read_text(encoding="utf-8-sig").splitlines()
              if x.strip()])
+# ⛔ AN EMPTY --ids-file IS THE LAST SILENT ZERO, AND IT IS THE ONLY PATH THE UDTs USE.
+# `--ids ''` is a deliberate request for zero and stays one (see above); an empty FILE is not a
+# request, it is an empty collection arriving from `collection_element_identifiers`. It produced a
+# 0-byte output with exit 0, which the workflow then renamed and tagged `WF-C input: self_pairs` /
+# `wfc_relabel_map` -- so WF-C could be handed a no-op diagonal filter and a no-op relabel map out
+# of a green WF-A run. The sourmash step refuses an empty panel, but these are parallel branches
+# and nothing else in WF-A looks at these two files.
+if a.ids_file is not None and not ids:
+    raise SystemExit(f"{a.ids_file} holds no identifiers. That is an empty collection, not a "
+                     f"request for zero rows -- pass --ids '' if zero is genuinely intended. A "
+                     f"0-byte output here reads downstream as 'nothing to exclude', not a failure.")
 # ⛔ A TAB IN AN IDENTIFIER BREAKS THE COLUMN CONTRACT DOWNSTREAM. relabel_map emits
 # `{a}_{b}<TAB>{a}.{b}`, so a tab inside a name yields a THREE-column row and
 # `__RELABEL_FROM_FILE__` reads the wrong field. --ids could never carry one (it splits on
