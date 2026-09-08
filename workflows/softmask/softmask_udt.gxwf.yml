@@ -4,9 +4,10 @@ doc: >-
   The usegalaxy.org-runnable form of `softmask.gxwf.yml`: same masking logic, restructured for the
   constraints a public Galaxy imposes. The local wrappers cannot be installed there, so each masker
   is a User-Defined Tool; a UDT gets one container and the masker images carry no python3, so every
-  masker is two steps. `samtools_faidx` is not installed on usegalaxy.org at all, so `faidx` is a
-  UDT too. The `uppercase` step exists because `maskfasta -soft` was being applied to assemblies
-  that already carried a mask.
+  masker is two steps -- except fastan, which is three (FAtoGDB, FasTAN, then the .1ano reader). `samtools_faidx` is not installed on usegalaxy.org at all, so `faidx` is a
+  UDT too. The `uppercase` step exists so that applying `maskfasta -soft` to an
+  assembly which already carried a mask can be a CHOICE rather than an accident: with the default
+  `strip_arrived_mask: false` it passes the sequence through, matching the classic.
 
   ⛔ Every one of those decisions is recorded, with the measurement behind it, in the `doc:` of the
   step it applies to and in the `help:` of the UDT it produced. Read those rather than guessing --
@@ -60,7 +61,7 @@ inputs:
 outputs:
   softmasked_fasta:
     outputSource: maskfasta/output
-    doc: Per-strain soft-masked FASTAs (union of the three maskers, lower-cased).
+    doc: Per-strain soft-masked FASTAs (union of the four maskers, lower-cased).
   fasta_index:
     outputSource: faidx/output
     doc: Per-strain .fai indexes for the soft-masked FASTAs.
@@ -104,9 +105,12 @@ outputs:
     outputSource: merge_bed/output
     doc: >-
       The merged union of all four maskers -- the mask itself, as intervals. Published because it is
-      what makes `softmasked_fasta` CHECKABLE: its covered bases must equal that FASTA's lowercase
-      count exactly, and the two are derived from different files by different tools.
-      `scripts/verify_softmask_outputs.py` is that check.
+      what makes `softmasked_fasta` CHECKABLE. ⚠ HOW CHECKABLE DEPENDS ON `strip_arrived_mask`.
+      With it TRUE, the published FASTA's lowercase count must EQUAL this union exactly. With the
+      DEFAULT false the FASTA carries the submitter's mask as well, so the union is a SUBSET of its
+      lowercase bases and only the other direction holds -- everything computed must be applied.
+      `scripts/verify_softmask_outputs.py` checks whichever of the two applies, inferring the mode
+      from the uppercase step's own output rather than being told.
   masking_table:
     outputSource: masking_header/output
     doc: >-
@@ -144,7 +148,13 @@ steps:
       masked -- while that run's masking_table puts this workflow's union for PvP01 at 39.01%
       genome-wide. (The 75.9/91.6 pair is one peek, not a genome-wide figure; the union is the
       genome-wide one.) The published softmasked FASTA was therefore the union of this workflow's
-      mask AND the one the assembly arrived with, with no way to tell them apart. Everything downstream now starts from uppercase.
+      mask AND the one the assembly arrived with, with no way to tell them apart. ⚠ THAT IS STILL
+      WHAT HAPPENS UNDER THE DEFAULT: `strip_arrived_mask` is false, so this step passes the
+      sequence through and everything downstream starts from the assembly AS IT ARRIVED, which
+      is what the classic workflow does. Set it true and everything downstream starts from
+      uppercase instead, making the published FASTA carry only this workflow's mask -- at the
+      alignment cost the input's own doc measures. `mask_union` is the authoritative record of
+      what this workflow masked in either mode.
     in:
       input: assemblies
       strip_existing_mask: strip_arrived_mask
@@ -181,7 +191,7 @@ steps:
       TagDatasetActionoutput:
         action_type: TagDatasetAction
         output_name: output
-        action_arguments: {tags: DustMakser}
+        action_arguments: {tags: DustMasker}
     position: {top: 240, left: 980}
     doc: Annotate the DUST intervals with repeat-unit signature and purity -> BED6.
     in:

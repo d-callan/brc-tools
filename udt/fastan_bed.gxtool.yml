@@ -12,8 +12,8 @@
 class: GalaxyUserTool
 id: brc-fastan-bed
 version: "0.1.0"
-name: ANOtoBED -> BED6 (BRC UDT)
-description: Convert a FasTAN annotation to a content-annotated BED6, stage 3 of 3
+name: FasTAN .1ano -> BED6 (BRC UDT)
+description: Convert a FasTAN .1ano to a content-annotated BED6 via ONEview (NOT ANOtoBED), stage 3 of 3
 container: quay.io/biocontainers/fastga:1.5.20260729--h118bc1c_0
 shell_command: |
   cat > ano2bed6.awk <<'BRC_AWK'
@@ -83,11 +83,13 @@ outputs:
 help:
   format: markdown
   content: |
-    ⛔ **`grep -v` IS GUARDED, AND THE GUARD IS NOT DECORATION.** `grep` exits 1 when it selects no
-    lines, `set -o pipefail` is in force, and this is the last command in the tool -- so a sequence
-    with NO tandem arrays would fail the job outright when the correct answer is an empty BED6.
-    `{ grep -v ... || [ $? -eq 1 ]; }` tolerates "nothing matched" while still failing on grep's
-    exit 2, which is a real error.
+    ⚠ **`set -o pipefail` is on, so any filter added to this pipeline needs its own guard.**
+    There is no `grep` in this tool today -- the pipeline is
+    `ONEview | awk -f ano2bed6.awk | sort` -- but a `grep -v` inserted later exits 1 when it
+    filters everything out, and pipefail turns that into a failed job for an empty-BED6 case that
+    is legitimate. Wrap such a filter as `{ grep -v ... || [ $? -eq 1 ]; }`. An earlier version
+    of this help described that guard as already present, which would have led a maintainer to add
+    the filter unguarded.
 
     ⚠ **`ANOtoBED` does NOT need the GDB** -- the sequence names are carried inside the `.1ano`, so
     only stage 2 consumes the tarball. Verified by running it in a directory containing nothing but
