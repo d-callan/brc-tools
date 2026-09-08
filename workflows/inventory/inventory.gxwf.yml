@@ -82,8 +82,12 @@ outputs:
   anchor_bed12s:
     outputSource: anchor_prep/bed12
     doc: >-
-      Per-anchor protein-coding BED12, transcript-keyed in column 4
-      (WF-C2 triage/merge reference bed and TOGA2 --ref_annotation).
+      Per-anchor protein-coding BED12, with the GENE id in column 4 (WF-C2 triage/merge reference
+      bed and TOGA2 --ref_annotation). ⛔ NOT the transcript id, which is what this doc said until
+      it was checked against the tool: gffread --bed writes the transcript there and
+      `build_anchor_inputs.py` rewrites the column to the gene id, because `phase_c4_merge` keys
+      its reference gene set off column 4 (brc-tools Finding F3). The UDT edition's doc had it
+      right; this one did not.
   anchor_isoforms:
     outputSource: anchor_prep/isoforms
     doc: >-
