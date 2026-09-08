@@ -30,6 +30,27 @@ license: MIT
 release: "0.1"
 
 inputs:
+  strip_arrived_mask:
+    type: boolean
+    default: false
+    doc: >-
+      ⛔ DEFAULT false, WHICH IS THE CLASSIC WORKFLOW'S BEHAVIOUR: the assembly is masked as it
+      ARRIVED, so a submitter's soft-mask survives and this workflow's mask layers on top of it.
+      Uppercasing first -- discarding what arrived -- is opt-IN, because it changes results.
+      ⛔ NOT A COSMETIC SWITCH, AND IT IS EXPOSED RATHER THAN DECIDED HERE BECAUSE IT WAS MEASURED.
+      `true` uppercases each assembly first, so every lower-case base in the published FASTA is
+      this workflow's own and the four BED tracks agree with it. `false` leaves whatever the
+      submitter shipped, so the published FASTA is the union of both masks indistinguishably --
+      the historical behaviour, and what the classic `softmask.gxwf.yml` does.
+      ⚠ THE TWO SETTINGS PRODUCE DIFFERENT ALIGNMENTS, WHICH IS WHY THIS IS NOT A DEFAULT SOMEONE
+      SHOULD INHERIT SILENTLY. Measured on Salk_SRIb chr7 x Salk_HAWb chr7 through this project's
+      own WF-C parameters: a 1.06% difference in masked bases gave 8.85% more aligned bases from
+      LASTZ, 9.17% more chained bases, and 14.63% more chains at >= 10 kb -- the long chains the
+      projection workflows consume. The extra alignment SURVIVES chaining, so it is not repeat
+      noise that filters itself out. Whether those additional long chains are real homology the
+      submitter's RepeatMasker suppressed, or repeat-driven alignment that merely chains well, is
+      NOT settled by that measurement.
+    position: {top: 250, left: 20}
   assemblies:
     type: collection
     collection_type: list
@@ -46,7 +67,9 @@ outputs:
   uppercased_fasta_index:
     outputSource: faidx_ref/output
     doc: >-
-      .fai for `uppercased_fasta`. Computed already -- `faidx_ref` exists to give `sort_bed` its
+      .fai for `uppercased_fasta`. ⚠ With the DEFAULT `strip_arrived_mask: false` that FASTA is the
+      input passed through unchanged rather than an uppercased copy, so this indexes the arriving
+      sequence; the name describes the step, not a guarantee about case. Computed already -- `faidx_ref` exists to give `sort_bed` its
       genome file -- and previously discarded, which the port checker flagged as a step output
       nothing consumes. ⚠ UNLIKE WF-A's `fasta_index`, THESE BYTE OFFSETS ARE USABLE: uppercase
       emits plain FASTA and brc-samtools-faidx only decompresses a gzipped input, so the indexed
@@ -124,6 +147,7 @@ steps:
       mask AND the one the assembly arrived with, with no way to tell them apart. Everything downstream now starts from uppercase.
     in:
       input: assemblies
+      strip_existing_mask: strip_arrived_mask
 
   faidx_ref:
     tool_id: brc-samtools-faidx
