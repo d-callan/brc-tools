@@ -107,5 +107,5 @@ help:
     usegalaxy.org installs.
 
     ⚠ **Feed it the SAME collection the pairs are about.** Nothing downstream can detect a mismatch:
-    a self-pair list built from the wrong collection removes nothing, and a relabel map built from
-    the wrong one renames nothing, both silently.
+    `__FILTER_FROM_FILE__` has no strict mode, so a self-pair list built from the wrong
+    collection removes nothing and reports success.

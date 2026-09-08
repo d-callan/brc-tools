@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit `{a}_{b}\t{a}.{b}` for every ordered pair of collection element identifiers.
+"""Emit `{a}_{b}\t{a}.{b}` for every ordered pair of DISTINCT collection element identifiers.
 The cross-product cells are named `A_B` (underscore join); downstream Phase E expects
 `A.B`. This 2-col TSV drives WF-C's __RELABEL_FROM_FILE__ step."""
 import argparse
@@ -65,5 +65,17 @@ _bad = [i for i in ids if "\t" in i]
 if _bad:
     raise SystemExit(f"identifier(s) contain a tab, which breaks the output's column contract: "
                      f"{_bad[:3]}")
+# ⛔ THE DIAGONAL IS SKIPPED SO THE ROW COUNT MATCHES THE COLLECTION, WHICH IS WHAT LETS
+# `__RELABEL_FROM_FILE__` RUN IN STRICT MODE. WF-C removes the `A_A` cells with the self_pairs
+# list before relabelling, so a map carrying them has n**2 rows against n**2-n elements. Galaxy's
+# strict mode checks BOTH the row count and every lookup, and the count check is the one that
+# refuses first -- so while this emitted the diagonal, strict mode could not be turned on, and
+# without it an element missing from the map keeps its own `A_B` identifier and no error is raised
+# anywhere. Phase E then splits ids on `.` and silently cannot key those rows.
+# scripts/check_relabel_strict.py fails if this and the workflows' `strict` ever drift apart.
+#
+# ⚠ ONE identifier therefore yields an EMPTY map, and that is correct rather than a silent zero:
+# the cross product of a single element is just its diagonal, which WF-C filters out, so the
+# collection reaching the relabel step is empty too and 0 == 0 passes strict mode honestly.
 pathlib.Path(a.out).write_text(
-    "".join(f"{x}_{y}\t{x}.{y}\n" for x, y in itertools.product(ids, ids)))
+    "".join(f"{x}_{y}\t{x}.{y}\n" for x, y in itertools.product(ids, ids) if x != y))

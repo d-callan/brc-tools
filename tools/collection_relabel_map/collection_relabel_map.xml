@@ -1,5 +1,5 @@
 <tool id="collection_relabel_map" name="Collection relabel map" version="1.0+galaxy0" profile="23.0">
-    <description>{a}_{b} TAB {a}.{b} for every ordered pair of element identifiers</description>
+    <description>{a}_{b} TAB {a}.{b} for every ordered pair of distinct element identifiers</description>
     <requirements>
         <requirement type="package" version="3.12">python</requirement>
     </requirements>
@@ -17,8 +17,14 @@ python '$__tool_directory__/relabel_map.py'
         <data name="output" format="tabular" label="${tool.name} on ${on_string}: relabel map"/>
     </outputs>
     <help><![CDATA[
-Emits a 2-column TSV ``{a}_{b}<TAB>{a}.{b}`` for every ordered pair of element identifiers.
-Cross-product cells are named ``A_B`` (the collection-id join separator can't be ``.``);
-this map renames them to ``A.B`` (Phase E ids) via ``__RELABEL_FROM_FILE__``.
+Emits a 2-column TSV ``{a}_{b}<TAB>{a}.{b}`` for every ordered pair of **distinct** element
+identifiers. Cross-product cells are named ``A_B`` (the collection-id join separator can't be
+``.``); this map renames them to ``A.B`` (Phase E ids) via ``__RELABEL_FROM_FILE__``.
+
+The ``A_A`` diagonal is **omitted**, because WF-C drops those cells with the self-pair list before
+relabelling. That makes the row count equal the element count, which is what allows the relabel
+step to run in strict mode -- and strict mode is the only thing that can detect a map built from
+the wrong collection. With the diagonal present the strict row-count check refuses every run, and
+without strict mode an unmatched element silently keeps its ``A_B`` identifier.
     ]]></help>
 </tool>
