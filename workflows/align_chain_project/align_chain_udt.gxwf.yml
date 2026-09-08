@@ -384,7 +384,16 @@ steps:
     state:
       how:
         how_select: tabular
-        strict: false
+        # ⛔ STRICT, BECAUSE IT IS THE ONLY THING THAT CAN DETECT A WRONG RELABEL MAP. Galaxy's
+        # relabel tool takes `default = None if strict else element_identifier`, so with strict
+        # off an element absent from the map KEEPS its `A_B` name and the step still reports
+        # success -- and Phase E, which splits ids on `.`, then silently cannot key those rows.
+        # Strict makes that a failed step instead, checking both every lookup and the row count.
+        # ⚠ THE ROW COUNT IS WHY `relabel_map` OMITS THE `A_A` DIAGONAL. This step runs downstream
+        # of the four self-pair filters, so the collection holds n**2-n elements; a map carrying
+        # the diagonal has n**2 rows and strict mode refuses the count before checking a single
+        # identifier. The two have to be changed together, and were (tools/collection_relabel_map).
+        strict: true
     out:
       output: {}
     position: {top: 370, left: 3651}
@@ -396,7 +405,16 @@ steps:
     state:
       how:
         how_select: tabular
-        strict: false
+        # ⛔ STRICT, BECAUSE IT IS THE ONLY THING THAT CAN DETECT A WRONG RELABEL MAP. Galaxy's
+        # relabel tool takes `default = None if strict else element_identifier`, so with strict
+        # off an element absent from the map KEEPS its `A_B` name and the step still reports
+        # success -- and Phase E, which splits ids on `.`, then silently cannot key those rows.
+        # Strict makes that a failed step instead, checking both every lookup and the row count.
+        # ⚠ THE ROW COUNT IS WHY `relabel_map` OMITS THE `A_A` DIAGONAL. This step runs downstream
+        # of the four self-pair filters, so the collection holds n**2-n elements; a map carrying
+        # the diagonal has n**2 rows and strict mode refuses the count before checking a single
+        # identifier. The two have to be changed together, and were (tools/collection_relabel_map).
+        strict: true
     out:
       output: {}
     position: {top: 280, left: 5751}

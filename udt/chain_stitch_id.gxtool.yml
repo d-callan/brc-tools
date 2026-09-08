@@ -5,6 +5,7 @@
 # provenance:
 #   source: tools/chainStitchId/chainStitchId.xml
 #   tool_id: chainStitchId
+#   tool_sha256: 33b246465e74a9ca0ba52aba2b2b00889213d7a85856121bfe9ac7b28a880e1f
 #   command_sha256: 6a12d4777c355606c0f6d3c14b4f3d96d9f2b986baca8b06620089eeeb383653
 #   requirements: ucsc-chainstitchid=482
 #   macros_sha256: c7651de8c5ce0c575542ea51d77f7e515162e641b1bcae093288fa07018d1eda

@@ -29,8 +29,10 @@ produces by a different route:
     tantan                    BED3   vs   the lowercase runs of its own masked FASTA
     fastan                    BED6   vs   the `M` records of its own .1ano, read with ONEview
 
-Each pair must agree EXACTLY. A one-base shift fails, a 3 kb shift fails, and a tool that changes
-its output convention fails on the next run rather than in six months' time.
+Each pair must agree EXACTLY, AND ON A NON-EMPTY ANSWER. A one-base shift fails, a 3 kb shift
+fails, and a tool that changes its output convention fails on the next run rather than in six
+months' time -- but two empty lists are also equal, so each case carries the fewest intervals a
+real answer can have (see CASES) and agreement on fewer than that is a failure, not a pass.
 
 ⚠ NEEDS DOCKER, because the ground truth has to come from the tool itself. Without it this SKIPS
 and says so; a skip is not a pass.
@@ -137,11 +139,24 @@ def case_fastan(_tool, image, wd):
     return bed, truth
 
 
+#: (case function, container image, fewest intervals a real answer can have)
+#:
+#: ⛔ THE FLOOR IS THE POINT, BECAUSE `bed == truth` IS SATISFIED BY TWO EMPTY LISTS. A comparison
+#: of nothing against nothing printed `pass ... 0 interval(s), identical to the tool's own answer`
+#: -- in the one script whose stated thesis is that a skip is not a pass. Anything that stops a
+#: tool from emitting intervals while its own ground truth also comes back empty (a masker whose
+#: options change meaning, a FasTAN build that stops writing `M` records, an ONEview whose column
+#: order moves) would have reported green having checked nothing.
+#:
+#: The synthetic input plants low-complexity that every masker here does find, so 1 is a floor and
+#: not an expectation about the heuristics -- what the tool chooses to mask is still not asserted.
+#: fastan gets 2 because its case exists for the N-gap: with one array there is nothing on the far
+#: side of the gap to be misplaced, so a single-interval answer cannot see the bug at all.
 CASES = {
-    "dustmasker": (case_ncbi_masker, "quay.io/biocontainers/blast:2.17.0--h66d330f_0"),
-    "windowmasker": (case_ncbi_masker, "quay.io/biocontainers/blast:2.17.0--h66d330f_0"),
-    "tantan": (case_tantan, "quay.io/biocontainers/tantan:51--h5ca1c30_1"),
-    "fastan": (case_fastan, "quay.io/biocontainers/fastan:0.8--h118bc1c_1"),
+    "dustmasker": (case_ncbi_masker, "quay.io/biocontainers/blast:2.17.0--h66d330f_0", 1),
+    "windowmasker": (case_ncbi_masker, "quay.io/biocontainers/blast:2.17.0--h66d330f_0", 1),
+    "tantan": (case_tantan, "quay.io/biocontainers/tantan:51--h5ca1c30_1", 1),
+    "fastan": (case_fastan, "quay.io/biocontainers/fastan:0.8--h118bc1c_1", 2),
 }
 
 
@@ -158,7 +173,7 @@ def main() -> int:
 
     bad = skipped = 0
     for name in (args.only or sorted(CASES)):
-        fn, image = CASES[name]
+        fn, image, floor = CASES[name]
         with tempfile.TemporaryDirectory() as td:
             wd = pathlib.Path(td)
             bed, truth = fn(name, image, wd)
@@ -166,8 +181,16 @@ def main() -> int:
             print(f"  ⚠ SKIP  {name:<14} {truth}")
             skipped += 1
             continue
-        if bed == truth:
+        if bed == truth and len(bed) >= floor:
             print(f"  pass    {name:<14} {len(bed)} interval(s), identical to the tool's own answer")
+            continue
+        if bed == truth:
+            bad += 1
+            print(f"  ⛔ FAIL  {name:<14} the BED and the tool's own answer agree on {len(bed)} "
+                  f"interval(s), which is fewer than the {floor} this case needs to compare "
+                  f"anything. Two empty lists are equal; that is not agreement about positions. "
+                  f"Either the tool stopped emitting intervals or the ground-truth reader stopped "
+                  f"finding them -- both silently, and both invisible to an equality test.")
             continue
         bad += 1
         print(f"  ⛔ FAIL  {name:<14} the BED and the tool's own output name DIFFERENT places")

@@ -48,9 +48,10 @@ from collections import Counter, defaultdict
 def load_edges(path):
     """Return undirected gene-gene edges as {frozenset({node_a, node_b})}.
 
-    rbest ships both directions of most pairs. Deduplicating here is what makes
-    the clique ratio a true 0..1 fraction -- counting directed edges against an
-    undirected expectation of k*(k-1)/2 inflates it past 1.0.
+    rbest ships both directions of most pairs, so deduplicating is what makes the
+    edge count comparable with an UNDIRECTED expectation at all -- counting directed
+    edges doubles it. Dedup alone does not bound the ratio: see expected_edges()
+    for the denominator that does.
     """
     edges = set()
     with open(path) as fh:
@@ -79,6 +80,30 @@ class UnionFind:
         ra, rb = self.find(a), self.find(b)
         if ra != rb:
             self.parent[ra] = rb
+
+
+def expected_edges(counts):
+    """The most mutual support 1:1 evidence can provide: sum over strain pairs of
+    min(copies_a, copies_b).
+
+    ⛔ NOT k*(k-1)/2, WHICH IS NOT A DENOMINATOR FOR THIS NUMERATOR. `k` counts
+    distinct STRAINS while the numerator counts GENE-GENE edges, so the moment a
+    group holds more than one copy per strain the ratio leaves 0..1 entirely:
+    three strains with two 1:1-supported copies each scored 4.000. Every
+    multi-copy group therefore sat far above `--min-clique` and could never be
+    listed as ragged -- the CORE-VAR and FAMILY groups this number exists to
+    audit were exactly the ones it could not flag.
+
+    ⚠ AND IT MADE THE COMPARISON THE SCRIPT ASKS FOR MEANINGLESS. phase_e_consensus.py
+    prints "Compare against scripts/rbest_baseline.py on the same rbest edges" while
+    computing its `clique` this way, with a comment saying k*(k-1)/2 "would flag every
+    multi-copy group as chained". Two numbers offered for comparison have to be on one
+    scale, so this is that same formula. It reduces to k*(k-1)/2 for single-copy groups,
+    which is where the two agreed before.
+    """
+    counts = sorted(counts)
+    return sum(min(counts[i], counts[j])
+               for i in range(len(counts)) for j in range(i + 1, len(counts)))
 
 
 def label_of(n_strains, max_copies, n_all):
@@ -124,7 +149,15 @@ def main():
     print(f"orthogroups: {len(comps):,}\n")
 
     rows, labels, cliques, ragged = [], Counter(), [], []
-    for i, (root, nodes) in enumerate(sorted(comps.items(), key=lambda kv: -len(kv[1])), 1):
+    # ⛔ THE TIE-BREAK IS WHAT MAKES `OG000007` MEAN ANYTHING. `comps` is keyed by
+    # union-find roots and filled by iterating a set of strings, so its order follows
+    # per-process string-hash randomisation; sorting on size alone left every group of
+    # equal size in an arbitrary position. The same --edges file under PYTHONHASHSEED=1
+    # and =42 handed OG000001..OG000012 to different genes, so two --out tables could
+    # not be diffed and an OG id quoted in a report named nothing. phase_e_consensus.py
+    # sorts by this same key for this same reason.
+    for i, (root, nodes) in enumerate(sorted(comps.items(),
+                                             key=lambda kv: (-len(kv[1]), min(kv[1]))), 1):
         per = defaultdict(list)
         for n in nodes:
             s, g = n.split("#", 1)
@@ -132,8 +165,8 @@ def main():
         k, mx = len(per), max(len(v) for v in per.values())
         lab = label_of(k, mx, n_all)
         labels[lab] += 1
-        expected = k * (k - 1) // 2
-        clique = edge_count[root] / expected if expected else 1.0
+        expected = expected_edges(len(v) for v in per.values())
+        clique = min(edge_count[root] / expected, 1.0) if expected else 1.0
         cliques.append(clique)
         if clique < a.min_clique:
             ragged.append((f"OG{i:06d}", k, mx, len(nodes), round(clique, 3)))
@@ -147,7 +180,7 @@ def main():
 
     cliques.sort()
     below = sum(1 for c in cliques if c < a.min_clique)
-    print(f"\nclique completeness (undirected edges / k*(k-1)/2):")
+    print("\nclique completeness (undirected edges / sum of min(copies_a, copies_b)):")
     print(f"   median {cliques[len(cliques) // 2]:.3f}   "
           f"10th pct {cliques[len(cliques) // 10]:.3f}")
     print(f"   below {a.min_clique}: {below:,} groups ({100 * below / len(comps):.1f}%) "
