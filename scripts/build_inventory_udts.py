@@ -252,6 +252,12 @@ inputs:
   - name: assemblies
     type: data_collection
     collection_type: list
+    # ⚠ RESTRICTED, AS THE CLASSIC AND BOTH SIBLING UDTs ARE. sourmash_sketch.xml declares
+    # `format="fasta,fasta.gz"`, brc-samtools-faidx declares fasta,fasta.gz and brc-anchor-prep
+    # gff3,gff3.gz; this input carried no `format:` at all, so a collection of any datatype was
+    # selectable on the form and got sketched. It degrades loudly (the zero-hash guard fires)
+    # rather than silently, but the port had dropped a validation for no stated reason.
+    format: fasta,fasta.gz
     label: assemblies to sketch
     help: The panel. One signature per element, sketched in collection order.
   - name: identifiers
@@ -345,7 +351,7 @@ help:
 
     **The per-strain signatures come back as a collection.** The classic WF-A pair published one
     `.sig` dataset per strain — "BRC-reusable" — and doing the sketch inside this job made them
-    work-dir files instead. They are copied to `signatures/{{strain}}.sig` after the compare and
+    work-dir files instead. They are copied to `signatures/{{index}}_{{strain}}.sig` after the compare and
     published as a discovered `list` collection, keyed by strain, so nothing about WF-A's output
     set is lost by collapsing the two steps.
 

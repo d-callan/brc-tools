@@ -57,7 +57,16 @@ if _bad:
 # unparseable or empty rendered block reported "0 assemblies but N identifiers -- the identifier file
 # must come from the SAME collection", pointing the operator at the one input that was correct. A
 # render this cannot read is a DIFFERENT fault and says so.
-if not _json_ok or not paths:
+# ⛔ AN EMPTY COLLECTION IS NOT A RENDER FAULT, AND SAYING SO SENT THE OPERATOR THE WRONG WAY.
+# These two states shared one message: an empty `assemblies` renders `[]`, json.loads SUCCEEDS,
+# paths is empty, and the operator was told "could not parse the rendered collection input as
+# JSON" -- asserting a parse failure that did not happen, about the one input that was fine. That
+# is the same misdirection this block was rewritten to remove; it just moved.
+if _json_ok and not paths:
+    sys.exit("the collection input rendered cleanly and is EMPTY -- zero assemblies. Nothing to "
+             "sketch, and a similarity matrix over nothing is not a result. Check the collection "
+             "you passed as `assemblies`; the identifier file is not implicated.")
+if not _json_ok:
     sys.exit(f"could not parse the rendered collection input as JSON; the fallback pattern "
              f"scraped {len(paths)} path(s). That is a "
              "RENDER problem, not an identifier problem -- the identifier file is not implicated. "
@@ -116,7 +125,14 @@ for _i, (path, name) in enumerate(zip(paths, ids, strict=True)):
     # a 30 kb truncation of a 3 Mb assembly -- 19 hashes, 100% contained in it -- scored 0.0064
     # against its own parent, indistinguishable from 0.0 in a heatmap and in WF-I's fold order.
     # Refusing at 0 and waving through 1 draws the line in the one place it does not belong.
-    _floor = max(20, int(a.scaled) // 50)
+    # ⚠ A CONSTANT, NOT A FUNCTION OF `--scaled`, AND THE OLD `max(20, scaled // 50)` HAD THE
+    # RELATIONSHIP BACKWARDS. Hash count is INVERSELY proportional to --scaled, so raising it
+    # lowers the hashes AND used to raise the bar: at --scaled 10000 the floor became 200 while a
+    # 1 Mb assembly yields about 100 hashes, so a perfectly usable genome was reported as
+    # unmeasured -- misfiring at exactly the operators who raised --scaled for a large panel.
+    # Every measurement quoted above is an absolute count at scaled=1000, and none of them
+    # justifies a scaling term.
+    _floor = 20
     if _n == 0:
         sys.exit(f"{name} sketched to ZERO hashes at scaled={a.scaled}, so it can only appear in "
                  f"the matrix as a genome sharing nothing with anyone -- which is not a failure "

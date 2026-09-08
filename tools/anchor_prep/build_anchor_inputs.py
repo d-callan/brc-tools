@@ -9,13 +9,14 @@ command block; this script consumes the raw BED12 plus the source GFF3 and
 emits the filtered BED12 and the isoforms TSV.
 """
 import argparse
+import pathlib
 import re
 
 
 def collect_protein_coding_genes(gff_path):
     """Gene IDs of protein_coding_gene / gene features (ID= from column 9)."""
     pc = set()
-    with open(gff_path) as fin:
+    with pathlib.Path(gff_path).open() as fin:
         for ln in fin:
             if ln.startswith("#"):
                 continue
@@ -45,7 +46,7 @@ def filter_bed12(raw_bed_path, out_path, pc):
     rewrite column 4 to the gene id before emitting the 12-column BED.
     """
     n_in = n_kept = 0
-    with open(raw_bed_path) as fin, open(out_path, "w") as fout:
+    with pathlib.Path(raw_bed_path).open() as fin, pathlib.Path(out_path).open("w") as fout:
         for ln in fin:
             ln = ln.rstrip("\n")
             if not ln:
@@ -76,7 +77,7 @@ def build_isoforms(gff_path, out_path):
     transcript_id = ID= of the mRNA, gene_id = Parent= of the mRNA.
     """
     rows = []
-    with open(gff_path) as fin:
+    with pathlib.Path(gff_path).open() as fin:
         for ln in fin:
             if ln.startswith("#"):
                 continue
@@ -92,7 +93,7 @@ def build_isoforms(gff_path, out_path):
             if tx and gene:
                 rows.append((gene, tx))
     rows.sort(key=lambda r: (r[0], r[1]))
-    with open(out_path, "w") as fout:
+    with pathlib.Path(out_path).open("w") as fout:
         for gene, tx in rows:
             fout.write(gene + "\t" + tx + "\n")
     return len(rows)
@@ -109,7 +110,7 @@ def main():
     pc = collect_protein_coding_genes(args.gff)
     n_in, n_kept = filter_bed12(args.raw_bed, args.out_bed, pc)
     n_iso = build_isoforms(args.gff, args.out_isoforms)
-    print("bed12: kept %d/%d  isoforms: %d" % (n_kept, n_in, n_iso))
+    print(f"bed12: kept {n_kept}/{n_in}  isoforms: {n_iso}")
 
 
 if __name__ == "__main__":
