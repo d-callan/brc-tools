@@ -9,10 +9,23 @@ changed since this was generated?" and deliberately not "could I re-derive it?",
 question that would require the library.
 
     python3 scripts/check_udt_provenance.py          # non-zero if any stamped UDT is stale
+    python3 scripts/check_udt_provenance.py --self-test   # pin the reader to the converter's
 
-⛔ AN UNSTAMPED FILE IS REPORTED, NOT SKIPPED SILENTLY. `udt/` also holds documents from
-`build_softmask_udts.py`, which carries its own `--check`; those have no stamp and are listed by
-name so that "0 stale" can never mean "0 examined".
+⛔ AN UNSTAMPED FILE IS REPORTED, NOT SKIPPED SILENTLY. `udt/` also holds documents from three
+generators, each carrying its own `--check`; those have no stamp and are listed by name so that
+"0 stale" can never mean "0 examined". The same applies to a stamp this script cannot fully
+verify: it is counted and named rather than folded into the pass.
+
+⚠ THE WRAPPER IS READ WITH ElementTree, NOT WITH A REGEX, AND THAT IS A CORRECTNESS FIX RATHER
+THAN A TIDY-UP. The converter hashes `"".join(node.itertext())` of the parsed tree, so a text
+slice agrees with it only for a command that is pure CDATA with no XML entities and no child
+elements. Measured on both shapes: `&amp;&amp;` in a command diverges (ElementTree decodes the
+entity, the slice does not) and so does an `<expand>` child (itertext drops the markup and keeps
+the tail). Either would have been reported STALE the instant it was generated -- a permanent false
+alarm in the one script whose value is that its alarms can be trusted. A `@TOKEN@` does NOT
+diverge, measured: `doc.root` is the unexpanded tree, so both sides keep the token verbatim.
+Parsing with the standard library's own XML reader agrees with the converter on all four shapes,
+and needs no more dependencies than the regex did.
 """
 
 from __future__ import annotations
@@ -21,6 +34,7 @@ import hashlib
 import pathlib
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -46,23 +60,78 @@ def sha(text: str) -> str:
 
 
 def command_text(xml: pathlib.Path) -> str:
-    """The <command> body, read the way the converter read it.
+    """The <command> body, read the way the converter read it: `itertext()` over the parsed tree.
 
-    ⚠ This is a TEXT slice, not a parse: the converter hashed `"".join(node.itertext())`, so the
-    same bytes have to be recovered here without an XML library that expands anything. A regex is
-    correct for exactly this because the hash only has to agree with the generator, and disagreeing
-    is the alarm this script exists to raise.
+    ⚠ ElementTree, NOT A TEXT SLICE. The converter hashes the itertext of `doc.root.find("command")`
+    from an UNEXPANDED tree, which the stdlib parser reproduces exactly -- including the two things
+    a regex gets wrong (XML entities, which have to be decoded, and child elements, whose markup
+    has to disappear while their tails survive). Verified against the converter over a plain
+    command, one carrying `@TOOL_VERSION@`, one carrying `&amp;&amp;` and one carrying `<expand>`:
+    all four agree, and the real chainStitchId wrapper reproduces its committed stamp byte for byte.
     """
-    m = re.search(r"<command[^>]*>(.*?)</command>", xml.read_text(), re.DOTALL)
-    if not m:
-        return ""
-    body = m.group(1)
-    body = body.replace("<![CDATA[", "").replace("]]>", "")
-    return body
+    node = ET.parse(xml).getroot().find("command")
+    return "".join(node.itertext()) if node is not None else ""
+
+
+# ---------------------------------------------------------------- self-test --------------------
+#: The four command shapes that decide whether `command_text` agrees with the converter, and what
+#: each one is here to pin. The two DIVERGE cases are the ones a text slice got wrong; the token
+#: case is here because it was ASSUMED to diverge and measurement said otherwise, so nobody
+#: re-derives that assumption from the comment alone.
+SELF_TEST_COMMANDS = {
+    "plain CDATA": '<command><![CDATA[ chainStitchId a b ]]></command>',
+    "an @TOKEN@ (agrees: doc.root is unexpanded)":
+        '<command><![CDATA[ chainStitchId --v @TOOL_VERSION@ a b ]]></command>',
+    "an XML entity (a text slice kept `&amp;amp;`)":
+        '<command>chainStitchId a b &amp;&amp; echo done</command>',
+    "an <expand> child (a text slice kept the markup)":
+        '<command>chainStitchId a b <expand macro="bit"/> tail</command>',
+}
+
+
+def self_test() -> int:
+    """Pin `command_text` to the converter's reading, which is `itertext()` over the parsed tree.
+
+    ⚠ THE CONVERTER IS NOT IMPORTED HERE, AND CANNOT BE. It needs galaxy-tool-source, which is the
+    whole reason this script exists (see the header). So the expectation is written out: itertext
+    over a stdlib parse, which was verified equal to the converter's own reading on all four of
+    these shapes, plus the real wrapper, when this was measured. What the self-test catches is
+    someone reverting `command_text` to a regex -- the two divergent cases fail immediately.
+    """
+    import tempfile
+    failed = 0
+    with tempfile.TemporaryDirectory() as td:
+        for label, command in SELF_TEST_COMMANDS.items():
+            xml = pathlib.Path(td) / "t.xml"
+            xml.write_text(f'<tool id="t" name="t" version="1.0">{command}'
+                           f"<inputs/><outputs/></tool>")
+            want = "".join(ET.parse(xml).getroot().find("command").itertext())
+            got = command_text(xml)
+            ok = got == want
+            failed += not ok
+            print(f"  {'pass' if ok else '⛔ FAIL'}  {label}")
+            if not ok:
+                print(f"          read     {got!r}\n          itertext {want!r}")
+
+        # ⛔ AND THE MARKUP MUST NOT SURVIVE, which is the assertion a same-formula comparison
+        # cannot make: both sides would agree on a wrong answer if `command_text` were changed to
+        # return raw bytes and `want` were computed the same way.
+        xml = pathlib.Path(td) / "t.xml"
+        xml.write_text('<tool id="t" name="t" version="1.0">'
+                       '<command>a <expand macro="bit"/> b &amp;&amp; c</command>'
+                       "<inputs/><outputs/></tool>")
+        text = command_text(xml)
+        for bad, why in (("<expand", "child markup"), ("&amp;", "an undecoded entity")):
+            ok = bad not in text
+            failed += not ok
+            print(f"  {'pass' if ok else '⛔ FAIL'}  {why} does not reach the hash")
+    n = len(SELF_TEST_COMMANDS) + 2
+    print(f"\n  {n - failed}/{n} self-test case(s) behaved correctly")
+    return 1 if failed else 0
 
 
 def main() -> int:
-    stale, checked, unstamped = [], 0, []
+    stale, checked, unstamped, partial = [], 0, [], []
     for udt in sorted((ROOT / "udt").glob("*.gxtool.yml")):
         prov = stamp(udt)
         if not prov.get("source"):
@@ -73,8 +142,32 @@ def main() -> int:
         if not xml.exists():
             stale.append(f"{udt.name}: source {prov['source']} no longer exists")
             continue
-        if sha(command_text(xml)) != prov.get("command_sha256"):
-            stale.append(f"{udt.name}: <command> in {prov['source']} changed since generation")
+        # ⛔ THE WHOLE-FILE HASH IS THE DETECTOR; THE TWO NARROW ONES ONLY SAY WHERE. The converter
+        # copies far more out of the wrapper than the command: the <description>, every input's
+        # format/label/help, every output's FORMAT and label, and the entire <help> body. While
+        # only <command> and macros.xml were hashed, changing
+        # `<data name="output" format="chain">` to `format="tabular"` left this printing
+        # "0 stale" with the generated UDT still declaring `format: chain` -- demonstrated on
+        # chainStitchId. So the stamp now carries a hash of the whole file, and these narrow
+        # hashes are kept to localise what moved once it has fired.
+        want_tool = prov.get("tool_sha256")
+        got_tool = sha(xml.read_text())
+        cmd_moved = sha(command_text(xml)) != prov.get("command_sha256")
+        if want_tool and got_tool != want_tool:
+            where = ("its <command>" if cmd_moved else
+                     "something outside <command> -- the description, an input or output "
+                     "declaration (a FORMAT included), or the help text, all of which are "
+                     "copied into the UDT")
+            stale.append(f"{udt.name}: {prov['source']} changed since generation, in {where}")
+        elif not want_tool:
+            # ⚠ AN OLD STAMP IS NOT A PASS. Before `tool_sha256` existed a stamp could only be
+            # checked on <command> and macros.xml, so saying nothing here would let a partially
+            # verified file be counted with the fully verified ones.
+            partial.append(f"{udt.name}: stamp predates `tool_sha256`, so only <command> and "
+                           f"macros.xml were checked -- regenerate it to cover the rest of "
+                           f"{prov['source']}")
+            if cmd_moved:
+                stale.append(f"{udt.name}: <command> in {prov['source']} changed since generation")
         macros = xml.parent / "macros.xml"
         want = prov.get("macros_sha256", "")
         if want != "(no macros.xml)":
@@ -88,12 +181,23 @@ def main() -> int:
                              f"(this can change the pinned container: {prov.get('requirements')})")
     for line in stale:
         print(f"STALE  {line}")
+    for line in partial:
+        print(f"PARTIAL  {line}")
     if unstamped:
-        print(f"note: {len(unstamped)} UDT(s) carry no provenance stamp and were not checked here "
-              f"(build_softmask_udts.py --check covers those): {', '.join(unstamped)}")
-    print(f"{checked} stamped UDT(s) checked, {len(stale)} stale")
+        # ⚠ NAME ALL THREE GENERATORS. This used to name build_softmask_udts.py alone, which
+        # covers 15 of the 22 (11 generated plus 4 hand-written) and reports the other 7 as
+        # "checked elsewhere" -- so a reader who followed the note ran one script and believed it
+        # had examined every unstamped file. Coverage across the three is complete; the note has
+        # to say so accurately or it is worse than no note.
+        print(f"note: {len(unstamped)} UDT(s) carry no provenance stamp and were not checked "
+              f"here. Between them, build_softmask_udts.py, build_inventory_udts.py and "
+              f"build_projection_udts.py --check cover all of them: {', '.join(unstamped)}")
+    print(f"{checked} stamped UDT(s) checked, {len(stale)} stale, "
+          f"{len(partial)} verifiable only in part")
     return 1 if stale else 0
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())
