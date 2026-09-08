@@ -9,15 +9,19 @@ doc: >-
   ninth step, `Cut1` over the .fai, is not "left" but DELETED: `brc-samtools-faidx` emits
   `chrom.sizes` itself. The identifier extraction (`collection_element_identifiers`) is a NEW stock
   step, not one of the classic's nine. Eight steps against nine, which is a smaller graph and not a
-  larger one: see the output accounting below for where this edition does less.
+  larger one, and -- since `signatures` was restored below -- no longer a graph that does less.
 
-  ⛔ ONE CLASSIC OUTPUT IS NOT REPRODUCED, AND THAT IS A REAL GAP RATHER THAN AN OVERSIGHT. The
-  classic workflow publishes `signatures`, the per-strain sourmash .sig files, described in its own
-  port list as "BRC-reusable". `brc-sourmash-panel` performs the sketch and the compare in ONE job
-  and publishes only the similarity matrix and the two plots, so the individual signatures never
-  become datasets. Closing it means giving that UDT a collection output, not editing anything here.
+  ⚠ `signatures` WAS THIS PORT'S ONE REAL GAP AND IS NOW CLOSED, WHICH IS WORTH KNOWING BECAUSE THE
+  FIX IS NOT WHERE IT LOOKS. The classic publishes `signatures`, the per-strain sourmash .sig files
+  it calls "BRC-reusable", from `sourmash_sketch` mapped over the panel. `brc-sourmash-panel`
+  sketches and compares in ONE job -- which is what lets the identifier pairing sit inside a single
+  assertion -- so the signatures were work-dir files no dataset pointed at. They come back as a
+  DISCOVERED collection from that UDT, keyed by strain: nothing in this file could have fixed it.
+  ⚠ AND THEIR ELEMENT ORDER IS ALPHABETICAL, NOT PANEL ORDER. A map-over collection keeps the input
+  order; a discovered one is sorted by `sort_key`, whose every choice is the strain name. Same
+  elements, same identifiers, different sequence -- and nothing consumes them positionally.
 
-  So the output sets differ in three places, not one: this edition LOSES `signatures` and ADDS
+  So the output sets now differ in two places, both ADDITIONS:
   `panel_identifiers` (the list three steps are keyed on, published so a reader can see it) and
   `fasta_index` (the .fai the faidx UDT emits anyway, which the classic computed and discarded).
   ⚠ READ `fasta_index` FOR NAMES AND LENGTHS ONLY. Its byte OFFSETS describe `seq.fa` -- the
@@ -25,8 +29,8 @@ doc: >-
   gzip and NCBI ships .gz -- and that file is not published. Pairing this .fai with the input
   assembly and seeking into it gives garbage. `sizes` (columns 1-2) is unaffected and is the output
   the rest of the pipeline consumes.
-  Twelve outputs against the classic's eleven, and the one that is missing is named above rather
-  than left for somebody to notice.
+  Thirteen outputs against the classic's eleven, every one of the eleven present, and the two extras
+  named above rather than left for somebody to find.
 
   ⚠ THE IDENTIFIER LIST IS AN EXTRA STEP THAT LOOKS REDUNDANT AND IS NOT. Three of the UDTs take the
   panel's element identifiers as a TEXT DATASET rather than reading them off the collection, because
@@ -91,6 +95,12 @@ outputs:
   sourmash_dendrogram:
     outputSource: sourmash_panel/dendrogram
     doc: sourmash dendrogram (PNG).
+  signatures:
+    outputSource: sourmash_panel/signatures
+    doc: >-
+      Per-strain sourmash signatures (.sig), BRC-reusable -- the classic's `signatures`, discovered
+      out of the one sketch+compare job rather than mapped over the panel. Keyed by strain;
+      alphabetical rather than in panel order, for the reason given in the workflow doc.
   busco_summaries:
     outputSource: busco/busco_sum
     doc: Per-strain BUSCO short summaries.
@@ -147,9 +157,14 @@ steps:
     position: {top: 100, left: 640}
     doc: >-
       Sketch every assembly and compare them, in ONE job. The classic workflow spends two steps
-      (`sourmash_sketch` then `sourmash_compare`); collapsing them is what removes the need for the
-      intermediate signature collection to be a Galaxy dataset at all. ⛔ AND THAT IS ALSO WHY
-      `signatures` IS NOT AN OUTPUT of this edition -- see the workflow doc.
+      (`sourmash_sketch` then `sourmash_compare`); collapsing them is what keeps the
+      identifier-to-assembly pairing inside a single assertion, instead of splitting it across two
+      steps where a mislabelled matrix would look like a result. ⚠ THE SIGNATURES ARE STILL
+      PUBLISHED. Being an intermediate of one job does not make them work-dir litter: the UDT copies
+      them to identifier-named files and declares a DISCOVERED `signatures` collection, which is
+      what keeps this edition's output set a superset of the classic's. An earlier revision of this
+      step doc said the collapse was "why `signatures` is not an output"; it was never the reason,
+      only the thing that made the fix belong in the tool rather than here.
     in:
       assemblies: assemblies
       identifiers: panel_identifiers/output

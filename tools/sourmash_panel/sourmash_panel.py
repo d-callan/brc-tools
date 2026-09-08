@@ -8,6 +8,7 @@ import argparse
 import json
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 
@@ -75,11 +76,16 @@ if len(set(ids)) != len(ids):
 # at `stage/{name}.sig` this was a data-loss guard: `gA` and `./gA` are distinct strings naming the
 # SAME file, so one sketch overwrote the other, the matrix came out `./gA,./gA` with an
 # off-diagonal 1.0 that is a self-comparison, and a genome was absent -- exit 0. `../escaped` wrote
-# the signature outside the job directory. Staging by INDEX (below) removed both hazards outright.
-# What is left is narrower and worth keeping anyway: such a name still travels into `--name` and
-# becomes a COLUMN LABEL in similarity.csv, where a leading dash or an embedded path reads as a
-# malformed strain and joins against nothing downstream. Refusing early says so; it is no longer
-# the difference between a correct matrix and a corrupt one.
+# the signature outside the job directory. Staging by INDEX (below) removed both hazards from the
+# SKETCH, and an earlier version of this comment concluded that what was left was only a cosmetic
+# label problem. That is no longer true in either half:
+#   * the name still travels into `--name` and becomes a COLUMN LABEL in similarity.csv, where a
+#     leading dash or an embedded path reads as a malformed strain and joins against nothing; and
+#   * the name is a FILENAME again -- `signatures/{name}.sig`, published as the discovered
+#     `signatures` collection at the end of this script. `gA` and `./gA` would collide there
+#     exactly as they once did in `stage/`, and `../escaped` would write outside the work dir.
+# So this guard is load-bearing for the data and not just for the labels; the count check beside
+# the publish step is the second line of defence.
 _bad = [i for i in ids if "/" in i or i in (".", "..") or i.startswith("-")]
 if _bad:
     sys.exit(f"element identifier(s) {_bad[:3]} contain a path separator, are a directory alias, or "
@@ -129,3 +135,40 @@ sigs = [f"stage/{i:04d}.sig" for i in range(len(ids))]
 subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "-o", "cmp", "--csv", "similarity.csv",
                 *sigs], check=True)
 subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)
+
+# ---- publish the per-strain signatures ----------------------------------------------------------
+# ⛔ THE CLASSIC WORKFLOW PUBLISHES THESE AND THIS PORT DID NOT -- WF-A's one real parity loss.
+# `sourmash_sketch` mapped over the panel leaves one .sig dataset per strain, described in the
+# classic's own port list as "BRC-reusable"; collapsing sketch and compare into ONE job (which is
+# what the identifier assertion needs) turned them into work-dir files nobody could reach. A
+# discovered collection gives them back without splitting the job in two again.
+#
+# ⛔ AND THE FILENAME IS THE POINT, WHICH IS WHY THIS COPIES RATHER THAN DISCOVERING `stage/`.
+# Discovery takes each element identifier from the FILENAME, and `stage/` is deliberately keyed by
+# INDEX -- pointing discovery at it hands back a collection keyed `0000`..`000N`, which joins
+# against nothing downstream: not the sizes, not the self-pairs, not the relabel map, every one of
+# which keys on the strain. A collection whose identifiers are ordinals is worse than no collection
+# at all, because it looks like one.
+#
+# ⚠ SAFE ONLY BECAUSE OF THE IDENTIFIER GUARDS ABOVE, and this is now the second reason they exist:
+# a duplicate, a path separator, a dot-alias or a leading dash would collide here or write outside
+# the work dir, and all four are refused before anything is sketched.
+#
+# ⚠ ELEMENT ORDER DIFFERS FROM THE CLASSIC'S, AND CANNOT BE MADE TO MATCH. A map-over collection
+# comes out in PANEL order; discovery sorts by `sort_key`, whose choices are filename/name/
+# designation/dbkey -- all of which are the strain name -- so this collection is alphabetical. Same
+# elements, same identifiers, different order. Nothing in this pipeline consumes `signatures`
+# positionally (it is a terminal, reusable artifact), but a consumer that did would see a
+# difference between the two editions of WF-A.
+pathlib.Path("signatures").mkdir(exist_ok=True)
+for _i, name in enumerate(ids):
+    shutil.copyfile(f"stage/{_i:04d}.sig", f"signatures/{name}.sig")
+# ⛔ COUNT WHAT LANDED RATHER THAN ASSUMING IT. Discovery publishes whatever it finds, so a short
+# collection is a GREEN job with a genome missing -- the same silent loss the duplicate-identifier
+# guard exists to prevent, one step further down. If two names ever collapse onto one file by a
+# route those guards do not model (a case-insensitive filesystem, a future relaxation), this says so.
+_n_sigs = len(list(pathlib.Path("signatures").glob("*.sig")))
+if _n_sigs != len(ids):
+    sys.exit(f"published {_n_sigs} signature file(s) for {len(ids)} strain(s): the discovered "
+             f"`signatures` collection would be short a genome and the job would still succeed.")
+print(f"published {_n_sigs} signature(s) to signatures/", file=sys.stderr)

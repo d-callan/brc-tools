@@ -231,7 +231,10 @@ help:
 def sourmash_udt() -> str:
     """The one-job sourmash port: sketch every assembly, then compare, labelled by identifier."""
     indented = "\n".join(f"  {ln}" if ln else "" for ln in SOURMASH_GLUE.rstrip("\n").splitlines())
-    return HEADER + f"""class: GalaxyUserTool
+    # ⚠ RAW, FOR THE ONE BACKSLASH IN THE DISCOVERY PATTERN. `\\.sig` in a plain f-string is an
+    # unrecognised escape: Python keeps the backslash but warns (SyntaxWarning on 3.12+), and a
+    # future reader "fixing" the warning by doubling it would change the regex.
+    return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
 version: "0.1.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
@@ -294,6 +297,30 @@ outputs:
     format: png
     from_work_dir: cmp.dendro.png
     label: sourmash dendrogram
+  # ⛔ THE OUTPUT THAT CLOSES WF-A's ONE PARITY GAP. The classic workflow publishes one .sig dataset
+  # per strain from `sourmash_sketch` mapped over the panel; this tool does the sketch INSIDE the
+  # compare job, so without discovery the signatures stay work-dir files and the port silently
+  # published less than the thing it ports.
+  # ⚠ THE DIRECTORY IS `signatures/`, NOT `stage/`. The helper stages by INDEX on purpose, so
+  # discovering `stage/` would key the collection `0000`..`000N` instead of by strain; it copies to
+  # identifier-named files at the end for exactly this pattern to read.
+  # ⚠ EVERY FIELD IS SPELLED OUT BECAUSE `UserToolSource` DEFAULTS NONE OF THEM -- a bare
+  # `{{pattern: ...}}` entry fails validation.
+  - name: signatures
+    type: collection
+    collection_type: list
+    label: per-strain sourmash signatures (.sig)
+    discover_datasets:
+      - discover_via: pattern
+        pattern: '(?P<designation>.+)\.sig'
+        directory: signatures
+        format: json
+        visible: false
+        recurse: false
+        match_relative_path: false
+        assign_primary_output: false
+        sort_key: filename
+        sort_comp: lexical
 help:
   format: markdown
   content: |
@@ -313,6 +340,17 @@ help:
 
     The signature names are written by `sourmash sketch --name`, so the labels in the CSV come from
     the sketches themselves rather than from a post-hoc rename.
+
+    **The per-strain signatures come back as a collection.** The classic WF-A pair published one
+    `.sig` dataset per strain — "BRC-reusable" — and doing the sketch inside this job made them
+    work-dir files instead. They are copied to `signatures/{{strain}}.sig` after the compare and
+    published as a discovered `list` collection, keyed by strain, so nothing about WF-A's output
+    set is lost by collapsing the two steps.
+
+    ⚠ **Their ORDER is alphabetical, not panel order.** A map-over collection preserves the input
+    order; a discovered one is sorted by `sort_key`, and every choice it offers is the strain name.
+    Same elements and same identifiers as the classic's, in a different sequence. Nothing here
+    consumes them positionally, but a consumer that did would see the two editions differ.
 """
 
 def _check_orphans(rendered: dict[str, str]) -> list[str]:

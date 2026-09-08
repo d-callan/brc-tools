@@ -442,6 +442,7 @@ def lint(path, containers=True):                    # this IS a checklist; it is
 
     # -- 4. outputs ------------------------------------------------------------------------
     fwd_targets = []
+    disc_dirs = []
     for o in d.get("outputs") or []:
         if not isinstance(o, dict):
             bad("BAD-OUTPUT", f"output entry {o!r} is not a mapping")
@@ -468,6 +469,12 @@ def lint(path, containers=True):                    # this IS a checklist; it is
                     bad("DISCOVER-INCOMPLETE",
                         f"output `{oname}`: a pattern discovery entry has NO defaults in the "
                         f"model, so all of them are required; missing {missing}")
+                # ⚠ COLLECTED HERE, JUDGED IN THE TEMPLATING HALF, because deciding whether
+                # anything writes this directory needs the shell_command -- which is parsed
+                # further down. `directory` is required (DISCOVER-INCOMPLETE above), so a
+                # missing one is already a problem and not this check's business.
+                if entry.get("directory") is not None:
+                    disc_dirs.append((oname, str(entry["directory"])))
         if t == "data" and not o.get("format") and not o.get("format_source"):
             note("NO-FORMAT", f"output `{oname}` declares neither `format` nor `format_source`; "
                               f"Galaxy will guess the datatype")
@@ -699,6 +706,38 @@ def lint(path, containers=True):                    # this IS a checklist; it is
             else:
                 bad("PHANTOM-OUTPUT", f"output `{oname}`: from_work_dir {fwd!r} -- neither it, nor "
                                       f"{base!r}, nor their stem appears anywhere in shell_command")
+    # ⛔ A DISCOVERY DIRECTORY NOTHING WRITES IS AN EMPTY COLLECTION AND A GREEN JOB, and the
+    # PHANTOM-OUTPUT check above cannot see it: `from_work_dir` CLAIMS a file, so Galaxy fails the
+    # job when it is absent, while `discover_datasets` claims nothing -- it globs the directory it
+    # is given and publishes whatever is there. A misspelled or never-created directory therefore
+    # yields a collection with ZERO elements, exit 0, and no missing-output error anywhere. This
+    # repository's first discovery output was written and reviewed with this check absent, which is
+    # the same gap PHANTOM-OUTPUT itself was written to close for the other output kind.
+    for oname, ddir in disc_dirs:
+        # ⚠ THE WORKING DIRECTORY IS NOT A PHANTOM. `directory: .` (or an empty value) discovers in
+        # the job directory itself, which no command has to create.
+        if ddir.strip("/") in ("", "."):
+            continue
+        spellings = [ddir, *[k for k, v in aliases.items() if v == ddir]]
+        if not any(s in cmd for s in spellings):
+            bad("PHANTOM-DISCOVERY-DIR",
+                f"output `{oname}`: discovery directory {ddir!r} appears NOWHERE in shell_command, "
+                f"so nothing writes it. Galaxy will glob it anyway and publish an empty collection "
+                f"with exit 0 -- discovery claims no file, so there is no missing-output error to "
+                f"tell you.")
+            continue
+        # ⚠ NAMED IS NOT CREATED, AND THIS HALF IS A NOTE ON PURPOSE. Plenty of tools make their
+        # own output directory from a flag (`busco -o outdir`, `--outdir`), so the absence of an
+        # explicit mkdir is not a defect. It is, though, where an empty collection comes from when
+        # the tool turns out to write its files somewhere else, and that is worth a reader's eye.
+        d_re = re.escape(ddir)
+        if not re.search(rf"(?:mkdir|makedirs)[^\n]*{d_re}|{d_re}[^\n]*(?:\.mkdir\(|makedirs\()",
+                         cmd):
+            note("DISCOVERY-DIR-UNCREATED",
+                 f"output `{oname}`: {ddir!r} is named in shell_command but nothing there creates "
+                 f"it. Fine if the tool makes its own output directory; otherwise the collection "
+                 f"comes out empty and the job still succeeds.")
+
     created = {}
     for oname, fwd in fwd_targets:
         spellings = "|".join([re.escape(fwd)]
@@ -777,6 +816,11 @@ DEFECTS = [
      'expression: "[A-Za-z0-9_.-]+$"', 'expression: "[A-Za-z0-9_.-]+"', "UNANCHORED-VALIDATOR"),
     ("udt/sourmash_panel.gxtool.yml", "a scalar addressed as a File",
      "--ksize '$(inputs.ksize)'", "--ksize '$(inputs.ksize.path)'", "PATH-ON-SCALAR"),
+    # ⚠ THE INJECTED NAME MUST BE ABSENT FROM THE COMMAND, WHICH `sigs` IS NOT -- the helper has a
+    # `sigs = [...]` line, so renaming the directory to that would have matched and the case would
+    # have gone quietly green while testing nothing.
+    ("udt/sourmash_panel.gxtool.yml", "a discovery directory nothing writes",
+     "directory: signatures", "directory: nosuchdir", "PHANTOM-DISCOVERY-DIR"),
 ]
 
 
