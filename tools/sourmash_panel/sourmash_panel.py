@@ -160,6 +160,14 @@ subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)
 # elements, same identifiers, different order. Nothing in this pipeline consumes `signatures`
 # positionally (it is a terminal, reusable artifact), but a consumer that did would see a
 # difference between the two editions of WF-A.
+#
+# ⚠ MEASURED ON usegalaxy.org 26.1, 2026-09-08 -- history bbd44e69cb8906b54a726562e523b991 -- and
+# the input was built so the run could REFUTE the paragraph above rather than merely agree with it:
+# a panel given as `cs10, PvP01, strain.2`, whose panel order and alphabetical order differ, came
+# back keyed `PvP01, cs10, strain.2`. Also confirmed there: the identifiers are the strain names and
+# not `stage/`'s indices, the declared `json` format is honoured, the elements are hidden while the
+# collection is visible, `strain.2` survives the discovery pattern with its dot, and the three
+# sizes differ -- which is what says discovery found three files rather than one file three times.
 pathlib.Path("signatures").mkdir(exist_ok=True)
 for _i, name in enumerate(ids):
     shutil.copyfile(f"stage/{_i:04d}.sig", f"signatures/{name}.sig")

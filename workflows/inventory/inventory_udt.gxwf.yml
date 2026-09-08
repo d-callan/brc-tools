@@ -20,6 +20,12 @@ doc: >-
   ⚠ AND THEIR ELEMENT ORDER IS ALPHABETICAL, NOT PANEL ORDER. A map-over collection keeps the input
   order; a discovered one is sorted by `sort_key`, whose every choice is the strain name. Same
   elements, same identifiers, different sequence -- and nothing consumes them positionally.
+  ⚠ BOTH OF THOSE ARE MEASURED, NOT REASONED FROM THE SCHEMA: usegalaxy.org 26.1 on 2026-09-08,
+  history bbd44e69cb8906b54a726562e523b991. A panel handed over as `cs10, PvP01, strain.2` -- an
+  order chosen so that panel order and alphabetical order DIFFER, or the run could not have
+  contradicted the sentence above -- published a 3-element list keyed `PvP01, cs10, strain.2`, each
+  element `json`, each hidden while the collection is visible, and three distinct file sizes rather
+  than one file found three times.
 
   So the output sets now differ in two places, both ADDITIONS:
   `panel_identifiers` (the list three steps are keyed on, published so a reader can see it) and
@@ -100,7 +106,8 @@ outputs:
     doc: >-
       Per-strain sourmash signatures (.sig), BRC-reusable -- the classic's `signatures`, discovered
       out of the one sketch+compare job rather than mapped over the panel. Keyed by strain;
-      alphabetical rather than in panel order, for the reason given in the workflow doc.
+      alphabetical rather than in panel order, for the reason given in the workflow doc, and both
+      confirmed by a run on usegalaxy.org 26.1 (2026-09-08) rather than taken from the schema.
   busco_summaries:
     outputSource: busco/busco_sum
     doc: Per-strain BUSCO short summaries.

@@ -351,6 +351,23 @@ help:
     order; a discovered one is sorted by `sort_key`, and every choice it offers is the strain name.
     Same elements and same identifiers as the classic's, in a different sequence. Nothing here
     consumes them positionally, but a consumer that did would see the two editions differ.
+
+    **Measured, not inferred** — usegalaxy.org 26.1, 2026-09-08, history
+    `bbd44e69cb8906b54a726562e523b991`. A three-element panel given in the order
+    `cs10, PvP01, strain.2` — chosen so panel order and alphabetical order DIFFER, otherwise the
+    run could not have contradicted the paragraph above — came back as:
+
+    ```
+    collection_type=list  element_count=3
+      0  PvP01      ext=json   39038 bytes  visible=False
+      1  cs10       ext=json   38783 bytes  visible=False
+      2  strain.2   ext=json   37992 bytes  visible=False
+    ```
+
+    So: keyed by strain rather than by the `stage/` index, `format: json` honoured, the elements
+    hidden while the collection itself is visible (`visible: false` applies to the elements), three
+    distinct sizes rather than one file found three times, a dot in an identifier surviving the
+    `(?P<designation>.+)\.sig` pattern intact, and the order alphabetical exactly as described.
 """
 
 def _check_orphans(rendered: dict[str, str]) -> list[str]:
