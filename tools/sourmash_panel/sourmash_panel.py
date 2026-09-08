@@ -154,23 +154,30 @@ subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)
 # a duplicate, a path separator, a dot-alias or a leading dash would collide here or write outside
 # the work dir, and all four are refused before anything is sketched.
 #
-# ⚠ ELEMENT ORDER DIFFERS FROM THE CLASSIC'S, AND CANNOT BE MADE TO MATCH. A map-over collection
-# comes out in PANEL order; discovery sorts by `sort_key`, whose choices are filename/name/
-# designation/dbkey -- all of which are the strain name -- so this collection is alphabetical. Same
-# elements, same identifiers, different order. Nothing in this pipeline consumes `signatures`
-# positionally (it is a terminal, reusable artifact), but a consumer that did would see a
-# difference between the two editions of WF-A.
+# ⛔ THE INDEX PREFIX IS WHAT PUTS THIS COLLECTION IN PANEL ORDER, AND IT COSTS NOTHING. Discovery
+# sorts on the FULL filename (`sort_key: filename`) but takes the element identifier from the
+# `designation` REGEX GROUP -- so `0000_cs10.sig` sorts by its index while the element is still
+# called `cs10`. Every other WF-A output is in panel order (`sizes`, `busco_summaries` and
+# `fasta_index` are map-over collections; `self_pairs` and `relabel_map` are built line-per-strain
+# off the identifier list), so an alphabetical `signatures` was the odd one out.
 #
-# ⚠ MEASURED ON usegalaxy.org 26.1, 2026-09-08 -- history bbd44e69cb8906b54a726562e523b991 -- and
-# the input was built so the run could REFUTE the paragraph above rather than merely agree with it:
-# a panel given as `cs10, PvP01, strain.2`, whose panel order and alphabetical order differ, came
-# back keyed `PvP01, cs10, strain.2`. Also confirmed there: the identifiers are the strain names and
-# not `stage/`'s indices, the declared `json` format is honoured, the elements are hidden while the
-# collection is visible, `strain.2` survives the discovery pattern with its dot, and the three
-# sizes differ -- which is what says discovery found three files rather than one file three times.
+# ⚠ AN EARLIER VERSION OF THIS COMMENT SAID PANEL ORDER "CANNOT BE MADE TO MATCH", and that was
+# wrong in a way worth recording: it is true only of the `sort_key` FIELD, whose every choice is
+# name-derived. The filenames are ours to pick, which settles it -- and the claim had already been
+# merged into two PRs before anyone tested the alternative. An impossibility claim needs a
+# measurement as much as a number does.
+#
+# ⚠ MEASURED ON usegalaxy.org 26.1, 2026-09-08 -- history bbd44e69cb8906b51601636ef7c09ef9. A panel
+# given as `cs10, PvP01, strain.2`, whose panel order and alphabetical order DIFFER (or the run
+# could not have told the two hypotheses apart), came back as a 3-element list keyed
+# `cs10, PvP01, strain.2` at indices 0,1,2 -- panel order, with the `0000_` prefix nowhere in the
+# identifiers. An earlier run without the prefix (history bbd44e69cb8906b54a726562e523b991) is where
+# the rest was measured and still holds: the declared `json` format is honoured, the elements are
+# hidden while the collection is visible, `strain.2` survives the pattern with its dot, and the
+# three sizes differ -- which is what says discovery found three files, not one file three times.
 pathlib.Path("signatures").mkdir(exist_ok=True)
 for _i, name in enumerate(ids):
-    shutil.copyfile(f"stage/{_i:04d}.sig", f"signatures/{name}.sig")
+    shutil.copyfile(f"stage/{_i:04d}.sig", f"signatures/{_i:04d}_{name}.sig")
 # ⛔ COUNT WHAT LANDED RATHER THAN ASSUMING IT. Discovery publishes whatever it finds, so a short
 # collection is a GREEN job with a genome missing -- the same silent loss the duplicate-identifier
 # guard exists to prevent, one step further down. If two names ever collapse onto one file by a
