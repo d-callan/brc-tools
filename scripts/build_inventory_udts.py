@@ -87,16 +87,23 @@ MISMATCH_CAVEAT = {
                    "map. Before that, an unmatched element silently kept its `A_B` identifier.",
 }
 
-#: (udt stem, tool id, helper path, tool name, description, output format, output label)
+#: (udt stem, tool id, helper path, tool name, description, output format, output label, version)
+#:
+#: ⛔ THE VERSION IS PER TOOL BECAUSE A CHANGED TOOL MUST NOT KEEP ITS OLD ONE. There is no update
+#: API for a user-defined tool: every create registers a NEW tool, so an unchanged `version` leaves
+#: two definitions that differ in behaviour sharing one id and one version string, and nothing in a
+#: finished run says which of them executed. `relabel_map` is at 0.2.0 because it stopped emitting
+#: the `A_A` diagonal -- the output is a different length for the same input, and WF-C now requires
+#: the new shape -- so a run recorded against 0.1.0 cannot be assumed to have produced it.
 TOOLS = (
     ("self_pairs", "brc-self-pairs", "tools/collection_self_pairs/self_pairs.py",
      "self-pair ids from element identifiers (BRC UDT)",
      "Emit one {id}_{id} line per identifier, to drop the self-cross diagonal in WF-C",
-     "txt", "self-pair ids (X_X), one per line"),
+     "txt", "self-pair ids (X_X), one per line", "0.1.0"),
     ("relabel_map", "brc-relabel-map", "tools/collection_relabel_map/relabel_map.py",
      "relabel map from element identifiers (BRC UDT)",
      "Emit {a}_{b}<TAB>{a}.{b} per distinct ordered pair, to rename WF-C's cross-product cells",
-     "tabular", "A_B -> A.B relabel map (2-column TSV)"),
+     "tabular", "A_B -> A.B relabel map (2-column TSV)", "0.2.0"),
 )
 
 
@@ -182,7 +189,7 @@ def build() -> dict[str, str]:
         raise SystemExit(f"REFUSING: SOURMASH_GLUE contains `{FORBIDDEN}`, which Galaxy would "
                          f"interpolate inside the heredoc. Describe the sequence, do not write it.")
     out["sourmash_panel.gxtool.yml"] = sourmash_udt()
-    for stem, tool_id, helper, name, description, ext, label in TOOLS:
+    for stem, tool_id, helper, name, description, ext, label, version in TOOLS:
         script = (ROOT / helper).read_text(encoding="utf-8").rstrip("\n")
         # ⛔ THE SAME CHECK build_softmask_udts.read_helper MAKES, AND FOR THE SAME REASON. Galaxy
         # interpolates the two-character opener ANYWHERE in a shell_command, heredocs included, so
@@ -198,7 +205,7 @@ def build() -> dict[str, str]:
         caveat = textwrap.fill(MISMATCH_CAVEAT[stem], width=96, subsequent_indent="    ")
         out[f"{stem}.gxtool.yml"] = HEADER + f"""class: GalaxyUserTool
 id: {tool_id}
-version: "0.1.0"
+version: "{version}"
 name: {name}
 description: {description}
 container: quay.io/biocontainers/python:3.12

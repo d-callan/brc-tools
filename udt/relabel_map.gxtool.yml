@@ -5,7 +5,7 @@
 # list, because a job container receives paths and never sees a collection's identifiers.
 class: GalaxyUserTool
 id: brc-relabel-map
-version: "0.1.0"
+version: "0.2.0"
 name: relabel map from element identifiers (BRC UDT)
 description: Emit {a}_{b}<TAB>{a}.{b} per distinct ordered pair, to rename WF-C's cross-product cells
 container: quay.io/biocontainers/python:3.12

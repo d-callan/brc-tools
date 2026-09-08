@@ -115,7 +115,7 @@ outputs:
     doc: One X_X per strain (the WF-C alignment-grid diagonal to exclude).
   relabel_map:
     outputSource: panel_relabel_map/output
-    doc: A_B<TAB>A.B for every ordered pair (Phase E ids; WF-C relabel).
+    doc: A_B<TAB>A.B per distinct ordered pair (Phase E ids; WF-C relabel).
   anchor_bed12s:
     outputSource: anchor_prep/bed12
     doc: Per-anchor protein-coding BED12, GENE id in column 4 (WF-C2 ref bed, TOGA2 --ref_annotation).
@@ -253,7 +253,7 @@ steps:
         output_name: output
         action_arguments: {tags: name:wfc_relabel_map}
     position: {top: 560, left: 640}
-    doc: "{a}_{b}<TAB>{a}.{b} for every ordered pair, to rename WF-C's cross-product cells."
+    doc: "{a}_{b}<TAB>{a}.{b} per distinct ordered pair; WF-C drops the A_A diagonal first."
     in:
       identifiers: panel_identifiers/output
 
