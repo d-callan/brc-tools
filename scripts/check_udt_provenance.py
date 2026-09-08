@@ -169,8 +169,20 @@ def main() -> int:
             if cmd_moved:
                 stale.append(f"{udt.name}: <command> in {prov['source']} changed since generation")
         macros = xml.parent / "macros.xml"
-        want = prov.get("macros_sha256", "")
-        if want != "(no macros.xml)":
+        # ⛔ A MISSING KEY IS NOT A CHANGED FILE. `prov.get("macros_sha256", "")` defaulted to the
+        # empty string, which is never equal to a real hash, so a stamp that simply OMITTED the
+        # field was reported `macros.xml changed since generation` every single run -- a permanent
+        # false alarm naming the wrong file, in the one script whose value is that its alarms can
+        # be trusted. The sentinel `"(no macros.xml)"` records a wrapper that HAS no macros file;
+        # it says nothing about a stamp that never recorded the field. Absence belongs in
+        # `partial`, beside the `tool_sha256` case, for the same reason.
+        want = prov.get("macros_sha256")
+        if want is None:
+            partial.append(f"{udt.name}: stamp records no `macros_sha256`, so a change to "
+                           f"{xml.parent.name}/macros.xml -- which is where 36 of the 50 wrappers "
+                           f"here declare the requirements that pin this UDT's container -- would "
+                           f"not be detected. Regenerate it.")
+        elif want != "(no macros.xml)":
             # ⛔ THE MACROS FILE IS HASHED TOO, AND THAT IS THE WHOLE POINT OF STAMPING IT. 36 of
             # the 50 wrappers here declare their requirements ONLY through
             # <expand macro="requirements"/>, so a version bump that changes the container this UDT

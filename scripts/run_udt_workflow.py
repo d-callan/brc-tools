@@ -36,6 +36,7 @@ import time
 import yaml
 from bioblend.galaxy import GalaxyInstance
 from softmask_lib import (
+    JOBS_UNFINISHED,
     ROOT,
     SCHEDULING_IN_PROGRESS,
     UDT_DIR,
@@ -138,7 +139,13 @@ def fill_step_defaults(gi: GalaxyInstance, native: dict) -> None:
         filled = _fill(spec.get("inputs", []), state, connections)
         if filled:
             step["tool_state"] = json.dumps(state)
-            label = step.get("label") or tool_id.split("/")[-2] if "/" in tool_id else tool_id
+            # ⚠ THE PARENTHESES ARE THE FIX. Without them Python reads this as
+            # `(label or shortname) if ("/" in tool_id) else tool_id`, so every tool_id WITHOUT a
+            # slash -- every built-in and every UDT -- threw the label away and printed the raw id.
+            # WF-C has two __RELABEL_FROM_FILE__, four __FILTER_FROM_FILE__, two
+            # __CROSS_PRODUCT_FLAT__ and two brc-chain-stitch-id steps, so the line this function
+            # exists to emit could not be attributed to a step at all.
+            label = step.get("label") or (tool_id.split("/")[-2] if "/" in tool_id else tool_id)
             print(f"    defaults filled for {label}: {', '.join(filled)}")
 
 
@@ -193,7 +200,7 @@ def await_invocation(gi: GalaxyInstance, invocation_id: str) -> int:
     while time.monotonic() < deadline:
         detail = gi.invocations.show_invocation(invocation_id)
         states = gi.invocations.get_invocation_summary(invocation_id).get("states", {})
-        pending = {k: v for k, v in states.items() if k in ("new", "queued", "running", "paused")}
+        pending = {k: v for k, v in states.items() if k in JOBS_UNFINISHED}
         if detail.get("state") not in SCHEDULING_IN_PROGRESS and states and not pending:
             timed_out = False
             break

@@ -65,8 +65,9 @@ versioned tool_ids; one-click WF-C; helpers removed). `git pull` first.
     $PV4_SSD/pv4_full/wfc_cfg \
     PvP01,PvW1,PAM,PvSY56,Sal-I,PvT01,PvC01,MHC087 PvW1,PAM,PvSY56
   ```
-  → `self_pairs.txt` (8), `anchor_self_pairs.txt` (3), `relabel_map.tsv` (64 rows;
-  56 directed chains).
+  → `self_pairs.txt` (8), `anchor_self_pairs.txt` (3), `relabel_map.tsv` (56 rows,
+  one per directed non-self chain — the `A_A` diagonal is omitted so the row count
+  matches the collection WF-C relabels, which is what `strict: true` requires).
 
 ## 5. Per-phase recipe (each its own history; gotchas baked in)
 | Ph | Workflow / driver | Notes |

@@ -64,6 +64,24 @@ UDTS = ("fasta_uppercase", "dustmasker_bed3", "windowmasker_bed3", "tantan_bed3"
 #: invocation whose completion hook never fires stays `scheduled` forever. Wait on the JOBS.
 SCHEDULING_IN_PROGRESS = ("new", "ready", "requires_materialization", "cancelling")
 
+#: JOB states where the job has not finished and the model may still change -- Galaxy's own
+#: `Job.non_ready_states` (model/__init__.py:1801-1808), copied rather than approximated.
+#:
+#: ⛔ THE APPROXIMATION WAS WRONG IN BOTH DIRECTIONS, and it was written out twice. Two drivers
+#: carried `("new", "queued", "running", "paused")` inline:
+#:
+#:   * it MISSED `waiting`, `resubmitted` and `upload`, so a job in one of those made the pending
+#:     set empty, the wait broke early, and the run was reported "⛔ jobs did not all succeed"
+#:     while still progressing. `resubmitted` is the live one -- public instances resubmit a job
+#:     that exceeded walltime to a larger destination, and WF-C's KegAlign step is exactly that
+#:     kind of job.
+#:   * it INCLUDED `paused`, which is neither terminal (`ok`/`error`/`deleted`) nor non-ready: a
+#:     paused job waits for a person. Polling it to the ceiling turned "this run is paused" into
+#:     "⛔ TIMED OUT", which reads like an infrastructure problem rather than a decision waiting to
+#:     be made. Leaving `paused` out means the wait ends and the verdict reports it, since the
+#:     verdict already fails anything that is not `ok`.
+JOBS_UNFINISHED = ("new", "resubmitted", "upload", "waiting", "queued", "running")
+
 
 def connect() -> GalaxyInstance:
     url, key = os.environ.get("GALAXY_URL"), os.environ.get("GALAXY_API_KEY")

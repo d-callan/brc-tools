@@ -13,13 +13,27 @@ on:
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
-            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py']
+            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
+            'scripts/check_relabel_strict.py',
+            # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
+            # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
+            # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
+            # stopped, which strict mode refuses. If this path is not listed, a regression there
+            # runs no check at all.
+            'execution/cluster/gen_wfc_config.py']
   pull_request:
     paths: ['tools/**', 'udt/**', 'workflows/**',
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
-            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py']
+            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
+            'scripts/check_relabel_strict.py',
+            # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
+            # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
+            # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
+            # stopped, which strict mode refuses. If this path is not listed, a regression there
+            # runs no check at all.
+            'execution/cluster/gen_wfc_config.py']
 
 jobs:
   drift:
@@ -75,9 +89,17 @@ jobs:
         run: |
           python3 scripts/check_udt_definitions.py --self-test
           python3 scripts/check_workflow_ports.py --self-test
+          python3 scripts/check_relabel_strict.py --self-test
 
       - name: UDT definitions are correct
         run: python3 scripts/check_udt_definitions.py
+
+      # WF-C detects a wrong relabel map only in strict mode, and strict mode only works while
+      # every producer of that map omits the A_A diagonal. Those are one fact, and this is the
+      # only thing holding them together -- the shipped udt/relabel_map.gxtool.yml says so in its
+      # own help, which was an unbacked promise until this line existed.
+      - name: The relabel map and strict mode still agree
+        run: python3 scripts/check_relabel_strict.py
 
       # Offline half only -- the remote half needs a live Galaxy and prints its own SKIP line.
       - name: Workflow ports resolve

@@ -100,6 +100,22 @@ def expected_edges(counts):
     multi-copy group as chained". Two numbers offered for comparison have to be on one
     scale, so this is that same formula. It reduces to k*(k-1)/2 for single-copy groups,
     which is where the two agreed before.
+
+    ⚠ THIS DENOMINATOR DOES NOT BOUND THE RATIO EITHER, AND THE CALLER'S CLAMP IS
+    WHAT KEEPS IT IN 0..1. Saying otherwise was the original mistake, so state the
+    two blind spots plainly rather than repeat it:
+
+      * an OVER-connected group still exceeds 1. Two strains with three copies each
+        and a full bipartite 9 edges gives expected=3 and a raw 3.0, clamped to
+        1.000 -- so a blob is unflaggable, it merely no longer prints 4.000. Raw
+        density is the number that sees a blob; phase_e_consensus.py prints both for
+        exactly this reason and says only the pair tells the whole story.
+      * a group with FEWER THAN TWO strains has no strain pair, so expected is 0 and
+        the caller awards 1.000 regardless of how its edges look. A long
+        same-strain chain therefore never appears in `ragged`.
+
+    Both behaviours match phase_e_consensus.py, which is what the comparison
+    requires; they are limits of the metric, not of this implementation.
     """
     counts = sorted(counts)
     return sum(min(counts[i], counts[j])
@@ -130,6 +146,14 @@ def main():
     a = ap.parse_args()
 
     edges = load_edges(a.edges)
+    # ⛔ AN EMPTY EDGE SET IS A REPORTABLE INPUT, NOT A TRACEBACK. A header-only or
+    # all-self-pair file left `comps` empty, and both `cliques[len(cliques) // 2]`
+    # and `rows[0]` then raised IndexError -- a stack trace where the answer is
+    # "these edges support no orthogroup", which is a finding about the WF-E run.
+    if not edges:
+        sys.exit(f"{a.edges} yielded no gene-gene edges (after dropping self pairs). That is a "
+                 f"statement about the run that produced it, not a usage error: check that "
+                 f"phase_e_rbest_overlap actually intersected the annotations with the chains.")
     uf = UnionFind()
     for e in edges:
         x, y = tuple(e)
@@ -191,7 +215,7 @@ def main():
     if a.table:
         shipped = Counter(r["label"] for r in csv.DictReader(open(a.table), delimiter="\t"))
         total = sum(shipped.values())
-        print(f"\nshipped WF-E table vs this baseline:")
+        print("\nshipped WF-E table vs this baseline:")
         print(f"   {'label':18} {'shipped':>16} {'baseline':>16}")
         for lab in sorted(set(shipped) | set(labels)):
             print(f"   {lab:18} {shipped[lab]:>7,} {100*shipped[lab]/total:5.1f}% "
