@@ -17,6 +17,9 @@ ap.add_argument("--rendered", required=True, help="file holding the rendered col
 ap.add_argument("--ids", required=True, help="element identifiers, one per line, in collection order")
 ap.add_argument("--ksize", default="31")
 ap.add_argument("--scaled", default="1000")
+ap.add_argument("--containment", default="false",
+                help="also emit an asymmetric containment matrix. OFF by default: it adds an "
+                     "output, and WF-A's output set is consumed downstream.")
 a = ap.parse_args()
 
 # ⛔ THE KEYS ARE QUOTED. Galaxy renders a collection input as JSON -- {"path": "/..."} -- not as a
@@ -151,6 +154,42 @@ sigs = [f"stage/{i:04d}.sig" for i in range(len(ids))]
 subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "-o", "cmp", "--csv", "similarity.csv",
                 *sigs], check=True)
 subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)
+
+# ---- size-robust comparison, because Jaccard is confounded by assembly SIZE ------------------
+# ⛔ JACCARD DIVIDES BY THE UNION, SO IT SCORES A SIZE DIFFERENCE AS DISTANCE. For |A| = 286 Mb
+# against |B| = 800 Mb the ceiling is 286/800 = 0.36 EVEN IF A IS A PERFECT SUBSET OF B, and the
+# same ceiling applies at the other end -- an unpurged 2,297 Mb assembly caps at ~0.35 against the
+# same 800 Mb genome. Measured on the 23-genome panel already run: 641.8 Mb to 1,333.4 Mb, a 2.08x
+# spread, so JL_DASH cannot exceed 0.48 against Salk_SRIb however related they are, while two
+# similar-sized members sharing 90% score ~0.82. `similarity` is what WF-I's fold order consumes,
+# so the failure is a wrong ordering with every job green.
+#
+# TWO MATRICES ARE WRITTEN, AND THE SECOND ONE IS THE REASON THE FIRST IS NOT ENOUGH:
+#
+#   containment.csv       |A n B| / |A|. ASYMMETRIC -- containment(A,B) != containment(B,A)
+#                         whenever the two differ in size. Nothing is clustered or plotted from
+#                         it, because a dendrogram over an asymmetric matrix is an artefact of
+#                         whichever triangle the clustering happened to read.
+#   max_containment.csv   max of the two directions. SYMMETRIC, so it CAN be clustered -- and it
+#                         is, into its own heatmap and dendrogram. This is the tree to read for a
+#                         panel whose members differ in size; the Jaccard tree beside it is the
+#                         classic workflow's output and is kept for parity.
+#
+# ⚠ THE TWO TREES CAN DISAGREE, AND THAT IS THE POINT. Where they do, the Jaccard one is the one
+# distorted by size. Neither is labelled "the" tree here.
+if str(a.containment).lower() in ("true", "1", "yes"):
+    subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "--containment",
+                    "--csv", "containment.csv", *sigs], check=True)
+    subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "--max-containment",
+                    "-o", "maxc", "--csv", "max_containment.csv", *sigs], check=True)
+    # `sourmash plot` writes <prefix>.matrix.png and <prefix>.dendro.png beside the input.
+    subprocess.run(["sourmash", "plot", "--labels", "maxc"], check=True)
+else:
+    # ⚠ OFF BY DEFAULT, AND NOTHING IS WRITTEN WHEN OFF -- deliberately, rather than emitting an
+    # empty CSV. A zero-row matrix is the silent-success shape this project keeps finding: it
+    # arrives as a real dataset, joins cleanly, and describes nothing. The outputs are declared
+    # optional so Galaxy simply does not produce them.
+    print("containment: not requested (containment=false); writing no matrix", file=sys.stderr)
 
 # ---- publish the per-strain signatures ----------------------------------------------------------
 # ⛔ THE CLASSIC WORKFLOW PUBLISHES THESE AND THIS PORT DID NOT -- WF-A's one real parity loss.

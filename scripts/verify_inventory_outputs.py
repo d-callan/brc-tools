@@ -63,6 +63,29 @@ KEYED_BY = {
     "panel_identifiers": None,
     "self_pairs": None,
     "relabel_map": None,
+    "containment_matrix": None,
+    "max_containment_matrix": None,
+    "max_containment_heatmap": None,
+    "max_containment_dendrogram": None,
+}
+
+#: Outputs that exist only when a workflow parameter asked for them, mapped to that parameter.
+#:
+#: ⛔ AN ABSENT CONDITIONAL OUTPUT IS NOT A MISSING OUTPUT, AND THE CONVERSE MATTERS MORE. Treating
+#: `containment_matrix` as required would fail every default run; treating it as optional would let
+#: a run that ASKED for it and did not get it pass silently. So the invocation's own recorded
+#: parameter decides which of the two errors is possible, and both are reported.
+#:
+#: ⚠ WHY IT IS OFF BY DEFAULT AND WHY A BIG PANEL MUST TURN IT ON. Jaccard divides by the union, so
+#: it scores an assembly-size difference as distance: 286 Mb against 800 Mb caps at 0.36 even as a
+#: perfect subset. The default keeps WF-A's output set unchanged for existing consumers; a panel
+#: spanning 286 Mb to 2,297 Mb is exactly the case where the default is the wrong choice, and
+#: `similarity_matrix` is what WF-I's fold order reads.
+CONDITIONAL_ON = {
+    "containment_matrix": "sourmash_containment",
+    "max_containment_matrix": "sourmash_containment",
+    "max_containment_heatmap": "sourmash_containment",
+    "max_containment_dendrogram": "sourmash_containment",
 }
 
 
@@ -258,10 +281,25 @@ def check(gi: GalaxyInstance, inv_id: str, panel: dict, expect: dict[str, int]) 
 
     outs = dict(inv.get("output_collections") or {})
     singles = dict(inv.get("outputs") or {})
-    absent = [k for k in KEYED_BY if k not in outs and k not in singles]
+    params = {v.get("label") or k: v.get("parameter_value")
+              for k, v in (inv.get("input_step_parameters") or {}).items()}
+    absent = [k for k in KEYED_BY if k not in outs and k not in singles
+              and k not in CONDITIONAL_ON]
     if absent:
         problems.append(f"{len(absent)} declared output(s) absent from the invocation: "
                         f"{', '.join(sorted(absent))}")
+    for name, flag in CONDITIONAL_ON.items():
+        asked = params.get(flag)
+        present = name in outs or name in singles
+        if asked and not present:
+            problems.append(f"`{flag}` was true for this invocation but `{name}` is absent -- the "
+                            f"run asked for it and did not produce it")
+        elif present and not asked:
+            notes.append(f"{name}: present although `{flag}` is {asked!r}")
+        elif not asked:
+            notes.append(f"{name}: absent, and `{flag}` was not set -- expected. ⚠ For a panel "
+                         f"whose members differ in size, set it: Jaccard scores a size "
+                         f"difference as distance.")
 
     for name, keyed in KEYED_BY.items():
         if keyed is None or name not in outs:

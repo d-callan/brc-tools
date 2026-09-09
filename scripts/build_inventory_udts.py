@@ -260,7 +260,7 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.2.0"
+version: "0.4.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -271,7 +271,7 @@ shell_command: |
   cat > sourmash_panel.py <<'BRC_PY'
 {indented}
   BRC_PY
-  python3 sourmash_panel.py --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)'
+  python3 sourmash_panel.py --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)' --containment '$(inputs.containment)'
 inputs:
   - name: assemblies
     type: data_collection
@@ -296,6 +296,18 @@ inputs:
     type: integer
     value: 31
     label: k-mer size
+  - name: containment
+    type: boolean
+    value: false
+    label: also emit size-robust containment matrices and their tree
+    help: >-
+      OFF by default. Jaccard divides by the union, so on a panel spanning 286 Mb to 2,297 Mb it
+      penalises a size difference as if it were distance -- a 286 Mb assembly caps at 0.36 against
+      an 800 Mb genome even as a perfect subset, and the 23-genome panel already run spans 2.08x.
+      Turning this on adds FOUR outputs: containment (asymmetric), max-containment (symmetric),
+      and a heatmap and DENDROGRAM built from the symmetric one -- which is the tree to read when
+      members differ in size, because it never divides by the union. Left off by default because
+      it changes WF-A's output set and that set is consumed downstream.
   - name: scaled
     type: integer
     value: 1000
@@ -317,6 +329,44 @@ outputs:
     format: csv
     from_work_dir: similarity.csv
     label: sourmash similarity matrix (CSV, labelled by strain)
+  # ⛔ PUBLISHED BECAUSE JACCARD IS CONFOUNDED BY ASSEMBLY SIZE, and this panel spans 286 Mb to
+  # 2,297 Mb. Jaccard divides by the UNION, so a 286 Mb assembly caps at 286/800 = 0.36 against an
+  # 800 Mb genome even as a perfect subset, and a 2,297 Mb unpurged one caps at ~0.35 against the
+  # same genome -- both tails read as distant for a reason that is not relatedness. Since
+  # `similarity` is what WF-I's fold order consumes, that is a wrong ordering with every job green.
+  # ⚠ ALONGSIDE, NOT INSTEAD: `similarity` stays as the classic workflow's output and as what the
+  # heatmap and dendrogram are drawn from. And containment is ASYMMETRIC, so nothing is plotted
+  # from it -- see the helper.
+  - name: containment
+    type: data
+    format: csv
+    optional: true
+    from_work_dir: containment.csv
+    label: sourmash containment matrix (CSV, asymmetric, size-robust)
+  # ⚠ THE SYMMETRIC ONE, AND THE ONLY SIZE-ROBUST MATRIX THAT CAN BE A TREE. Plain containment is
+  # asymmetric, so clustering it yields an artefact of whichever triangle the algorithm read;
+  # max(containment(A,B), containment(B,A)) is symmetric and still never divides by the union, so
+  # it clusters honestly on a mixed-size panel. Its heatmap and dendrogram are published beside
+  # the Jaccard pair rather than replacing them -- where the two trees disagree, the Jaccard one
+  # is the one distorted by size.
+  - name: max_containment
+    type: data
+    format: csv
+    optional: true
+    from_work_dir: max_containment.csv
+    label: sourmash max-containment matrix (CSV, symmetric, size-robust)
+  - name: max_containment_heatmap
+    type: data
+    format: png
+    optional: true
+    from_work_dir: maxc.matrix.png
+    label: max-containment clustered heatmap
+  - name: max_containment_dendrogram
+    type: data
+    format: png
+    optional: true
+    from_work_dir: maxc.dendro.png
+    label: max-containment dendrogram (the tree to read for a mixed-size panel)
   - name: heatmap
     type: data
     format: png

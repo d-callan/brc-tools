@@ -36,6 +36,45 @@ sourmash compare
 &&
 ## clustered heatmap + dendrogram (scipy hierarchical clustering; matplotlib in the env)
 sourmash plot --labels cmp
+#if str($containment) == "true"
+&&
+## ⛔ CONTAINMENT, BECAUSE JACCARD IS CONFOUNDED BY ASSEMBLY SIZE. Jaccard divides by the
+## UNION, so a 286 Mb assembly caps at 286/800 = 0.36 against an 800 Mb genome EVEN AS A
+## PERFECT SUBSET, and a 2,297 Mb unpurged one caps at ~0.35 against the same genome. Both
+## tails read as distant for a reason that is not relatedness, and this matrix is what WF-I's
+## fold order consumes.
+## ⚠ OFF BY DEFAULT and emitted as a SECOND matrix, never in place of the first: the Jaccard
+## output is what the heatmap and dendrogram are drawn from and what every downstream consumer
+## already reads.
+## ⚠ AND NOTHING IS PLOTTED FROM IT -- containment(A,B) != containment(B,A) whenever the two
+## differ in size, so a dendrogram drawn from it would be an artefact of the clustering, not a
+## relationship.
+## Same explicit-argument ordering as above, for the same reason: the CSV columns follow the
+## command line, and a shell glob would order them by locale instead of by panel.
+sourmash compare
+    --ksize $ksize
+    --containment
+    --csv '$containment_matrix'
+#for $sig in $signatures
+    'stage/${sig.element_identifier}.sig'
+#end for
+&&
+## ⚠ THE SYMMETRIC ONE, AND THE ONLY SIZE-ROBUST MATRIX THAT CAN BE A TREE. Plain containment is
+## asymmetric, so clustering it yields an artefact of whichever triangle the algorithm read;
+## max(containment(A,B), containment(B,A)) is symmetric and still never divides by the union.
+## Its heatmap and dendrogram sit beside the Jaccard pair rather than replacing them -- where the
+## two trees disagree, the Jaccard one is the one distorted by size.
+sourmash compare
+    --ksize $ksize
+    --max-containment
+    -o maxc
+    --csv '$max_containment_matrix'
+#for $sig in $signatures
+    'stage/${sig.element_identifier}.sig'
+#end for
+&&
+sourmash plot --labels maxc
+#end if
     ]]></command>
     <inputs>
         <!-- ⚠ `sourmash.sig` FIRST, and `json`/`txt` KEPT. The subclass relation means a
@@ -48,12 +87,37 @@ sourmash plot --labels cmp
                format="sourmash.sig,json,txt"
                label="Signature list collection"
                help="A 'list' collection of sourmash signature files (e.g. from sourmash sketch, mapped over strains). The element identifier of each element should be the strain name; it is staged as '{strain}.sig'. The signature names become the matrix row/column labels."/>
+        <param name="containment" type="boolean" checked="false" truevalue="true"
+               falsevalue="false" label="Also emit a containment matrix"
+               help="Asymmetric, and robust to assembly size: |A n B| / |A|. Jaccard divides by
+                     the union, so on a panel spanning 286 Mb to 2,297 Mb it penalises a size
+                     difference as if it were distance. Off by default because it adds an output
+                     and this workflow's output set is consumed downstream."/>
         <param argument="--ksize" type="integer" value="31" min="1"
                label="k-mer size"
                help="k-mer size to select from each signature for the comparison (default 31). Must match a k-mer size present in the sketched signatures."/>
     </inputs>
     <outputs>
         <data name="output" format="csv" label="${tool.name} on ${on_string}: similarity matrix (CSV)"/>
+        <!-- ⚠ FILTERED, so with the box unchecked this dataset is not created at all rather than
+             created empty. An empty matrix is the silent-success shape: it arrives as a real
+             dataset, joins cleanly and describes nothing. -->
+        <data name="containment_matrix" format="csv"
+              label="${tool.name} on ${on_string}: containment matrix (CSV, asymmetric)">
+            <filter>containment</filter>
+        </data>
+        <data name="max_containment_matrix" format="csv"
+              label="${tool.name} on ${on_string}: max-containment matrix (CSV, symmetric)">
+            <filter>containment</filter>
+        </data>
+        <data name="max_containment_heatmap" format="png" from_work_dir="maxc.matrix.png"
+              label="${tool.name} on ${on_string}: max-containment heatmap">
+            <filter>containment</filter>
+        </data>
+        <data name="max_containment_dendrogram" format="png" from_work_dir="maxc.dendro.png"
+              label="${tool.name} on ${on_string}: max-containment dendrogram">
+            <filter>containment</filter>
+        </data>
         <!-- ⚠ `npy`, NOT `data`. `sourmash compare` writes this with numpy, and Galaxy has
              `npy` (binary.Numpy) for exactly it; IUC's own sourmash_compare declares
              `npy` too. `data` is the ROOT datatype: it satisfies nothing that asks for
