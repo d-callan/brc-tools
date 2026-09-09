@@ -2,7 +2,7 @@
 # Edit the wrapper under tools/ (the awk/Python helpers are read from there) and regenerate.
 class: GalaxyUserTool
 id: brc-samtools-faidx
-version: "0.1.0"
+version: "0.2.0"
 name: samtools faidx (BRC UDT)
 description: Index a FASTA (.fai) and emit the chrom/length table bedtools wants as its genome file
 container: quay.io/biocontainers/samtools:1.24--h9dcdb79_1
@@ -58,7 +58,18 @@ outputs:
     label: FASTA index (.fai)
   - name: sizes
     type: data
-    format: tabular
+    # ⚠ `len`, NOT `tabular`, AND THE POINT IS THE DIRECTION. `len` is chrominfo.ChromInfo, a
+    # Tabular SUBCLASS, so it satisfies every `tabular` consumer -- measured: all nine
+    # chrom-sizes inputs this pipeline reaches (bedtools sortbed/genomecoveragebed genome,
+    # ucsc chainnet/chainprenet/axtomaf in_tar_ref_index and in_que_ref_index, liftoff
+    # chrom_map) accept `tabular` or `txt`, and `len` satisfies all of them. `tabular` does NOT
+    # satisfy a `len` input, and there is no converter, so the parent is the lossy choice: it
+    # names less than is known and forecloses any consumer that asks for the real thing. The
+    # label has always said "bedtools genome file"; this is that claim in a field a machine
+    # reads. No tool installed on usegalaxy.org currently requires `len` without also accepting
+    # `tabular` (checked across 96 bigbed/bigwig/ucsc/hub tools), so nothing is unblocked today
+    # -- this is about not being the producer that publishes a parent type.
+    format: len
     from_work_dir: chrom.sizes
     label: chrom/length table (bedtools genome file)
 help:

@@ -260,7 +260,7 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.1.0"
+version: "0.2.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -346,7 +346,14 @@ outputs:
       - discover_via: pattern
         pattern: '\d+_(?P<designation>.+)\.sig'
         directory: signatures
-        format: json
+        # ⛔ `sourmash.sig`, NOT `json`, AND THE DIFFERENCE IS ONE-DIRECTIONAL. Galaxy's registry
+        # makes SourmashSignature a SUBCLASS of Json, so a `sourmash.sig` dataset satisfies any
+        # `json` input -- but `json` does NOT satisfy a `sourmash.sig` input, and there is NO
+        # CONVERTER either way. IUC's sourmash_compare declares `format="sourmash.sig"`, so
+        # signatures published as `json` cannot be piped into it at all; the datatype has to be
+        # changed by hand. This output exists to BE reusable, so it must be the datatype the
+        # reusing tools ask for. Requires Galaxy >= 25.0, where the datatype landed.
+        format: sourmash.sig
         visible: false
         recurse: false
         match_relative_path: false
@@ -399,8 +406,26 @@ help:
       2  strain.2   ext=json   37992 bytes  visible=False
     ```
 
+    ⚠ THAT RUN PREDATES THE `sourmash.sig` CHANGE and the `ext=json` above is left as it was
+    OBSERVED rather than edited to match the current declaration -- a measurement rewritten to
+    agree with later code is no longer a measurement. What it establishes is unaffected: the
+    ordering and the keying, neither of which depends on which datatype is named.
+
+    **The datatype itself was then measured separately** -- usegalaxy.org, 2026-09-09, history
+    `bbd44e69cb8906b5782410311f1ad341`, this tool at v0.2.0 over a two-element panel:
+
+    ```
+    per-strain sourmash signatures (.sig): 2 element(s)
+      gA  extension='sourmash.sig'  peek='Sourmash signature file'
+      gB  extension='sourmash.sig'  peek='Sourmash signature file'
+    ```
+
+    Three things at once: the server ACCEPTS `format: sourmash.sig` in a UDT `discover_datasets`
+    block at registration, discovery HONOURS it, and the peek string is `SourmashSignature`'s own
+    `set_peek` output, so the datasets carry that class and not merely that label.
+
     So: panel order, keyed by strain with the `0000_` prefix nowhere in the identifiers,
-    `format: json` honoured, the elements hidden while the collection itself is visible
+    the declared `format:` honoured, the elements hidden while the collection itself is visible
     (`visible: false` applies to the elements), and three distinct sizes rather than one file found
     three times. An earlier run without the prefix
     (`bbd44e69cb8906b54a726562e523b991`) returned the same three elements alphabetically, and is

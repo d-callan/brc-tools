@@ -38,7 +38,14 @@ sourmash compare
 sourmash plot --labels cmp
     ]]></command>
     <inputs>
-        <param name="signatures" type="data_collection" collection_type="list" format="json,txt"
+        <!-- ⚠ `sourmash.sig` FIRST, and `json`/`txt` KEPT. The subclass relation means a
+             `sourmash.sig` collection would already satisfy `json`, so this widening
+             changes nothing functionally — it states which datatype a signature
+             actually is, so a reader is not left inferring it from `txt`. The older two
+             stay because histories staged before the sketch wrapper emitted the real
+             datatype hold `json` signatures, and dropping them would strand those. -->
+        <param name="signatures" type="data_collection" collection_type="list"
+               format="sourmash.sig,json,txt"
                label="Signature list collection"
                help="A 'list' collection of sourmash signature files (e.g. from sourmash sketch, mapped over strains). The element identifier of each element should be the strain name; it is staged as '{strain}.sig'. The signature names become the matrix row/column labels."/>
         <param argument="--ksize" type="integer" value="31" min="1"
@@ -47,20 +54,32 @@ sourmash plot --labels cmp
     </inputs>
     <outputs>
         <data name="output" format="csv" label="${tool.name} on ${on_string}: similarity matrix (CSV)"/>
-        <data name="matrix" format="data" from_work_dir="cmp" label="${tool.name} on ${on_string}: similarity matrix (binary)"/>
+        <!-- ⚠ `npy`, NOT `data`. `sourmash compare` writes this with numpy, and Galaxy has
+             `npy` (binary.Numpy) for exactly it; IUC's own sourmash_compare declares
+             `npy` too. `data` is the ROOT datatype: it satisfies nothing that asks for
+             anything, so publishing a numpy array as `data` forecloses every numeric
+             consumer while claiming to be maximally permissive. Nothing in this repo
+             reads it today, which is exactly when it is cheap to declare correctly. -->
+        <data name="matrix" format="npy" from_work_dir="cmp" label="${tool.name} on ${on_string}: similarity matrix (binary)"/>
         <data name="labels" format="txt" from_work_dir="cmp.labels.txt" label="${tool.name} on ${on_string}: matrix labels"/>
         <data name="heatmap" format="png" from_work_dir="cmp.matrix.png" label="${tool.name} on ${on_string}: clustered heatmap (PNG)"/>
         <data name="dendrogram" format="png" from_work_dir="cmp.dendro.png" label="${tool.name} on ${on_string}: dendrogram (PNG)"/>
     </outputs>
     <tests>
         <!-- Three tiny signatures (k=21) compared into an N×N matrix.
-             Header carries the strain labels; the diagonal is 1.0. -->
+             Header carries the strain labels; the diagonal is 1.0.
+
+             ⚠ `ftype="sourmash.sig"` HERE AND `json` IN THE SECOND TEST, ON PURPOSE. The `format`
+             list accepts both, and a widening that is only ever exercised on one of its entries is
+             a widening nobody has tested. This one uses the datatype the sketch wrapper now emits,
+             so the two tools are tested as they are actually wired; the second keeps `json` so the
+             signatures in histories staged before that change are still covered. -->
         <test expect_num_outputs="5">
             <param name="signatures">
                 <collection type="list">
-                    <element name="strainA" value="strainA.sig" ftype="json"/>
-                    <element name="strainB" value="strainB.sig" ftype="json"/>
-                    <element name="strainC" value="strainC.sig" ftype="json"/>
+                    <element name="strainA" value="strainA.sig" ftype="sourmash.sig"/>
+                    <element name="strainB" value="strainB.sig" ftype="sourmash.sig"/>
+                    <element name="strainC" value="strainC.sig" ftype="sourmash.sig"/>
                 </collection>
             </param>
             <param name="ksize" value="21"/>
@@ -72,7 +91,8 @@ sourmash plot --labels cmp
                 </assert_contents>
             </output>
         </test>
-        <!-- Two signatures: 2×2 matrix, self-similarity 1.0 on the diagonal. -->
+        <!-- Two signatures: 2×2 matrix, self-similarity 1.0 on the diagonal.
+             Deliberately still `ftype="json"` — see the note on the test above. -->
         <test expect_num_outputs="5">
             <param name="signatures">
                 <collection type="list">
