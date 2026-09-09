@@ -78,7 +78,20 @@ def synthetic(path, name="chr1", seed=7):
 
 # ---------------------------------------------------------------- the cases -------------------
 def case_ncbi_masker(tool, image, wd):
-    """dustmasker / windowmasker: BED3 from `-outfmt interval` vs its own `-outfmt fasta`."""
+    """dustmasker / windowmasker: BED3 from `-outfmt interval` vs its own `-outfmt fasta`.
+
+    ⛔ THIS CASE IS ONLY STRONG BECAUSE THE TWO SIDES COME FROM DIFFERENT ROUTES OUT OF THE TOOL,
+    AND THAT IS WHY THE WORKFLOW STILL USES `-outfmt interval`. Both maskers can emit `-outfmt
+    fasta` directly, which would let `interval2bed.awk` be deleted in favour of the lowercase-run
+    reader tantan already uses -- an appealing simplification that would quietly gut this check.
+    Take the fasta route and both sides of the comparison derive from the same bytes: it would
+    then only compare our awk against a Python reimplementation of the same idea, which is what
+    `case_tantan` is and can only catch a bug one implementation has and the other does not. The
+    off-by-one this case caught -- an interval format read as 1-based when it is 0-based inclusive,
+    with the WIDTH preserved so every coverage percentage still agreed with itself -- is invisible
+    to that weaker form. See the header of tools/dustmasker/interval2bed.awk for the same argument
+    from the other side.
+    """
     synthetic(wd / "in.fa")
     (wd / "interval2bed.awk").write_text((ROOT / "tools/dustmasker/interval2bed.awk").read_text())
     if tool == "dustmasker":

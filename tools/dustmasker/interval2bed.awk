@@ -1,5 +1,22 @@
 # NCBI dustmasker/windowmasker `-outfmt interval` -> BED3 (chrom, start, end).
 #
+# ⛔ WHY THIS FILE EXISTS AT ALL, WHEN `lc2bed.awk` ALREADY DOES THE SAME JOB. dustmasker and
+# windowmasker BOTH support `-outfmt fasta`, which emits the soft-masked sequence tantan already
+# emits -- so both maskers could take the lowercase-run route and this converter could be deleted
+# outright. That would remove a whole coordinate-convention to misread, and this file is the proof
+# that such a convention CAN be misread: see the off-by-one below.
+#
+# ⚠ IT IS KEPT ANYWAY, AND THE REDUNDANCY IS THE POINT. scripts/check_coordinates.py validates
+# THIS file's BED against the lowercase runs of the SAME tool's `-outfmt fasta` on the SAME input --
+# two independent routes out of one tool, agreeing base for base. That is the strongest coordinate
+# check in this repository, and it is what caught the off-by-one below. Move the maskers onto the
+# fasta route and the check collapses into comparing this awk against a Python reimplementation of
+# the same idea, which is exactly what the tantan case already is and is measurably weaker: it can
+# only catch a bug that one of the two implementations has and the other does not.
+#
+# So two converters is not duplication to be tidied away. Deleting either one is how you lose the
+# ability to tell whether the survivor is right.
+#
 # ⛔ THE INTERVAL FORMAT IS 0-BASED AND INCLUSIVE AT BOTH ENDS, and this file spent its whole life
 # converting it as if it were 1-based. MEASURED against dustmasker's own `-outfmt fasta` on the
 # same sequence, which is the only ground truth that settles it:

@@ -132,6 +132,62 @@ def span(intervals: set[tuple[str, int, int]]) -> int:
     return sum(e - s for _, s, e in intervals)
 
 
+def merge_by_chrom(intervals) -> dict[str, list[tuple[int, int]]]:
+    """Disjoint, sorted intervals per chrom, so coverage can be asked about a POSITION."""
+    by: dict[str, list[tuple[int, int]]] = {}
+    for c, s, e in intervals:
+        by.setdefault(c, []).append((s, e))
+    for c, ivs in by.items():
+        ivs.sort()
+        out: list[tuple[int, int]] = []
+        for s, e in ivs:
+            if out and s <= out[-1][1]:
+                out[-1] = (out[-1][0], max(out[-1][1], e))
+            else:
+                out.append((s, e))
+        by[c] = out
+    return by
+
+
+def uncovered(needles, hay) -> list[tuple[str, int, int]]:
+    """Fragments of `needles` whose BASES are not covered by `hay`.
+
+    ⛔ BASE-LEVEL, BECAUSE INTERVAL IDENTITY IS THE WRONG QUESTION HERE. The check used
+    `union - applied`, a set difference over whole (chrom, start, end) tuples, so a computed
+    interval counted as UNAPPLIED unless a lowercase run existed with exactly its coordinates. With
+    the arriving mask kept -- the default -- the published FASTA is the union of the submitter's
+    mask and ours, so an interval of ours that happens to abut a submitter-masked base merges into
+    one longer run and its tuple stops matching. Measured on the 19-genome run: 10 of 19 strains
+    reported failures whose every example was a one-base boundary difference with the computed
+    interval sitting INSIDE the published run -- containment holding, reported as a failure, and
+    104 Mb of "computed-but-not-applied" that was really whole intervals disqualified by one base.
+    """
+    from bisect import bisect_right
+    hay_by = merge_by_chrom(hay)
+    starts = {c: [s for s, _ in ivs] for c, ivs in hay_by.items()}
+    gaps: list[tuple[str, int, int]] = []
+    for c, s, e in sorted(needles):
+        ivs, st = hay_by.get(c), starts.get(c)
+        if not ivs:
+            gaps.append((c, s, e))
+            continue
+        pos = s
+        i = bisect_right(st, pos) - 1
+        while pos < e:
+            # `i` is the last hay interval starting at or before `pos`; advance it monotonically.
+            while i + 1 < len(ivs) and ivs[i + 1][0] <= pos:
+                i += 1
+            if 0 <= i < len(ivs) and ivs[i][0] <= pos < ivs[i][1]:
+                pos = min(ivs[i][1], e)                 # covered up to here
+            else:
+                # uncovered until the next hay interval starts, or to the needle's end
+                nxt = ivs[i + 1][0] if i + 1 < len(ivs) else e
+                stop = min(nxt, e)
+                gaps.append((c, pos, stop))
+                pos = stop
+    return gaps
+
+
 def resolve(gi: GalaxyInstance, invocation_id: str) -> dict[str, str]:
     """Map the three declared output names to collection ids, all from ONE invocation."""
     inv = gi.invocations.show_invocation(invocation_id)
@@ -206,11 +262,13 @@ def main() -> int:
         # 0 == 0, and the old total-based check printed ✅ for it -- certifying a run in which the
         # mask was never applied at all.
         ok_nonempty = bool(union)
-        only_computed = union - applied
-        only_applied = applied - union
+        # ⛔ CONTAINMENT AT BASE LEVEL, NOT INTERVAL IDENTITY -- see uncovered(). What must hold in
+        # BOTH modes is that every base we computed is lowercase in the published FASTA.
+        only_computed = uncovered(union, applied)
         # ⚠ `only_applied` IS EXPECTED WHEN THE ARRIVING MASK WAS KEPT: the published FASTA is the
-        # union of the submitter's mask and ours, and mask_union records only ours. What must hold
-        # in BOTH modes is that everything we computed was applied -- `only_computed` empty.
+        # union of the submitter's mask and ours, and mask_union records only ours. It is a FAILURE
+        # only when the mask was stripped, where the two must agree exactly.
+        only_applied = uncovered(applied, union)
         ok_mask = ok_nonempty and not only_computed and (not only_applied or not stripped)
         failures += (not ok_upper) + (not ok_mask)
 
@@ -225,13 +283,13 @@ def main() -> int:
         if not ok_nonempty:
             print("      ⛔ the union is EMPTY -- nothing was masked, which is not a pass")
         elif ok_mask:
-            print("      positions        : IDENTICAL interval-for-interval")
+            print(f"      positions        : every computed base is masked"
+                  f"{'' if stripped else f'; {span(only_applied):,} nt of the arriving mask also present'}")
         else:
-            print(f"      ⛔ computed-but-not-applied: {len(only_computed):,} intervals, "
-                  f"{span(only_computed):,} nt")
+            print(f"      ⛔ computed-but-not-applied: {span(only_computed):,} nt in "
+                  f"{len(only_computed):,} fragment(s)")
             print(f"      {'⛔' if stripped else 'ℹ'} applied-but-not-computed: "
-                  f"{len(only_applied):,} intervals, "
-                  f"{span(only_applied):,} nt")
+                  f"{span(only_applied):,} nt in {len(only_applied):,} fragment(s)")
             for iv in sorted(only_computed)[:3]:
                 print(f"          only in BED  : {iv}")
             for iv in sorted(only_applied)[:3]:
