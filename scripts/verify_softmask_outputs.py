@@ -254,9 +254,15 @@ def main() -> int:
         # which reads as a corrupt uppercase step rather than as the setting that was chosen. And
         # the mask comparison below then reports a spurious applied-but-not-computed list, because
         # the published FASTA carries BOTH masks while `mask_union` records only ours.
-        # ⚠ INFERRED, NOT ASKED FOR: `ulow == 0` IS the signature of the stripping mode, so no flag
-        # is needed and no caller can pass the wrong one. Only the length check is unconditional.
-        stripped = (ulow == 0)
+        # ⚠ INFERRED, NOT ASKED FOR, so no caller can pass the wrong flag -- but ⛔ `ulow == 0`
+        # DOES NOT MEAN THE MASK WAS STRIPPED. It means nothing lowercase reached the mask step,
+        # and an assembly that ARRIVED unmasked looks identical to one that was stripped. Measured
+        # on the 19-genome run, which used `strip_arrived_mask: false` throughout: 8 of 19 printed
+        # "mask stripped" because those assemblies ship no soft-mask at all, so the label asserted
+        # a setting that was never used. The INVARIANT is unaffected -- with no arriving mask to
+        # union in, exact equality is right either way -- so only the wording was wrong, which is
+        # its own kind of defect in a script whose output is the evidence.
+        no_arriving_mask = (ulow == 0)
         ok_upper = (ures == res)
         # ⛔ AN EMPTY MASK IS A FAILURE, NOT A MATCH. Nothing masked against nothing computed is
         # 0 == 0, and the old total-based check printed ✅ for it -- certifying a run in which the
@@ -269,13 +275,14 @@ def main() -> int:
         # union of the submitter's mask and ours, and mask_union records only ours. It is a FAILURE
         # only when the mask was stripped, where the two must agree exactly.
         only_applied = uncovered(applied, union)
-        ok_mask = ok_nonempty and not only_computed and (not only_applied or not stripped)
+        ok_mask = ok_nonempty and not only_computed and (not only_applied or not no_arriving_mask)
         failures += (not ok_upper) + (not ok_mask)
 
         print(f"    {s}")
         print(f"      uppercased input : {ures:,} nt, {ulow} lowercase"
               f"        {'ok' if ok_upper else '⛔ LENGTH CHANGED'}"
-              f"  [{'mask stripped' if stripped else 'arriving mask KEPT (classic default)'}]")
+              f"  [{'nothing lowercase arrived -- stripped, or the assembly ships unmasked'
+                     if no_arriving_mask else 'arriving mask KEPT (classic default)'}]")
         print(f"      merged union BED : {span(union):,} nt in {len(union):,} intervals "
               f"({span(union) / res:.2%})")
         print(f"      masked FASTA     : {low:,} lowercase in {len(applied):,} runs "
@@ -284,11 +291,11 @@ def main() -> int:
             print("      ⛔ the union is EMPTY -- nothing was masked, which is not a pass")
         elif ok_mask:
             print(f"      positions        : every computed base is masked"
-                  f"{'' if stripped else f'; {span(only_applied):,} nt of the arriving mask also present'}")
+                  f"{'' if no_arriving_mask else f'; {span(only_applied):,} nt of the arriving mask also present'}")
         else:
             print(f"      ⛔ computed-but-not-applied: {span(only_computed):,} nt in "
                   f"{len(only_computed):,} fragment(s)")
-            print(f"      {'⛔' if stripped else 'ℹ'} applied-but-not-computed: "
+            print(f"      {'⛔' if no_arriving_mask else 'ℹ'} applied-but-not-computed: "
                   f"{span(only_applied):,} nt in {len(only_applied):,} fragment(s)")
             for iv in sorted(only_computed)[:3]:
                 print(f"          only in BED  : {iv}")
@@ -298,8 +305,11 @@ def main() -> int:
     if failures:
         print(f"  ⛔ {failures} check(s) FAILED across {len(strains)} strain(s)")
         return 1
-    print(f"  ✅ {len(strains)} strain(s): the mask applied is exactly the mask computed, "
-          f"interval for interval")
+    # ⚠ "EVERY COMPUTED BASE" AND NOT "INTERVAL FOR INTERVAL", which is what this said while the
+    # comparison was interval identity. It is base-level containment now, and a summary describing
+    # a stronger check than the one that ran is worse than no summary.
+    print(f"  ✅ {len(strains)} strain(s): every base the workflow computed is masked in the "
+          f"published FASTA")
     return 0
 
 
