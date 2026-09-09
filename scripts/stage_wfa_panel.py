@@ -27,6 +27,13 @@ isoforms is reported as duplicated for a reason that is not biology. That matter
 holds haplotype pairs, where `duplicated` genuinely means an uncollapsed haplotype.
 scripts/primary_proteome.py reduces a proteome to longest-per-gene; the files this expects are
 named `*_<key>_protein_primary.faa.gz`, keyed by the panel's `proteomes` values.
+
+⚠ THE `_primary` IN THE NAME IS A CLAIM, NOT A CERTIFICATE -- this script cannot verify it, since
+doing so needs the full proteome and its annotation, neither of which is staged. Audit the files
+themselves before a panel's BUSCO numbers are compared across members:
+
+    primary_proteome.py <full>.faa.gz --check <staged>_protein_primary.faa.gz \
+        --gene-map-gff3 <same release>_genomic.gff.gz
 """
 from __future__ import annotations
 
