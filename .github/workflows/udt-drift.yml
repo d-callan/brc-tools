@@ -9,7 +9,12 @@ on:
     branches: [main]
     # ⚠ THE TRIGGER HAS TO NAME EVERY SCRIPT THE JOBS BELOW RUN, or a change that breaks one of
     # them runs no check at all -- and `workflows/**` matters because the port checker reads those.
-    paths: ['tools/**', 'udt/**', 'workflows/**',
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
@@ -24,7 +29,12 @@ on:
             # runs no check at all.
             'execution/cluster/gen_wfc_config.py']
   pull_request:
-    paths: ['tools/**', 'udt/**', 'workflows/**',
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
