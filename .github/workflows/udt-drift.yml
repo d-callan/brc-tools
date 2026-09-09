@@ -15,6 +15,7 @@ on:
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
             'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
+            'scripts/primary_proteome.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -28,6 +29,7 @@ on:
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
             'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
+            'scripts/primary_proteome.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -91,6 +93,10 @@ jobs:
           python3 scripts/check_workflow_ports.py --self-test
           python3 scripts/check_relabel_strict.py --self-test
           python3 scripts/check_bed12.py --self-test
+          # ⚠ SELF-TEST ONLY, and it is not listed under a bare run below. This one needs
+          # proteomes and GFF3s that are not in the repository -- gigabytes of them -- so
+          # what CI can gate is that its guards still fire, not that the panel passes.
+          python3 scripts/primary_proteome.py --self-test
 
       - name: UDT definitions are correct
         run: python3 scripts/check_udt_definitions.py
