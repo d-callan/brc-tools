@@ -987,6 +987,10 @@ def lint(path, containers=True):                    # this IS a checklist; it is
     return problems, notes
 
 
+#: Sentinel for a DEFECTS entry that must target whatever version the fixture currently declares.
+DECLARED_VERSION = "<<declared-version>>"
+
+
 # ---------------------------------------------------------------- self-test --------------------
 #: (label, find, replace, expected code). Every case is injected into a REAL tool in this repo, so
 #: a check that stops matching the way these files are actually written fails here rather than
@@ -1012,8 +1016,13 @@ DEFECTS = [
     # ⚠ `-probe` LOOKS LIKE A VERSION AND IS NOT ONE. PEP 440 has no bare alphabetic suffix: the
     # only `-x` it accepts is `-<digits>` (an implicit post-release), so `0.1.0-1` passes and this
     # does not. That is exactly the shape a human reaches for when registering a throwaway.
+    # ⚠ `DECLARED_VERSION` INSTEAD OF THE LITERAL, because the literal rots. This case pinned
+    # `version: "0.1.0"`, and the day that UDT was bumped to 0.2.0 the fixture stopped matching --
+    # caught, correctly, as BROKEN-FIXTURE rather than passing on nothing, but a case that has to
+    # be re-pinned on every version bump is a case that will eventually be re-pinned wrongly. The
+    # version this injects into is not part of what is being tested; only its SHAPE is.
     ("udt/samtools_faidx.gxtool.yml", "a version that is not PEP 440",
-     'version: "0.1.0"', 'version: "0.1.0-probe"', "VERSION-NOT-PEP440"),
+     DECLARED_VERSION, 'version: "0.1.0-probe"', "VERSION-NOT-PEP440"),
     ("udt/samtools_faidx.gxtool.yml", "reference to an undeclared input",
      "$(inputs.input.path)", "$(inputs.inputt.path)", "UNDECLARED-INPUT-REF"),
     ("udt/samtools_faidx.gxtool.yml", "data input used without .path",
@@ -1071,6 +1080,14 @@ def self_test() -> int:
                 continue
 
             src = (ROOT / rel).read_text()
+            if old is DECLARED_VERSION:
+                line = next((ln for ln in src.splitlines()
+                             if ln.startswith("version:")), None)
+                if line is None:
+                    print(f"  BROKEN-FIXTURE  {label}: {rel} declares no `version:` line")
+                    failed += 1
+                    continue
+                old = line
             if src.count(old) < 1:
                 print(f"  BROKEN-FIXTURE  {label}: {old[:40]!r} no longer occurs in {rel}")
                 failed += 1
