@@ -22,6 +22,7 @@ on:
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
             'scripts/primary_proteome.py',
             'scripts/verify_inventory_outputs.py',
+            'scripts/check_datatype_satisfaction.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -42,6 +43,7 @@ on:
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
             'scripts/primary_proteome.py',
             'scripts/verify_inventory_outputs.py',
+            'scripts/check_datatype_satisfaction.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -112,6 +114,10 @@ jobs:
           # ⚠ SELF-TEST ONLY for the same reason, and additionally because its
           # server imports are lazy so that this line needs no bioblend.
           python3 scripts/verify_inventory_outputs.py --self-test
+          # ⚠ SELF-TEST ONLY. The subclass relations live on a Galaxy server
+          # (/api/datatypes/mapping) and cannot be inferred locally, so the part CI
+          # can gate is the satisfaction LOGIC, not this pipeline's edges.
+          python3 scripts/check_datatype_satisfaction.py --self-test
 
       - name: UDT definitions are correct
         run: python3 scripts/check_udt_definitions.py
