@@ -9,13 +9,19 @@ on:
     branches: [main]
     # ⚠ THE TRIGGER HAS TO NAME EVERY SCRIPT THE JOBS BELOW RUN, or a change that breaks one of
     # them runs no check at all -- and `workflows/**` matters because the port checker reads those.
-    paths: ['tools/**', 'udt/**', 'workflows/**',
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
             'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
             'scripts/primary_proteome.py',
+            'scripts/verify_inventory_outputs.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -23,13 +29,19 @@ on:
             # runs no check at all.
             'execution/cluster/gen_wfc_config.py']
   pull_request:
-    paths: ['tools/**', 'udt/**', 'workflows/**',
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
             'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
             'scripts/build_projection_udts.py',
             'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
             'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
             'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
             'scripts/primary_proteome.py',
+            'scripts/verify_inventory_outputs.py',
             # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
             # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
             # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
@@ -97,6 +109,9 @@ jobs:
           # proteomes and GFF3s that are not in the repository -- gigabytes of them -- so
           # what CI can gate is that its guards still fire, not that the panel passes.
           python3 scripts/primary_proteome.py --self-test
+          # ⚠ SELF-TEST ONLY for the same reason, and additionally because its
+          # server imports are lazy so that this line needs no bioblend.
+          python3 scripts/verify_inventory_outputs.py --self-test
 
       - name: UDT definitions are correct
         run: python3 scripts/check_udt_definitions.py
