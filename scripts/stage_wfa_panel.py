@@ -28,6 +28,14 @@ holds haplotype pairs, where `duplicated` genuinely means an uncollapsed haploty
 scripts/primary_proteome.py reduces a proteome to longest-per-gene; the files this expects are
 named `*_<key>_protein_primary.faa.gz`, keyed by the panel's `proteomes` values.
 
+⚠ AN ASSEMBLY REACHES GALAXY BY ONE OF THREE ROUTES, AND ONLY ONE OF THEM IS FREE. A member of
+`raw_collection` is copied server-side; a `by_url` member is fetched by Galaxy straight from the
+NCBI FTP, also server-side; a `from_disk` member is UPLOADED from this machine, which is the only
+route that spends tunnel bandwidth. Prefer the first two -- but a genome published only as a
+figshare tarball has no third-party URL Galaxy can use, because the deposited object is the
+archive, not the FASTA inside it, and Galaxy has no tool to open one. Unpack it here and list it
+under `from_disk`.
+
 ⚠ THE `_primary` IN THE NAME IS A CLAIM, NOT A CERTIFICATE -- this script cannot verify it, since
 doing so needs the full proteome and its annotation, neither of which is staged. Audit the files
 themselves before a panel's BUSCO numbers are compared across members:
@@ -53,6 +61,16 @@ PROTEOMES = pathlib.Path(os.environ.get("WFA_PROTEOMES", "proteomes")).expanduse
 
 #: Where the resulting collection ids are written, for the workflow driver to read.
 OUT_DIR = pathlib.Path(os.environ.get("WFA_OUT_DIR", ".")).expanduser()
+
+#: Keys a panel MAY define, and the value used when it does not. ⛔ SEPARATE FROM `PANEL_KEYS`
+#: BECAUSE THIS REPOSITORY IS SHARED. Panels live beside their datasets, not here, so a key added
+#: to the required set breaks every panel written before it existed -- including ones this checkout
+#: has never seen. A new key is optional or it is a breaking change.
+OPTIONAL_KEYS = {
+    "from_disk": ({}, "identifier -> file key, for assemblies UPLOADED from local disk. For "
+                      "anything with no URL Galaxy can fetch -- a genome deposited only as an "
+                      "archive, or one that exists nowhere but this machine."),
+}
 
 #: Every key a panel file must define, and what it means. Validated before anything is staged,
 #: because a panel missing a key would otherwise fail partway and leave a half-built history.
@@ -99,7 +117,9 @@ def load_panel(path: pathlib.Path) -> dict:
     if str(doc["name"]).startswith("REPLACE ME"):
         sys.exit(f"{path}: `name` is still the template placeholder, so this panel was copied and "
                  f"not filled in. It names the Galaxy history, which is how a run is found later.")
-    for k in ("proteomes", "anchors", "by_url"):
+    for k, (default, _) in OPTIONAL_KEYS.items():
+        doc.setdefault(k, default if not isinstance(default, dict) else dict(default))
+    for k in ("proteomes", "anchors", "by_url", *OPTIONAL_KEYS):
         if not isinstance(doc[k], dict):
             sys.exit(f"{path}: `{k}` must be a mapping, got {type(doc[k]).__name__}")
     if not isinstance(doc["extra"], list):
@@ -108,6 +128,14 @@ def load_panel(path: pathlib.Path) -> dict:
         if not (isinstance(spec, dict) and {"accession", "assembly_name"} <= set(spec)):
             sys.exit(f"{path}: by_url[{ident!r}] needs `accession` and `assembly_name` -- the FTP "
                      f"path is built from both, so a missing one yields a 404 at fetch time.")
+    # ⛔ ONE SOURCE PER GENOME. An identifier in both `by_url` and `from_disk` would be staged
+    # twice into the same collection under one name -- Galaxy accepts that, and the duplicate is
+    # invisible in every downstream count because the collection reports the element once.
+    both = sorted(set(doc["by_url"]) & set(doc["from_disk"]))
+    if both:
+        sys.exit(f"{path}: {both} appear in both `by_url` and `from_disk`. Which copy of the "
+                 f"genome is intended is not something to guess at.")
+
     # ⛔ BOTH CONTAINMENTS, CHECKED AGAINST THE PANEL RATHER THAN THE SERVER, so a malformed panel
     # is caught without a network call. Nothing in WF-A can catch them: `proteomes` and
     # `assemblies` meet only at multiqc, which joins a BUSCO summary keyed by one collection to
@@ -258,14 +286,64 @@ def collection(history, name, pairs):
         "element_identifiers": [{"src": "hda", "id": i, "name": n} for n, i in pairs]})
 
 
+def self_test() -> int:
+    """Exercise `load_panel` offline, breaking each property separately.
+
+    ⛔ THE HAPPY PATH ALONE PROVES NOTHING. A panel that loads tells you the parser ran, not that
+    any guard in it works; every check below is written by making a VALID panel invalid in exactly
+    one way, so a deleted guard fails this rather than quietly widening what is accepted.
+    """
+    import tempfile
+
+    base = {"name": "T", "expected_assemblies": 2, "raw_collection": None,
+            "extra": ["a", "b"], "by_url": {"a": {"accession": "GCA_1", "assembly_name": "A"}},
+            "proteomes": {}, "anchors": {}}
+
+    def load(doc):
+        with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:
+            yaml.safe_dump(doc, fh)
+            return load_panel(pathlib.Path(fh.name))
+
+    def refuses(doc, needle):
+        try:
+            load(doc)
+        except SystemExit as e:
+            assert needle in str(e), f"refused for the wrong reason: {e}"
+            return
+        raise AssertionError(f"accepted a panel it should refuse ({needle})")
+
+    # ⚠ BACKWARD COMPATIBILITY IS THE FIRST CHECK, not an afterthought: a panel written before
+    # `from_disk` existed must still load, or this change breaks every dataset in the wild.
+    old_panel = load(dict(base))
+    assert old_panel["from_disk"] == {}, "the optional key did not default"
+
+    ok = load({**base, "from_disk": {"b": "bkey"}})
+    assert ok["from_disk"] == {"b": "bkey"}
+
+    refuses({**base, "from_disk": ["b"]}, "must be a mapping")
+    refuses({**base, "from_disk": {"a": "akey"}}, "both `by_url` and `from_disk`")
+
+    # the pre-existing guards must still bite after the edit
+    refuses({**base, "anchors": {"a": "A"}}, "have no proteome")
+    refuses({**base, "expected_assemblies": 0}, "positive integer")
+    print("self-test: all guards bite")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--panel", type=pathlib.Path, required=True,
+    ap.add_argument("--self-test", action="store_true",
+                    help="validate panel parsing offline and exit; touches no server")
+    ap.add_argument("--panel", type=pathlib.Path,
                     help="a panel definition under panels/ -- which genomes, which of them have a "
                          "proteome, and which are anchors. Required: this script stages whatever "
                          "panel it is given and knows nothing about any particular organism.")
     args = ap.parse_args()
+    if args.self_test:
+        return self_test()
+    if args.panel is None:
+        ap.error("--panel is required (or pass --self-test)")
     panel = load_panel(args.panel)
     print(f"  panel {args.panel.name}: {panel['name']}")
 
@@ -294,9 +372,12 @@ def main() -> int:
     # collection it describes, and nothing would notice; the collection is the source of truth for
     # its own members.
     wanted = list(have) + [i for i in panel["extra"] if i not in have]
-    missing = [k for k in wanted if k not in have and k not in panel["by_url"]]
+    wanted = list(dict.fromkeys(wanted + [i for i in panel["from_disk"] if i not in wanted]))
+    missing = [k for k in wanted
+               if k not in have and k not in panel["by_url"] and k not in panel["from_disk"]]
     if missing:
-        sys.exit(f"no source for {missing}: not in the raw collection and no `by_url` entry")
+        sys.exit(f"no source for {missing}: not in the raw collection, and no `by_url` or "
+                 f"`from_disk` entry")
     if len(wanted) != panel["expected_assemblies"]:
         sys.exit(f"the panel resolves to {len(wanted)} assemblies, expected "
                  f"{panel['expected_assemblies']} ({len(have)} copied + "
@@ -311,6 +392,13 @@ def main() -> int:
     stray_prot = sorted(set(panel["proteomes"]) - set(wanted))
     if stray_prot:
         sys.exit(f"{args.panel}: proteomes names {stray_prot}, which are not in the assembly set.")
+
+    # ⛔ EVERY LOCAL FILE IS RESOLVED BEFORE THE FIRST BYTE GOES UP. `one_file` exits when a file
+    # is absent or ambiguous, and discovering that partway through 192 uploads would leave a
+    # history holding most of a panel -- which is harder to reason about than a refusal, and
+    # tempting to invoke anyway. Fail on the filesystem, before the network.
+    disk = {ident: one_file(f"*_{key}_assembly.fasta.gz", ident, "assembly")
+            for ident, key in panel["from_disk"].items() if ident in wanted}
 
     asm = []
     for ident in wanted:
@@ -335,6 +423,15 @@ def main() -> int:
             asm.append((o["name"], o["id"]))
         print(f"  fetching {len(fetch)} assembly FASTA(s) from NCBI")
 
+    # ⚠ SERIAL, AND THAT IS A DELIBERATE CHOICE RATHER THAN AN OVERSIGHT. This is the only route
+    # that spends tunnel bandwidth, and a panel of two hundred genomes is tens of GB; uploading
+    # them concurrently does not make the tunnel wider, but it does multiply what has to be redone
+    # when one of them fails. The progress line exists because a silent hour reads as a hang.
+    for n, (ident, f) in enumerate(sorted(disk.items()), 1):
+        asm.append((ident, upload(hist, f, f"{ident}.fasta.gz", "fasta.gz")))
+        print(f"    [{n}/{len(disk)}] uploaded assembly {ident} "
+              f"({f.stat().st_size / 1048576:.0f} MB)", flush=True)
+
     prot, anch = [], []
     for ident, key in panel["proteomes"].items():
         f = one_file(f"*_{key}_protein_primary.faa.gz", ident, "proteome")
@@ -352,6 +449,14 @@ def main() -> int:
     c_anch = collection(hist, "anchor_gene_gff3s", anch)
     out = {"server": URL, "history": hist, "assemblies": c_asm["id"], "proteomes": c_prot["id"],
            "anchor_gene_gff3s": c_anch["id"]}
+    # ⛔ THE COLLECTION MUST HOLD WHAT THE PANEL PROMISED. Three routes now feed one collection,
+    # and a member lost by any of them yields a shorter panel that stages cleanly; the assertion
+    # in `wanted` above cannot see this, because it counts the panel, not what reached Galaxy.
+    if len(asm) != panel["expected_assemblies"]:
+        sys.exit(f"staged {len(asm)} assemblies but the panel expects "
+                 f"{panel['expected_assemblies']} -- {len(have)} copied, {len(fetch)} fetched, "
+                 f"{len(disk)} uploaded. The history is left in place to inspect.")
+
     print(f"\n  assemblies        {c_asm['id']}  ({len(asm)})")
     print(f"  proteomes         {c_prot['id']}  ({len(prot)})")
     print(f"  anchor_gene_gff3s {c_anch['id']}  ({len(anch)})")
