@@ -26,8 +26,11 @@ inputs:
     type: collection
     collection_type: list
     doc: >-
-      Per-strain protein FASTAs (parallel to assemblies, keyed by strain).
-      BUSCO runs -m prot, so it MUST map over proteins, not assemblies.
+      Protein FASTAs for the panel members that HAVE an annotation, keyed by strain. ⚠ A SUBSET of
+      `assemblies`, not parallel to it: BUSCO runs -m prot so it needs a protein FASTA, while
+      sourmash and faidx need only sequence. A panel whose members are not all annotated is the
+      expected case — the rest get genes from WF-C2 by projection, which is what those workflows
+      are for. One protein per gene, because BUSCO reads `duplicated` straight off the file.
     position: {top: 380, left: 300}
   busco_lineage:
     type: string
@@ -60,7 +63,10 @@ outputs:
     doc: Per-strain sourmash signatures (.sig), BRC-reusable.
   busco_summaries:
     outputSource: busco/busco_sum
-    doc: Per-strain BUSCO short summaries.
+    doc: >-
+      BUSCO short summaries, keyed by PROTEOME and so shorter than `assemblies` — correct, not a
+      partial run. It measures ANNOTATION completeness, so a genome with no annotation has no
+      entry.
   sourmash_heatmap:
     outputSource: sourmash_compare/heatmap
     doc: Clustered sourmash similarity heatmap (PNG; hierarchical clustering).
