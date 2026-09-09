@@ -57,6 +57,14 @@ inputs:
       expected case — the rest get genes from WF-C2 by projection, which is what those workflows
       are for. One protein per gene, because BUSCO reads `duplicated` straight off the file.
     position: {top: 240, left: 40}
+  sourmash_containment:
+    type: boolean
+    default: false
+    doc: >-
+      Also publish a containment matrix. OFF by default. Jaccard divides by the union, so on a
+      mixed-size panel it scores a size difference as distance: a 286 Mb assembly caps at 0.36
+      against an 800 Mb genome even as a perfect subset. Turn this on for a panel whose members
+      differ in size, and read `containment_matrix` instead of `similarity_matrix`.
   busco_lineage:
     type: string
     default: apicomplexa_odb12
@@ -79,6 +87,29 @@ inputs:
 outputs:
   similarity_matrix:
     outputSource: sourmash_panel/similarity
+  containment_matrix:
+    outputSource: sourmash_panel/containment
+  max_containment_matrix:
+    outputSource: sourmash_panel/max_containment
+    doc: >-
+      Symmetric max-containment matrix, |A n B| / min(|A|,|B|). ⚠ ABSENT unless
+      `sourmash_containment` is true. ⛔ IT ERASES A SIZE DIFFERENCE rather than tolerating one: a
+      300 Mb perfect subset of an 800 Mb genome scores 1.00 here and 0.38 under Jaccard. Read the
+      two TOGETHER -- max-containment near 1 with Jaccard far below it means one member is
+      contained in the other, i.e. incomplete or unpurged.
+  max_containment_heatmap:
+    outputSource: sourmash_panel/max_containment_heatmap
+    doc: Clustered heatmap over the symmetric size-robust matrix. Absent unless requested.
+  max_containment_dendrogram:
+    outputSource: sourmash_panel/max_containment_dendrogram
+    doc: >-
+      The tree to read when panel members differ in size, because it never divides by the union.
+      Published beside the Jaccard dendrogram, not instead of it -- where the two disagree, the
+      Jaccard one is the size-distorted one. Absent unless requested.
+    doc: >-
+      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
+      true, and NOT interchangeable with `similarity_matrix`: containment(A,B) != containment(B,A)
+      whenever the two differ in size, so nothing clusters it and no dendrogram is drawn from it.
     doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
   sourmash_heatmap:
     outputSource: sourmash_panel/heatmap
@@ -163,6 +194,7 @@ steps:
     in:
       assemblies: assemblies
       identifiers: panel_identifiers/output
+      containment: sourmash_containment
     state:
       ksize: 31
       # ⚠ NAMED, NOT LEFT TO ITS DEFAULT. 1000 IS the tool's default, so nothing about the run

@@ -110,6 +110,16 @@ SHAPE = {
     ("A", "in", "proteomes"): _LIST_STRAIN,
     ("A", "in", "busco_lineage"): "string",
     ("A", "out", "similarity_matrix"): f"1 CSV · {PANEL_N}x{PANEL_N}",
+    # ⚠ ALL FOUR ARE CONDITIONAL on the `sourmash_containment` input and the shape says so: an
+    # empty cell would read as "shape unknown", which is what five pre-existing WF-A ports here
+    # already look like. Derived from PANEL_N for the same reason every other count is -- a shape
+    # written twice can disagree with itself.
+    ("A", "in", "sourmash_containment"): "boolean · default false",
+    ("A", "out", "containment_matrix"): f"1 CSV · {PANEL_N}x{PANEL_N} · ASYMMETRIC · only if asked",
+    ("A", "out", "max_containment_matrix"):
+        f"1 CSV · {PANEL_N}x{PANEL_N} · symmetric · only if asked",
+    ("A", "out", "max_containment_heatmap"): "1 PNG · only if asked",
+    ("A", "out", "max_containment_dendrogram"): "1 PNG · only if asked",
     ("A", "out", "signatures"): f"list[{PANEL_N}]",
     ("A", "out", "busco_summaries"): f"list[{PANEL_N}] · one per PROTEOME, not per strain",
     ("A", "out", "sourmash_heatmap"): "1 PNG",

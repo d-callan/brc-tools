@@ -32,6 +32,11 @@ inputs:
       expected case — the rest get genes from WF-C2 by projection, which is what those workflows
       are for. One protein per gene, because BUSCO reads `duplicated` straight off the file.
     position: {top: 380, left: 300}
+  sourmash_containment:
+    type: boolean
+    default: false
+    doc: >-
+      Also publish a containment matrix. OFF by default -- see `containment_matrix`.
   busco_lineage:
     type: string
     default: apicomplexa_odb12
@@ -57,6 +62,25 @@ inputs:
 outputs:
   similarity_matrix:
     outputSource: sourmash_compare/output
+  containment_matrix:
+    outputSource: sourmash_compare/containment_matrix
+  max_containment_matrix:
+    outputSource: sourmash_compare/max_containment_matrix
+    doc: >-
+      Symmetric max-containment matrix. ⚠ ABSENT unless `sourmash_containment` is true, and it
+      ERASES a size difference: a perfect subset scores 1.00. Read alongside
+      `similarity_matrix` -- the gap between them is what identifies a contained member.
+  max_containment_heatmap:
+    outputSource: sourmash_compare/max_containment_heatmap
+    doc: Clustered heatmap over the symmetric size-robust matrix. Absent unless requested.
+  max_containment_dendrogram:
+    outputSource: sourmash_compare/max_containment_dendrogram
+    doc: The size-robust tree. Absent unless requested.
+    doc: >-
+      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
+      true. Not interchangeable with `similarity_matrix`: Jaccard divides by the union and so
+      scores a size difference as distance, which on a mixed-size panel is the wrong ordering
+      for WF-I to fold on.
     doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
   signatures:
     outputSource: sourmash_sketch/output
@@ -127,6 +151,7 @@ steps:
       integer `ksize`; emits CSV via `--csv`. Validated e2e 2026-06-07.
     in:
       signatures: sourmash_sketch/output
+      containment: sourmash_containment
     state:
       ksize: 31
     position: {top: 690, left: 600}
