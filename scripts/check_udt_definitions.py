@@ -346,6 +346,173 @@ def authoritative(path, data):
     return [("LINT", path.name, b) for b in lint_user_tool_source(tool)], True
 
 
+#: WHY EACH UDT IS A UDT, AND WHAT IT OWES AS A RESULT.
+#:
+#: ⛔ A UDT IS NEVER THE DESTINATION. It is one of four things, and each carries a different
+#: obligation -- which is the whole point of writing it down, because a UDT with no recorded reason
+#: is one nobody can retire, promote or keep in sync:
+#:
+#:   CONVERTED       a Galaxy tool for this ALREADY EXISTS under tools/ and is installed on the
+#:                   custom Galaxy it was written for. The UDT is a PORTABILITY SHIM for instances
+#:                   that do not have it, so it is not a debt to be paid off -- but any fix made
+#:                   here MUST reach the wrapper. Obligation: a mechanism that makes drift
+#:                   impossible or detectable.
+#:   WORKAROUND      a third-party tool exists and is installed, but has a gap we are standing in
+#:                   for. A DEBT. Obligation: name the upstream change that retires it.
+#:   NO-GALAXY-TOOL  nothing exists anywhere. Obligation: become a traditional Galaxy tool when the
+#:                   time comes -- a UDT is how it runs meanwhile, not what it should stay.
+#:   DIAGNOSTIC      a probe, measuring what a UDT job can see. Not a pipeline step, owes nothing.
+#:
+#: ⚠ MEASURED, NOT ASSUMED: against usegalaxy.org's 8,772 installed tools, the main toolshed, and
+#: this repository's own tools/ directory, 2026-09-09.
+UDT_CLASSES = ("CONVERTED", "WORKAROUND", "NO-GALAXY-TOOL", "DIAGNOSTIC")
+
+#: stem -> (class, why, obligation-target). For CONVERTED the target is the tools/ path the fix
+#: must reach; for WORKAROUND it is the upstream change; for NO-GALAXY-TOOL the tool to be written.
+UDT_RATIONALE = {
+    # -- CONVERTED: the wrapper exists here; keep the two in step -----------------------------
+    "dustmasker_bed3":   ("CONVERTED", "ports tools/dustmasker/dustmasker.xml for instances that "
+                          "do not have it installed", "tools/dustmasker/interval2bed.awk"),
+    "windowmasker_bed3": ("CONVERTED", "ports tools/windowmasker/windowmasker.xml",
+                          "tools/windowmasker/interval2bed.awk"),
+    "tantan_bed3":       ("CONVERTED", "ports tools/tantan/tantan.xml", "tools/tantan/lc2bed.awk"),
+    "lc_classify":       ("CONVERTED", "stage 2 of the masker ports",
+                          "tools/dustmasker/lc_classify.py"),
+    "fastan_gdb":        ("CONVERTED", "ports the FAtoGDB stage of tools/fastan/fastan.xml",
+                          "tools/fastan/fastan.xml"),
+    "fastan_scan":       ("CONVERTED", "ports the FasTAN stage of tools/fastan/fastan.xml",
+                          "tools/fastan/fastan.xml"),
+    "fastan_bed":        ("CONVERTED", "ports the .1ano reader of tools/fastan/fastan.xml",
+                          "tools/fastan/ano2bed6.awk"),
+    "masking_header":    ("CONVERTED", "ports the header half of tools/masking_table",
+                          "tools/masking_table/masking_table.py"),
+    "masking_row":       ("CONVERTED", "ports the per-strain half of tools/masking_table",
+                          "tools/masking_table/masking_table.py"),
+    "relabel_map":       ("CONVERTED", "ports tools/collection_relabel_map",
+                          "tools/collection_relabel_map/relabel_map.py"),
+    "self_pairs":        ("CONVERTED", "ports tools/collection_self_pairs",
+                          "tools/collection_self_pairs/self_pairs.py"),
+    "anchor_grid":       ("CONVERTED", "ports tools/collection_anchor_grid",
+                          "tools/collection_anchor_grid/anchor_grid.py"),
+    "phase_c2_triage":   ("CONVERTED", "ports tools/phase_c2_triage",
+                          "tools/phase_c2_triage/phase_c2_triage.py"),
+    "phase_c4_merge":    ("CONVERTED", "ports tools/phase_c4_merge",
+                          "tools/phase_c4_merge/phase_c4_merge.py"),
+    "chain_stitch_id":   ("CONVERTED", "converted from tools/chainStitchId by scripts/"
+                          "udt_convert.py", "tools/chainStitchId/chainStitchId.xml"),
+    "sourmash_panel":    ("CONVERTED", "ports tools/sourmash_panel; the sourmash suite also exists "
+                          "in the main toolshed and is not installed on usegalaxy.org, so the "
+                          "portability need is real on both counts",
+                          "tools/sourmash_panel/sourmash_panel.py"),
+    "anchor_prep":       ("CONVERTED", "an awk port of tools/anchor_prep/build_anchor_inputs.py, "
+                          "hand-written rather than generated -- see the backflow check below",
+                          "tools/anchor_prep/build_anchor_inputs.py"),
+    # -- WORKAROUND: an installed third-party tool has a gap ----------------------------------
+    "samtools_faidx":  ("WORKAROUND",
+        "IUC's `samtools_faidx` wrapper exists in the main toolshed and is simply not installed on "
+        "usegalaxy.org -- purely an availability gap, no code missing anywhere",
+        "a usegalaxy-tools installation PR"),
+    "fasta_uppercase": ("WORKAROUND",
+        "`seqtk seq -U` does this and IUC's `seqtk_seq` IS installed, but the wrapper does not "
+        "expose `-U` -- confirmed against all 17 of its parameters",
+        "one flag added to the IUC seqtk_seq wrapper"),
+    # -- DIAGNOSTIC ---------------------------------------------------------------------------
+    "collection_probe": ("DIAGNOSTIC", "measures how a collection input renders in a "
+                         "shell_command", ""),
+    "env_probe":        ("DIAGNOSTIC", "measures what a UDT job's environment provides", ""),
+    "gpu_probe":        ("DIAGNOSTIC", "measures whether a UDT job can reach a GPU", ""),
+}
+
+
+#: CONVERTED UDTs whose drift from their wrapper is KNOWN AND ACCEPTED, with why. ⛔ AN
+#: ACKNOWLEDGEMENT, NOT AN EXEMPTION: the entry is what keeps the fact visible and greppable, and
+#: removing it turns the check red again. Anything listed here is a fix that can be made in one
+#: copy and not the other, with nothing to notice.
+DRIFT_ACCEPTED = {
+    "anchor_prep":
+        "hand-written awk rather than a generated inline, because the wrapper is Python and the "
+        "UDT cannot run it -- a UDT gets one container and gffread's has no python3. Generating it "
+        "would mean generating a TRANSLATION, which no generator here does. The two are kept in "
+        "step by review and by the figures both record (cs10: 40,185 BED12 rows, 33,672 isoforms). "
+        "⚠ THAT IS WEAKER THAN EVERY OTHER CONVERTED UDT HERE, and it is the one to fix first if a "
+        "translation-aware generator ever lands.",
+}
+
+
+def backflow_mechanism(path: pathlib.Path) -> str:
+    """How a fix in this UDT is forced back into its tools/ wrapper, or "" if nothing forces it.
+
+    ⛔ "FIXES SHOULD FLOW BACK" IS A HABIT UNLESS SOMETHING ENFORCES IT. Two mechanisms here do:
+    a generator that INLINES the wrapper's helper verbatim (a hand-edit to udt/ is reverted by the
+    next regeneration and caught by `--check` before then), and a provenance STAMP that re-hashes
+    the wrapper (`check_udt_provenance.py`). A UDT with neither can be fixed in place, and the
+    wrapper it was ported from silently keeps the bug.
+    """
+    head = path.read_text(encoding="utf-8", errors="replace")[:400]
+    m = re.search(r"GENERATED by (scripts/\S+?)\s", head)
+    if m:
+        return f"generated by {m.group(1)}"
+    if re.search(r"#\s+command_sha256:", head) or re.search(r"#\s+source:", head):
+        return "provenance-stamped"
+    return ""
+
+
+def check_rationale(paths):
+    """Every UDT must say which of the four situations it is in, and meet that situation's
+    obligation. Returns (problems, notes), each a list of (CODE, where, message)."""
+    out, soft = [], []
+    stems = {p.name.replace(".gxtool.yml", ""): p for p in paths}
+    for stem, path in sorted(stems.items()):
+        entry = UDT_RATIONALE.get(stem)
+        if entry is None:
+            out.append(("RATIONALE-MISSING", path.name,
+                        f"no entry in UDT_RATIONALE. A UDT is one of {UDT_CLASSES} and each owes "
+                        f"something different -- a wrapper kept in step, an upstream fix, or a "
+                        f"traditional tool eventually. Unrecorded, it owes nothing and stays "
+                        f"forever."))
+            continue
+        cls, why, target = entry
+        if cls not in UDT_CLASSES:
+            out.append(("RATIONALE-BAD-CLASS", path.name,
+                        f"class {cls!r} is not one of {UDT_CLASSES}"))
+            continue
+        if not why.strip():
+            out.append(("RATIONALE-EMPTY", path.name, "the class has no explanation"))
+        if cls == "CONVERTED":
+            if not target.strip():
+                out.append(("CONVERTED-NO-SOURCE", path.name,
+                            "a CONVERTED UDT must name the tools/ wrapper a fix has to reach"))
+            elif not (ROOT / target).exists():
+                out.append(("CONVERTED-SOURCE-GONE", path.name,
+                            f"names {target}, which does not exist. Either the wrapper moved and "
+                            f"this is now unmaintainable, or the UDT should be reclassified."))
+            elif not backflow_mechanism(path) and stem not in DRIFT_ACCEPTED:
+                out.append(("CONVERTED-NO-BACKFLOW", path.name,
+                            f"is a port of {target} but is neither generated from it nor "
+                            f"provenance-stamped against it, so a fix made here does not reach the "
+                            f"wrapper and nothing detects the divergence. Generate it, stamp it, "
+                            f"or accept the drift explicitly."))
+        if cls == "WORKAROUND" and not target.strip():
+            out.append(("WORKAROUND-NO-ROUTE", path.name,
+                        "a WORKAROUND is a debt and must name the upstream change that retires "
+                        "it -- a wrapper flag, an installation and a rewiring are different asks "
+                        "with different lead times."))
+        if cls == "NO-GALAXY-TOOL" and not target.strip():
+            out.append(("PROMOTION-NO-TARGET", path.name,
+                        "a NO-GALAXY-TOOL UDT should become a traditional Galaxy tool when the "
+                        "time comes; name what that tool would be."))
+    for stem in sorted(set(DRIFT_ACCEPTED) & set(stems)):
+        if not backflow_mechanism(stems[stem]):
+            soft.append(("DRIFT-ACCEPTED", f"{stem}.gxtool.yml",
+                        f"drift from its wrapper is accepted, not prevented: "
+                        f"{DRIFT_ACCEPTED[stem].splitlines()[0]}"))
+    for stem in sorted(set(UDT_RATIONALE) - set(stems)):
+        out.append(("RATIONALE-STALE", f"{stem}.gxtool.yml",
+                    "UDT_RATIONALE names this, but no such file is being checked. Remove the "
+                    "entry or restore the tool."))
+    return out, soft
+
+
 def lint(path, containers=True):                    # this IS a checklist; it is long on purpose
     """Return (problems, notes), each a list of (CODE, where, message)."""
     problems, notes = [], []
@@ -944,6 +1111,11 @@ def main() -> int:
         pr, nt = lint(p, containers=not args.offline)
         problems += pr
         notes += nt
+    # ⛔ RUN OVER THE WHOLE SET, NOT PER FILE, because two of its rules are about the set: a
+    # rationale for a tool that no longer exists, and completeness. Per-file, neither is visible.
+    _pr, _nt = check_rationale(paths)
+    problems += _pr
+    notes += _nt
     print(f"  {len(paths)} UDT definition(s) checked against the udt-authoring skill")
     if args.offline:
         print("  ⚠ CONTAINER PROBE SKIPPED (--offline) — a UDT naming an image that does not "
