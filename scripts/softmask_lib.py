@@ -19,7 +19,6 @@ assertions differ for real reasons and stay where they are.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import sys
 import time
@@ -34,7 +33,8 @@ UDT_DIR = ROOT / "udt"
 # only once its directory is on sys.path -- `python3 scripts/x.py` puts it there, `python3 -m` and
 # a symlinked entry point do not. Same insert, same reason, as check_workflow_ports.py.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from check_udt_definitions import pep440_ok      # noqa: E402, I001 -- must follow the path insert
+import galaxy_server                             # noqa: E402, I001 -- must follow the path insert
+from check_udt_definitions import pep440_ok      # noqa: E402 -- must follow the path insert
 WORKFLOW = ROOT / "workflows/softmask/softmask_udt.gxwf.yml"
 
 #: The UDTs the softmask workflow needs, in dependency order.
@@ -84,10 +84,15 @@ JOBS_UNFINISHED = ("new", "resubmitted", "upload", "waiting", "queued", "running
 
 
 def connect() -> GalaxyInstance:
-    url, key = os.environ.get("GALAXY_URL"), os.environ.get("GALAXY_API_KEY")
-    if not url or not key:
-        sys.exit("GALAXY_URL and GALAXY_API_KEY must be set.")
-    return GalaxyInstance(url=url.rstrip("/"), key=key)
+    """A client for the server `$WFA_SERVER` selects. See `galaxy_server.creds`.
+
+    ⛔ THIS READ PLAIN `GALAXY_URL` UNTIL 2026-09-10 AND SO COULD NOT SELECT A SERVER AT ALL, while
+    `stage_wfa_panel` selected one by suffix. A 219-genome panel was staged on vgp and then invoked
+    on main, because staging and invoking are different scripts and only one of them honoured the
+    variable. Six scripts call this, so all six were affected; nothing raised, because vgp shares
+    main's database and every id resolved on both.
+    """
+    return GalaxyInstance(*galaxy_server.creds())
 
 
 def register_one(gi: GalaxyInstance, name: str) -> tuple[str, str, str]:

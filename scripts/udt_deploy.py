@@ -24,7 +24,6 @@ small differences that make one attempt not comparable with the last.
 from __future__ import annotations
 
 import argparse
-import os
 import pathlib
 import sys
 import time
@@ -35,13 +34,19 @@ from bioblend.galaxy import GalaxyInstance
 # ⚠ scripts/ IS NOT A PACKAGE and this is run by path, so the sibling import resolves only once
 # its directory is on sys.path. Same insert, same reason, as check_workflow_ports.py.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from check_udt_definitions import pep440_ok      # noqa: I001 -- must follow the path insert
+import galaxy_server                             # noqa: I001 -- must follow the path insert
+from check_udt_definitions import pep440_ok      # must follow the path insert above
 
 
 def creds(instance: str) -> tuple[str, str]:
-    if instance == "main":
-        return os.environ["GALAXY_URL"], os.environ["GALAXY_API_KEY"]
-    return os.environ["GALAXY_URL_2"], os.environ["GALAXY_API_KEY_2"]
+    """`--instance main|vgp` mapped onto the shared selector.
+
+    ⚠ THIS TOOK ITS INSTANCE FROM A FLAG WHILE THE REST OF THE SUITE TOOK IT FROM `$WFA_SERVER`,
+    so registering a UDT and invoking it could target different servers with nothing to say so.
+    The flag still wins here (it is this script's interface), but the lookup is the shared one, so
+    there is one definition of what `_2` means. See galaxy_server.
+    """
+    return galaxy_server.creds("" if instance == "main" else "_2")
 
 
 def wait(gi: GalaxyInstance, job_id: str, timeout: int = 1800) -> dict:
