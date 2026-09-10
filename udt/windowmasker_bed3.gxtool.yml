@@ -20,10 +20,14 @@
 # would silently disagree wherever the two paths differ.
 class: GalaxyUserTool
 id: brc-windowmasker-bed3
-version: "0.1.0"
+version: "0.2.0"
 name: windowmasker -> BED3 (BRC UDT)
 description: NCBI WindowMasker genome-frequency repeats, stage 1 of 2
 container: quay.io/biocontainers/blast:2.17.0--h66d330f_0
+requirements:
+  # ⛔ MEASURED. see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py
+  - type: resource
+    ram_min: 16
 shell_command: |
   cat > interval2bed.awk <<'BRC_AWK'
   # NCBI dustmasker/windowmasker `-outfmt interval` -> BED3 (chrom, start, end).

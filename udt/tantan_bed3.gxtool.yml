@@ -20,10 +20,14 @@
 # would silently disagree wherever the two paths differ.
 class: GalaxyUserTool
 id: brc-tantan-bed3
-version: "0.1.0"
+version: "0.2.0"
 name: tantan -> BED3 (BRC UDT)
 description: tantan gentle low-complexity intervals, stage 1 of 2
 container: quay.io/biocontainers/tantan:51--h5ca1c30_1
+requirements:
+  # ⛔ MEASURED. see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py
+  - type: resource
+    ram_min: 8
 shell_command: |
   cat > lc2bed.awk <<'BRC_AWK'
   # tantan soft-masked FASTA (low-complexity lower-cased) -> BED3 (chrom, start, end).

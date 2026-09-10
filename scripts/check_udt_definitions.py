@@ -420,6 +420,7 @@ UDT_RATIONALE = {
     "collection_probe": ("DIAGNOSTIC", "measures how a collection input renders in a "
                          "shell_command", ""),
     "env_probe":        ("DIAGNOSTIC", "measures what a UDT job's environment provides", ""),
+    "slots_probe":      ("DIAGNOSTIC", "measures whether a `resource` requirement changes the allocation a UDT actually receives -- env_probe measures the default, this one asks", ""),
     "gpu_probe":        ("DIAGNOSTIC", "measures whether a UDT job can reach a GPU", ""),
 }
 

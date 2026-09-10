@@ -250,6 +250,13 @@ def main() -> int:
     ap.add_argument("--history-name")
     ap.add_argument("--history", metavar="ID", help="run in an EXISTING history instead of a new one")
     ap.add_argument("--register-only", action="store_true")
+    ap.add_argument("--use-cached-job", action="store_true",
+                    help="reuse prior jobs with identical tool version, inputs and params "
+                         "instead of re-running them. ⛔ THE CACHE JUDGES A JOB BY ITS STATE, "
+                         "NOT ITS OUTPUTS: a job killed at the scheduler can be `ok` with "
+                         "zero-byte outputs, and this will happily reuse it. DELETE every "
+                         "output of any job being redone first -- all of them, not just the "
+                         "ones wired into collections.")
     ap.add_argument("--work", type=pathlib.Path, default=ROOT / "build/udt_runs")
     args = ap.parse_args()
 
@@ -323,7 +330,9 @@ def main() -> int:
         sys.exit(f"unbound workflow input(s): {missing}")
     bound = {by_label[label]: ref for label, ref in inputs.items()}
 
-    inv = invoke(gi, wf_id, bound, history["id"])
+    inv = invoke(gi, wf_id, bound, history["id"], use_cached_job=args.use_cached_job)
+    if args.use_cached_job:
+        print("  job cache ENABLED -- steps with an identical prior job will not re-run")
     print(f"  INVOKED {inv['id']} -> {gi.base_url}/workflows/invocations/{inv['id']}")
     return await_invocation(gi, inv["id"])
 
