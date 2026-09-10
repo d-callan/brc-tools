@@ -10,29 +10,28 @@ name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
 requirements:
-  # ⛔ WITHOUT THIS A UDT GETS ONE CORE, AND THE SCRIPT ABOVE IS THEN SEQUENTIAL WHATEVER IT SAYS.
-  # Measured on vgp 2026-09-10 (udt/slots_probe.gxtool.yml): no `resource` entry yields
-  # GALAXY_SLOTS=1 and GALAXY_MEMORY_MB=3788, and 219 assemblies sketched one at a time is where
-  # the six hours went.
+  # ⛔ WITHOUT THIS THE JOB GETS ONE CORE, AND THIS TOOL SKETCHES A WHOLE PANEL IN ONE JOB. Measured
+  # on vgp: a UDT with no `resource` entry gets GALAXY_SLOTS=1 and GALAXY_MEMORY_MB=3788, and 219
+  # assemblies sketched one at a time is where six hours went. `cores_min` defaults to 1, so a tool
+  # that does not ask is not merely unoptimised -- it has declared one core.
   #
   # ⛔ `ram_min` IS ON THE GB SCALE HERE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
   # EXPLICITLY. Both matter: the destination's `max_accepted_mem` is 120, so a schema-conformant
-  # `ram_min: 32768` exceeds it, NO destination matches, and the job dies with an empty error and no
-  # command line. The default of 256 does the same. See slots_probe for the measurement table.
+  # `ram_min: 32768` exceeds it, matches NO destination, and the job dies with `state=error`,
+  # `exit_code=None`, empty streams and no command line. The default of 256 does the same thing.
+  # See udt/slots_probe.gxtool.yml for the measurement table.
   #
-  # ⚠ MEASURED, NOT GUESSED: the same 23-assembly collection took 26 min at 1 core and 224 s at 8
-  # (~7x), all outputs correct. 16 is chosen over 8 because the 219-member panel is the target and
-  # its two cost terms scale differently -- sketching is LINEAR in total sequence (~11x the 23) while
-  # each compare is O(N^2) in members (~90x the pairs), so compare stops being negligible at that
-  # size in a way it was not at 23.
-  # ⚠ 32 IS THE CEILING, not a suggestion: `jetstream2_user_defined` sets `max_accepted_cores: 32`,
-  # and a request above it matches no destination and dies with an empty error like any other
-  # unroutable request.
+  # ⚠ 16 CORES FROM A MEASUREMENT: the same 23-assembly collection took 26 min at 1 core and 224 s
+  # at 8 (~7x, all outputs correct). 16 rather than 8 because the 219-member panel is the target and
+  # its two costs scale differently -- sketching is LINEAR in total sequence while each compare is
+  # O(N^2) in members, so compare stops being negligible there in a way it was not at 23.
+  # ⚠ 32 IS THE CEILING (`max_accepted_cores`), and a request above it is unroutable the same
+  # silent way.
   #
   # ⚠ 32 GB IS FOR THE COMPARE PASSES, NOT THE SKETCHING. Sketching holds one ~7 MB sketch per
-  # worker; `sourmash compare` loads EVERY signature -- ~197 M hashes over this panel, on the order
-  # of 2-4 GB -- and `--processes` multiplies what its workers touch. The old 3788 MB default sat
-  # inside that range, which is thin for the panel this is now sized to.
+  # worker at scaled=1000 (confirmed: the signatures come out 6.6-8.4 MB); `sourmash compare` loads
+  # EVERY signature -- ~197 M hashes over this panel, order 2-4 GB -- and `--processes` multiplies
+  # what its workers touch. The old 3788 MB default sat inside that range.
   - type: resource
     cores_min: 16
     ram_min: 32
@@ -60,9 +59,9 @@ shell_command: |
   ap.add_argument("--rendered", required=True, help="file holding the rendered collection input")
   ap.add_argument("--ids", required=True, help="element identifiers, one per line, in collection order")
   ap.add_argument("--processes", default="1",
-                          help="how many assemblies to sketch at once, and --processes for each "
-                               "sourmash compare. Pass $GALAXY_SLOTS; a UDT gets ONE core unless its "
-                               "definition carries a `resource` requirement.")
+                  help="how many assemblies to sketch at once, and --processes for each sourmash "
+                       "compare. Pass $GALAXY_SLOTS; a UDT gets ONE core unless its definition "
+                       "carries a `resource` requirement.")
   ap.add_argument("--ksize", default="31")
   ap.add_argument("--scaled", default="1000")
   ap.add_argument("--containment", default="false",
@@ -213,7 +212,7 @@ shell_command: |
   # which read like a per-genome property; it is a property of `--scaled`.
   _floor = 20
   _empty, _thin = [], []
-  for _i, path, name, sig, _n in _sketched:
+  for _i, path, name, _sig, _n in _sketched:
       if _n == 0:
           _empty.append((_i, name, path))
       elif _n < _floor:
@@ -236,7 +235,12 @@ shell_command: |
                f"NOT soft-masking: a 200 kb genome in all-lowercase gives 195 hashes, measured. "
                f"All offenders are listed so this takes ONE repair pass, not one per genome.")
 
-  sigs = [f"stage/{i:04d}.sig" for i in range(len(ids))]
+  # ⚠ THE PATHS THE WORKERS ACTUALLY WROTE, not a second reconstruction of them. This used to
+  # rebuild `stage/{i:04d}.sig` from the index, which is the same filename computed in two
+  # places -- change the naming in `_sketch_one` and the compare below would silently read a
+  # set of files that no longer exists. `_sketched` is in panel order, which is the order the
+  # matrix columns must be in.
+  sigs = [sig for _i, path, name, sig, _n in _sketched]
   subprocess.run(["sourmash", "compare", "--processes", a.processes, "--ksize", a.ksize, "-o", "cmp", "--csv", "similarity.csv",
                   *sigs], check=True)
   subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)

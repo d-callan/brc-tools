@@ -25,11 +25,7 @@ name: tantan -> BED3 (BRC UDT)
 description: tantan gentle low-complexity intervals, stage 1 of 2
 container: quay.io/biocontainers/tantan:51--h5ca1c30_1
 requirements:
-  # ⚠ 8 GB, from the same measurement as windowmasker: 23 completed tantan jobs peaked at
-  # 1576-2506 MB against 3788 (66% at the top), and peak scales with genome size, so the eleven
-  # panel members above ~1.5 Gb push it toward the limit. 8 GB keeps the headroom without the 16
-  # windowmasker needs.
-  # ⚠ NO `cores_min`: tantan takes no thread flag.
+  # ⛔ MEASURED. see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py
   - type: resource
     ram_min: 8
 shell_command: |

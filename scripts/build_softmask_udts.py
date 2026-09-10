@@ -111,15 +111,54 @@ def read_helper(relpath: str) -> str:
     return body
 
 
-def masker(tool_id, name, container, desc, cmd, helper_path, helper_name) -> str:
+#: The measured basis for every masker's `ram_min`. ⛔ ONE COPY, because three tools share this
+#: reasoning and a per-file paste would drift from whichever one was edited next.
+#:
+#: 23 completed jobs per masker across the 19-genome and 4-genome cannabis runs, against a 3788 MB
+#: allowance and zero OOM kills: windowmasker peaked 2468-3355 MB (89% at the top), tantan
+#: 1576-2506 (66%), dustmasker 1628-2234 (59%). A least-squares fit on windowmasker gives
+#: `peak_MB = 1649 + 1.441 * input_MB` over inputs of 620-1288 MB of uppercased FASTA -- so input
+#: MB is effectively genome Mb -- which crosses the allowance at ~1484 Mb. ELEVEN of the 219
+#: canonical assemblies are above that: SKSV at 2297 Mb projects to ~4958 MB, 131%.
+#:
+#: ⚠ THE SKSV FIGURE IS AN EXTRAPOLATION beyond the fitted range and is labelled as one; the ten
+#: members at 102-110% sit close enough to the line that the truth could fall either side. The
+#: requirements are sized so that uncertainty does not decide the outcome.
+#:
+#: ⚠ AND WINDOWMASKER'S PEAK IS REAL ALLOCATION, NOT PAGE CACHE, which is why 89% is worth acting
+#: on while a higher number elsewhere is not: `brc-samtools-faidx` peaks at 100% of the same
+#: allowance on the same panel and is fine, because it streams and the cgroup fills with reclaimable
+#: cache. windowmasker builds a k-mer counts structure; there is nothing to give back.
+#:
+#: ⛔ `ram_min` IS ON THE GB SCALE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS. The destination's
+#: `max_accepted_mem` is 120, so a schema-conformant value exceeds it, matches no destination, and
+#: the job dies with an empty error and no command line. Measured: `ram_min: 16` yields
+#: GALAXY_MEMORY_MB=16384, GALAXY_SLOTS=1, nproc=1. See udt/slots_probe.gxtool.yml.
+#:
+#: ⛔ AND NO `cores_min` ON ANY MASKER. None of dustmasker, windowmasker or tantan takes a thread
+#: flag, so a core request would be reserved and left idle.
+MASKER_MEMORY_BASIS = "see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py"
+
+
+def masker(tool_id, name, container, desc, cmd, helper_path, helper_name,
+           ram_min=None, version="0.1.0") -> str:
     helper = read_helper(helper_path)
+    # ⚠ EMITTED ONLY WHEN ASKED FOR. A masker that needs no more than the default carries no
+    # `resource` entry at all -- and that is not cosmetic: an entry whose `ram_min` defaults to 256
+    # is read as 256 GB here, exceeds the destination limit and makes the tool unroutable.
+    reqs = ""
+    if ram_min is not None:
+        reqs = (f"requirements:\n"
+                f"  # ⛔ MEASURED. {MASKER_MEMORY_BASIS}\n"
+                f"  - type: resource\n"
+                f"    ram_min: {ram_min}\n")
     return HEADER + SPLIT_NOTE + f"""class: GalaxyUserTool
 id: {tool_id}
-version: "0.1.0"
+version: "{version}"
 name: {name}
 description: {desc}
 container: {container}
-shell_command: |
+{reqs}shell_command: |
   cat > {helper_name} <<'BRC_AWK'
 {indent(helper)}
   BRC_AWK
@@ -166,6 +205,13 @@ HAND_WRITTEN_UDTS = frozenset({
     # platform claims in these tools' help text rest on a measurement. Nothing generates it because
     # nothing in tools/ corresponds to it.
     "env_probe.gxtool.yml",
+    # The companion diagnostic to env_probe, and the reason it is separate: env_probe measures what
+    # a UDT gets when it asks for NOTHING (GALAXY_SLOTS=1, GALAXY_MEMORY_MB=3788, the schema
+    # defaults), while this one carries a `resource` requirement and reports what actually arrived.
+    # Two probes because a single file cannot measure both the default and a request, and the
+    # difference between them is what every `cores_min` in this repository now rests on. Nothing in
+    # tools/ corresponds to it either.
+    "slots_probe.gxtool.yml",
     # A GPU node diagnostic, not part of any workflow: it reports the driver, device nodes and host
     # a GPU job lands on, from inside KegAlign's own image. Written after a KegAlign job failed with
     # "No GPU device found!" and its immediate rerun succeeded -- a difference the job's own stderr
@@ -387,7 +433,8 @@ def build() -> dict[str, str]:
         "quay.io/biocontainers/blast:2.17.0--h66d330f_0",
         "NCBI symmetric-DUST low-complexity intervals, stage 1 of 2",
         "  dustmasker -in upper.fa -outfmt interval | awk -f interval2bed.awk > intervals.bed3",
-        "tools/dustmasker/interval2bed.awk", "interval2bed.awk")
+        "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
+        ram_min=8, version="0.2.0")            # peaked 59% of 3788 MB on 23 cannabis genomes
 
     out["windowmasker_bed3.gxtool.yml"] = masker(
         "brc-windowmasker-bed3", "windowmasker -> BED3 (BRC UDT)",
@@ -396,7 +443,8 @@ def build() -> dict[str, str]:
         "  windowmasker -mk_counts -in upper.fa -out counts &&\n"
         "  windowmasker -ustat counts -in upper.fa -outfmt interval"
         " | awk -f interval2bed.awk > intervals.bed3",
-        "tools/dustmasker/interval2bed.awk", "interval2bed.awk")
+        "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
+        ram_min=16, version="0.2.0")           # peaked 89%, projects >100% on 11 panel members
 
     out["tantan_bed3.gxtool.yml"] = masker(
         "brc-tantan-bed3", "tantan -> BED3 (BRC UDT)",
@@ -411,7 +459,8 @@ def build() -> dict[str, str]:
         "quay.io/biocontainers/tantan:51--h5ca1c30_1",
         "tantan gentle low-complexity intervals, stage 1 of 2",
         "  tantan upper.fa | awk -f lc2bed.awk > intervals.bed3",
-        "tools/tantan/lc2bed.awk", "lc2bed.awk")
+        "tools/tantan/lc2bed.awk", "lc2bed.awk",
+        ram_min=8, version="0.2.0")            # peaked 66% of 3788 MB on 23 cannabis genomes
 
     out["fasta_uppercase.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-fasta-uppercase

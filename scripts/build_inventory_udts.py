@@ -260,10 +260,36 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.4.0"
+version: "0.7.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
+requirements:
+  # ⛔ WITHOUT THIS THE JOB GETS ONE CORE, AND THIS TOOL SKETCHES A WHOLE PANEL IN ONE JOB. Measured
+  # on vgp: a UDT with no `resource` entry gets GALAXY_SLOTS=1 and GALAXY_MEMORY_MB=3788, and 219
+  # assemblies sketched one at a time is where six hours went. `cores_min` defaults to 1, so a tool
+  # that does not ask is not merely unoptimised -- it has declared one core.
+  #
+  # ⛔ `ram_min` IS ON THE GB SCALE HERE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
+  # EXPLICITLY. Both matter: the destination's `max_accepted_mem` is 120, so a schema-conformant
+  # `ram_min: 32768` exceeds it, matches NO destination, and the job dies with `state=error`,
+  # `exit_code=None`, empty streams and no command line. The default of 256 does the same thing.
+  # See udt/slots_probe.gxtool.yml for the measurement table.
+  #
+  # ⚠ 16 CORES FROM A MEASUREMENT: the same 23-assembly collection took 26 min at 1 core and 224 s
+  # at 8 (~7x, all outputs correct). 16 rather than 8 because the 219-member panel is the target and
+  # its two costs scale differently -- sketching is LINEAR in total sequence while each compare is
+  # O(N^2) in members, so compare stops being negligible there in a way it was not at 23.
+  # ⚠ 32 IS THE CEILING (`max_accepted_cores`), and a request above it is unroutable the same
+  # silent way.
+  #
+  # ⚠ 32 GB IS FOR THE COMPARE PASSES, NOT THE SKETCHING. Sketching holds one ~7 MB sketch per
+  # worker at scaled=1000 (confirmed: the signatures come out 6.6-8.4 MB); `sourmash compare` loads
+  # EVERY signature -- ~197 M hashes over this panel, order 2-4 GB -- and `--processes` multiplies
+  # what its workers touch. The old 3788 MB default sat inside that range.
+  - type: resource
+    cores_min: 16
+    ram_min: 32
 shell_command: |
   cat > rendered.txt <<'BRC_RENDERED'
   $(inputs.assemblies)
@@ -271,7 +297,7 @@ shell_command: |
   cat > sourmash_panel.py <<'BRC_PY'
 {indented}
   BRC_PY
-  python3 sourmash_panel.py --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)' --containment '$(inputs.containment)'
+  python3 sourmash_panel.py --processes "$GALAXY_SLOTS" --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)' --containment '$(inputs.containment)'
 inputs:
   - name: assemblies
     type: data_collection

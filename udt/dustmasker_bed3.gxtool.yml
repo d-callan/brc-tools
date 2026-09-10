@@ -25,10 +25,7 @@ name: dustmasker -> BED3 (BRC UDT)
 description: NCBI symmetric-DUST low-complexity intervals, stage 1 of 2
 container: quay.io/biocontainers/blast:2.17.0--h66d330f_0
 requirements:
-  # ⚠ 8 GB, from the same measurement: 23 completed dustmasker jobs peaked at 1628-2234 MB against
-  # 3788 (59% at the top). The lowest of the three slow maskers, but it scales with genome size the
-  # same way and the panel is much larger than the one measured.
-  # ⚠ NO `cores_min`: dustmasker takes no thread flag.
+  # ⛔ MEASURED. see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py
   - type: resource
     ram_min: 8
 shell_command: |
