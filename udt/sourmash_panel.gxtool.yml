@@ -5,7 +5,7 @@
 # list, because a job container receives paths and never sees a collection's identifiers.
 class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.7.0"
+version: "0.8.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -399,7 +399,21 @@ outputs:
   # ⚠ ALONGSIDE, NOT INSTEAD: `similarity` stays as the classic workflow's output and as what the
   # heatmap and dendrogram are drawn from. And containment is ASYMMETRIC, so nothing is plotted
   # from it -- see the helper.
-  - name: containment
+  # ⛔ `containment_matrix`, NOT `containment`, AND THE NAME IS LOAD-BEARING. This tool has an INPUT
+  # named `containment` (the boolean that requests these matrices). While an OUTPUT shared that
+  # exact name, Galaxy could not serialise the output's metadata: `GET /api/datasets/<id>` and the
+  # history-contents endpoint both returned 500, a delete PUT returned 400, and the dataset
+  # was ABSENT from the history contents listing -- while `/display` served correct data the whole
+  # time. So the file was fine and only the record was broken, which is why it read as three
+  # unrelated glitches.
+  # ⚠ MEASURED, AND THE FIRST EXPLANATION WAS WRONG. It is not a substring collision: `heatmap` is
+  # a substring of `max_containment_heatmap` and both work. It is EXACT equality between an input
+  # name and an output name. Reproduced on a 3-assembly panel with 160-byte outputs, then fixed
+  # twice over -- renaming the output cured it, and so did renaming the input while leaving the
+  # output named `containment`. Only this one name was ever used by both.
+  # ⚠ AND `containment_matrix` IS THE CLASSIC WORKFLOW'S OWN NAME for this output
+  # (`sourmash_compare/containment_matrix`), so the two editions now agree instead of drifting.
+  - name: containment_matrix
     type: data
     format: csv
     optional: true

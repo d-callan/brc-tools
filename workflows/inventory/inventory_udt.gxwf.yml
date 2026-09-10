@@ -88,7 +88,7 @@ outputs:
   similarity_matrix:
     outputSource: sourmash_panel/similarity
   containment_matrix:
-    outputSource: sourmash_panel/containment
+    outputSource: sourmash_panel/containment_matrix
   max_containment_matrix:
     outputSource: sourmash_panel/max_containment
     doc: >-
