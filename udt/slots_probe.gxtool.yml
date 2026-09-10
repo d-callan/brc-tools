@@ -1,0 +1,125 @@
+# A diagnostic UDT, not a tool anybody runs for its output. Companion to env_probe.gxtool.yml.
+#
+# WHY IT EXISTS. `env_probe` measured what a UDT gets when it asks for NOTHING: GALAXY_SLOTS=1,
+# GALAXY_MEMORY_MB=3788, nproc=1. That is the schema default -- `cores_min` defaults to 1 and a tool
+# with no `resource` entry declares nothing -- so it does not tell us whether asking would help.
+# This probe ASKS, and reports what it actually got.
+#
+# ⛔ A RESOURCE REQUIREMENT IS A REQUEST, NOT AN ALLOCATION, AND THE DIFFERENCE IS THE WHOLE POINT.
+# Galaxy's own admin documentation is explicit on two things:
+#   * "Galaxy itself enforces only `timelimit`." Every other resource field is metadata attached to
+#     the tool for the deployment's job-destination logic to act on.
+#   * "`cores_min` does not by itself set `$GALAXY_SLOTS`." It tracks `cores_min` only when the
+#     destination derives its core count from the tool's request -- in TPV, a destination carrying
+#     `env: {GALAXY_SLOTS: '{cores}'}` and `cores_min -> cores` mapping.
+# So a site can accept this tool, run it, and still hand it one core. That is not a failure of the
+# declaration; it is the site's policy, and this probe is how to tell the two apart.
+#
+# ⚠ THE CONTROL IS `nproc`, NOT JUST THE VARIABLE. GALAXY_SLOTS is what Galaxy SAYS it allocated;
+# nproc is what the container can actually see. On the default allocation they agreed (both 1). If
+# they ever disagree, a `--threads $GALAXY_SLOTS` would oversubscribe a smaller cgroup, which is
+# worse than not asking.
+#
+#   python3 scripts/udt_deploy.py udt/slots_probe.gxtool.yml --instance vgp --smoke-fasta <small file>
+#
+# ⛔ MEASURED 2026-09-10 ON vgp: RESOURCE REQUIREMENTS WORK, AND `ram_min` IS CONSUMED ON THE
+# WRONG SCALE. `cores_min: 4, ram_min: 8` yielded GALAXY_SLOTS=4, nproc=4, GALAXY_MEMORY_MB=8192 --
+# so `ram_min: 8` bought 8 GiB. The schema documents ram_min in MEBIBYTES; this deployment reads it
+# as GIBIBYTES.
+#
+# ⛔ THAT UNIT MISMATCH MAKES A SCHEMA-CONFORMANT REQUEST UNROUTABLE, SILENTLY. The destination
+# (`jetstream2_user_defined` in usegalaxy-playbook env/common/.../tpv/environments.yaml.j2) sets
+# `max_accepted_mem: 120`, in GB. So any `ram_min` above 120 -- i.e. anything written in MiB as the
+# schema says -- exceeds it, no destination matches, and the job fails with `state=error`,
+# `exit_code=None`, BOTH streams empty and NO command_line. There is no message to diagnose from.
+#
+#   requirements                          result on vgp
+#   -----------------------------------   -----------------------------------------------
+#   (none at all -- see env_probe)        ok, GALAXY_SLOTS=1, GALAXY_MEMORY_MB=3788
+#   cores_min: 4,  ram_min: 8             ok, GALAXY_SLOTS=4, nproc=4, MEMORY_MB=8192
+#   cores_min: 4,  ram_min: 2048          ERROR (2048 > max_accepted_mem 120)
+#   cores_min: 32, ram_min: 8192          ERROR -- and this is the shape galaxyproject/galaxy#23323
+#                                         reports as verified working in Aug 2026
+#   ram_min: 2048, no cores               ERROR
+#   cores_min: 2,  no ram_min             ERROR  <-- ram_min DEFAULTS to 256, and 256 > 120
+#   cores_min: 1,  no ram_min             ERROR  <-- same; asks for exactly the default and dies
+#
+# ⚠ THE DEFAULT IS THE TRAP. `ram_min` defaults to 256, so a `resource` entry that mentions only
+# cores is already over the 120 limit. That is why every early variant failed and why the failure
+# looked like "resource requirements are unsupported here" rather than a units problem.
+#
+# ▶ SO WRITE `ram_min` ON THE GB SCALE ON THESE INSTANCES, and always set it explicitly -- never
+# rely on the default. Keep it <= 120. Galaxy's own docs example (`ram_min: 8192` for 8 GiB) does
+# not work here.
+#
+# ⚠ CHECK nproc AGAINST GALAXY_SLOTS on every future run. Here they agreed (both 4) while
+# `cpuset.cpus.effective` showed 0-15, so the cgroup is not the limiter -- Galaxy's number is the
+# real allocation. If they ever diverge, `--threads $GALAXY_SLOTS` would oversubscribe.
+class: GalaxyUserTool
+id: brc-udt-slots-probe
+version: "0.1.0"
+name: UDT slot allocation probe (BRC)
+description: Ask for cores with a resource requirement and report what the job actually received
+container: quay.io/biocontainers/python:3.12
+requirements:
+  # ⛔ ram_min IS WRITTEN ON THE GB SCALE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
+  # EXPLICITLY rather than left to default. Both are load-bearing: the default of 256 is read as
+  # 256 GB here, exceeds the destination's `max_accepted_mem: 120`, and makes the job unroutable
+  # with no error message at all. See the measurement table above.
+  - type: resource
+    cores_min: 4
+    ram_min: 8
+shell_command: |
+  {
+    echo "=== CONTROL: templating is live if this is a real path ==="
+    echo "inputs.input.path -> [$(inputs.input.path)]"
+    echo
+
+    echo "=== ALLOCATED (what this tool asked for is in its own requirements block) ==="
+    echo "  Deliberately not restating the requested numbers: an echoed literal goes stale the"
+    echo "  moment the requirement is edited, and this probe's first run did report a ram_min it"
+    echo "  had not asked for."
+    echo "GALAXY_SLOTS=[$GALAXY_SLOTS]"
+    echo "GALAXY_MEMORY_MB=[$GALAXY_MEMORY_MB]"
+    echo "GALAXY_MEMORY_MB_PER_SLOT=[$GALAXY_MEMORY_MB_PER_SLOT]"
+    echo
+
+    echo "=== what the container can actually SEE ==="
+    echo "nproc: [`nproc 2>/dev/null || echo unavailable`]"
+    echo "cpuset: [`cat /sys/fs/cgroup/cpuset.cpus.effective 2>/dev/null || echo unavailable`]"
+    echo "cpu.max: [`cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unavailable`]"
+    echo
+
+    echo "=== full environment, sorted ==="
+    printenv | sort
+  } > slots_probe.txt 2>&1
+inputs:
+  - name: input
+    type: data
+    format: data
+    label: Any small dataset
+    help: >-
+      Content is never read. A UDT with no data input fails before it reaches a node, with no
+      stderr to read, so the probe needs one purely to get itself scheduled.
+outputs:
+  - name: report
+    type: data
+    format: txt
+    from_work_dir: slots_probe.txt
+    label: UDT slot allocation report
+help:
+  format: markdown
+  content: |
+    Declares a `resource` requirement and reports what the job actually received, so a decision
+    about parallelising a UDT rests on a measurement rather than on the schema.
+
+    **How to read it.** `GALAXY_SLOTS` matching `cores_min` means this server derives its core
+    count from the tool's request, and wiring `--threads $GALAXY_SLOTS` into a UDT is worth doing.
+    `GALAXY_SLOTS=1` means the request was accepted and ignored -- a site configuration matter, not
+    something a tool definition can fix. A job that ERRORS with empty streams and no command line
+    means no destination matched: on these instances that is almost always `ram_min` written in
+    mebibytes, exceeding `max_accepted_mem: 120`.
+
+    **Check `nproc` against `GALAXY_SLOTS`.** GALAXY_SLOTS is what Galaxy says it gave; nproc is
+    what the container sees. Passing more threads than the cgroup allows is worse than asking for
+    nothing.

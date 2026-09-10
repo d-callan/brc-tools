@@ -5,10 +5,37 @@
 # list, because a job container receives paths and never sees a collection's identifiers.
 class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.4.0"
+version: "0.7.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
+requirements:
+  # ⛔ WITHOUT THIS A UDT GETS ONE CORE, AND THE SCRIPT ABOVE IS THEN SEQUENTIAL WHATEVER IT SAYS.
+  # Measured on vgp 2026-09-10 (udt/slots_probe.gxtool.yml): no `resource` entry yields
+  # GALAXY_SLOTS=1 and GALAXY_MEMORY_MB=3788, and 219 assemblies sketched one at a time is where
+  # the six hours went.
+  #
+  # ⛔ `ram_min` IS ON THE GB SCALE HERE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
+  # EXPLICITLY. Both matter: the destination's `max_accepted_mem` is 120, so a schema-conformant
+  # `ram_min: 32768` exceeds it, NO destination matches, and the job dies with an empty error and no
+  # command line. The default of 256 does the same. See slots_probe for the measurement table.
+  #
+  # ⚠ MEASURED, NOT GUESSED: the same 23-assembly collection took 26 min at 1 core and 224 s at 8
+  # (~7x), all outputs correct. 16 is chosen over 8 because the 219-member panel is the target and
+  # its two cost terms scale differently -- sketching is LINEAR in total sequence (~11x the 23) while
+  # each compare is O(N^2) in members (~90x the pairs), so compare stops being negligible at that
+  # size in a way it was not at 23.
+  # ⚠ 32 IS THE CEILING, not a suggestion: `jetstream2_user_defined` sets `max_accepted_cores: 32`,
+  # and a request above it matches no destination and dies with an empty error like any other
+  # unroutable request.
+  #
+  # ⚠ 32 GB IS FOR THE COMPARE PASSES, NOT THE SKETCHING. Sketching holds one ~7 MB sketch per
+  # worker; `sourmash compare` loads EVERY signature -- ~197 M hashes over this panel, on the order
+  # of 2-4 GB -- and `--processes` multiplies what its workers touch. The old 3788 MB default sat
+  # inside that range, which is thin for the panel this is now sized to.
+  - type: resource
+    cores_min: 16
+    ram_min: 32
 shell_command: |
   cat > rendered.txt <<'BRC_RENDERED'
   $(inputs.assemblies)
@@ -21,6 +48,7 @@ shell_command: |
   scripts/build_inventory_udts.py); they are supplied as a file, in collection order.
   """
   import argparse
+  import concurrent.futures
   import json
   import pathlib
   import re
@@ -31,6 +59,10 @@ shell_command: |
   ap = argparse.ArgumentParser()
   ap.add_argument("--rendered", required=True, help="file holding the rendered collection input")
   ap.add_argument("--ids", required=True, help="element identifiers, one per line, in collection order")
+  ap.add_argument("--processes", default="1",
+                          help="how many assemblies to sketch at once, and --processes for each "
+                               "sourmash compare. Pass $GALAXY_SLOTS; a UDT gets ONE core unless its "
+                               "definition carries a `resource` requirement.")
   ap.add_argument("--ksize", default="31")
   ap.add_argument("--scaled", default="1000")
   ap.add_argument("--containment", default="false",
@@ -124,50 +156,88 @@ shell_command: |
                f"The identifier file must come from the SAME collection, via the IUC "
                f"collection_element_identifiers tool.")
   subprocess.run(["mkdir", "-p", "stage"], check=True)
-  for _i, (path, name) in enumerate(zip(paths, ids, strict=True)):
+
+  # ⚠ `sourmash sketch` HAS NO PARALLELISM FLAG, so concurrency here means several invocations at
+  # once. THREADS, not processes: each sketch is already its own OS process, so the GIL is released
+  # for the whole of it and a thread pool adds neither pickling nor a second copy of anything.
+  # ⚠ SIZED FROM $GALAXY_SLOTS, WHICH IS 1 UNLESS THIS TOOL ASKS FOR MORE. Sketching is CPU-bound on
+  # k-mer hashing and cheap in memory -- at scaled=1000 a 900 Mb assembly is ~900k hashes, ~7 MB --
+  # so cores are the whole win here, and RAM matters for the compare passes rather than for this.
+  _workers = max(1, int(a.processes or 1))
+
+
+  def _sketch_one(_i, path, name):
+      """Sketch ONE assembly and count its hashes; the ordered pass below does the judging."""
       sig = f"stage/{_i:04d}.sig"
       subprocess.run(["sourmash", "sketch", "dna", "-p", f"k={a.ksize},scaled={a.scaled}",
                       "--name", name, "-o", sig, path], check=True)
-      # ⛔ AN EMPTY SKETCH IS INDISTINGUISHABLE FROM AN UNRELATED GENOME, AND sourmash SAYS NOTHING.
-      # At --scaled 1000 a small enough sequence contributes NO hashes: measured, a 500 bp assembly
-      # and 180 kb of N both sketched to 0 mins, and the similarity.csv that came out was
-      # BYTE-IDENTICAL to the run where that element was a genuine 200 kb unrelated genome -- row
-      # `0.0, 1.0, 0.0`, exit 0. So a panel member that failed upstream, or any small-genome member
-      # (an organelle, a plasmid, an apicoplast), reads as "shares nothing with anyone" and this
-      # matrix feeds WF-I's fold order. The count assertion above cannot see it; only the hashes can.
       _n = sum(len(s.get("mins") or []) for rec in json.loads(pathlib.Path(sig).read_text())
                for s in (rec.get("signatures") or []))
-      # ⚠ AND THE BOUNDARY IS NOT ZERO. The harm this describes -- a row that reads "shares nothing
-      # with anyone" -- is a property of a SMALL sketch, not of an empty one. Measured at
-      # scaled=1000, k=31: a 360 nt viroid gives 1 hash, a 2 kb plasmid 3, a 5 kb virus 7, and each
-      # of their similarity rows is BYTE-IDENTICAL to a genuinely unrelated 200 kb genome's. Worse,
-      # a 30 kb truncation of a 3 Mb assembly -- 19 hashes, 100% contained in it -- scored 0.0064
-      # against its own parent, indistinguishable from 0.0 in a heatmap and in WF-I's fold order.
-      # Refusing at 0 and waving through 1 draws the line in the one place it does not belong.
-      # ⚠ A CONSTANT, NOT A FUNCTION OF `--scaled`, AND THE OLD `max(20, scaled // 50)` HAD THE
-      # RELATIONSHIP BACKWARDS. Hash count is INVERSELY proportional to --scaled, so raising it
-      # lowers the hashes AND used to raise the bar: at --scaled 10000 the floor became 200 while a
-      # 1 Mb assembly yields about 100 hashes, so a perfectly usable genome was reported as
-      # unmeasured -- misfiring at exactly the operators who raised --scaled for a large panel.
-      # Every measurement quoted above is an absolute count at scaled=1000, and none of them
-      # justifies a scaling term.
-      _floor = 20
+      return _i, path, name, sig, _n
+
+
+  # ⛔ SUBMITTED AT ONCE, COLLECTED IN PANEL ORDER, AND THAT ORDER IS A CORRECTNESS PROPERTY.
+  # `as_completed` would surface whichever sketch finished first, so on a panel with two bad members
+  # the refusal below would name a different genome on every run -- and that refusal is fatal for
+  # the WHOLE panel, so which genome it names is the operator's only lead. Iterating the futures in
+  # submission order blocks on 0, then 1, and re-raises the LOWEST-INDEXED failure, which is what
+  # the serial loop this replaced did.
+  # ⛔ EVERY FAILURE IS COLLECTED AND REPORTED TOGETHER, NOT JUST THE FIRST. This refusal is fatal
+  # for the WHOLE panel, and naming one bad genome sends the operator round a loop that costs a full
+  # re-run per offender: fix one, re-stage, wait hours, meet the next. Sketching has already been
+  # done for every member by the time anything is judged, so bailing early saves nothing -- the
+  # information is all in hand, and withholding it is the only cost.
+  #
+  # ⚠ FUTURES ARE STILL DRAINED IN SUBMISSION ORDER, so the report comes out in PANEL order rather
+  # than completion order. `as_completed` would list the same genomes in an order that changes from
+  # run to run, which makes two runs of one broken panel look like two different problems.
+  _sketched, _failed = [], []
+  with concurrent.futures.ThreadPoolExecutor(max_workers=_workers) as _ex:
+      _futs = [(_i, name, _ex.submit(_sketch_one, _i, path, name))
+               for _i, (path, name) in enumerate(zip(paths, ids, strict=True))]
+      for _i, name, _f in _futs:
+          try:
+              _sketched.append(_f.result())
+          except Exception as _exc:                                    # noqa: BLE001
+              # ⚠ CAPTURED, NOT SWALLOWED. Each one is reprinted below and the run exits non-zero;
+              # the broad catch is here so ONE crashed sketch cannot hide the other 218 results.
+              _failed.append((_i, name, f"{type(_exc).__name__}: {_exc}"))
+
+  if _failed:
+      _lines = "\n".join(f"  [{_i:04d}] {name}: {msg}" for _i, name, msg in _failed)
+      sys.exit(f"{len(_failed)} of {len(ids)} assemblies failed to sketch, in panel order:\n"
+               f"{_lines}\n"
+               f"All of them are listed so the panel needs ONE repair pass, not one per genome.")
+
+  # ⚠ THE FLOOR IS A CONSTANT, DEFINED ONCE. It used to be assigned inside the per-genome loop,
+  # which read like a per-genome property; it is a property of `--scaled`.
+  _floor = 20
+  _empty, _thin = [], []
+  for _i, path, name, sig, _n in _sketched:
       if _n == 0:
-          sys.exit(f"{name} sketched to ZERO hashes at scaled={a.scaled}, so it can only appear in "
-                   f"the matrix as a genome sharing nothing with anyone -- which is not a failure "
-                   f"the run would otherwise report. Lower --scaled, or drop the element. ⚠ It is "
-                   f"N-masking that empties a sketch, NOT soft-masking: a 200 kb genome in "
-                   f"all-lowercase gives 195 hashes, measured.")
-      if _n < _floor:
-          print(f"⚠ {name} sketched only {_n} hash(es) at scaled={a.scaled} (floor {_floor}). Its "
-                f"row will look like an unrelated genome's whatever it actually is -- a 5 kb genome "
-                f"at 7 hashes is byte-identical in the matrix to something that shares nothing. "
-                f"Treat its similarities as unmeasured, or lower --scaled for the whole panel.",
-                file=sys.stderr)
+          _empty.append((_i, name, path))
+      elif _n < _floor:
+          _thin.append((_i, name, _n))
       print(f"sketched {name} <- {path}  ({_n} hashes)", file=sys.stderr)
 
+  for _i, name, _n in _thin:
+      print(f"⚠ {name} sketched only {_n} hash(es) at scaled={a.scaled} (floor {_floor}). Its row "
+            f"will look like an unrelated genome's whatever it actually is -- a 5 kb genome at 7 "
+            f"hashes is byte-identical in the matrix to something that shares nothing. Treat its "
+            f"similarities as unmeasured, or lower --scaled for the whole panel.", file=sys.stderr)
+
+  if _empty:
+      _lines = "\n".join(f"  [{_i:04d}] {name} <- {path}" for _i, name, path in _empty)
+      sys.exit(f"{len(_empty)} of {len(ids)} assemblies sketched to ZERO hashes at "
+               f"scaled={a.scaled}, so each can only appear in the matrix as a genome sharing "
+               f"nothing with anyone -- which is not a failure the run would otherwise report:\n"
+               f"{_lines}\n"
+               f"Lower --scaled, or drop those elements. ⚠ It is N-masking that empties a sketch, "
+               f"NOT soft-masking: a 200 kb genome in all-lowercase gives 195 hashes, measured. "
+               f"All offenders are listed so this takes ONE repair pass, not one per genome.")
+
   sigs = [f"stage/{i:04d}.sig" for i in range(len(ids))]
-  subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "-o", "cmp", "--csv", "similarity.csv",
+  subprocess.run(["sourmash", "compare", "--processes", a.processes, "--ksize", a.ksize, "-o", "cmp", "--csv", "similarity.csv",
                   *sigs], check=True)
   subprocess.run(["sourmash", "plot", "--labels", "cmp"], check=True)
 
@@ -194,9 +264,9 @@ shell_command: |
   # ⚠ THE TWO TREES CAN DISAGREE, AND THAT IS THE POINT. Where they do, the Jaccard one is the one
   # distorted by size. Neither is labelled "the" tree here.
   if str(a.containment).lower() in ("true", "1", "yes"):
-      subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "--containment",
+      subprocess.run(["sourmash", "compare", "--processes", a.processes, "--ksize", a.ksize, "--containment",
                       "--csv", "containment.csv", *sigs], check=True)
-      subprocess.run(["sourmash", "compare", "--ksize", a.ksize, "--max-containment",
+      subprocess.run(["sourmash", "compare", "--processes", a.processes, "--ksize", a.ksize, "--max-containment",
                       "-o", "maxc", "--csv", "max_containment.csv", *sigs], check=True)
       # `sourmash plot` writes <prefix>.matrix.png and <prefix>.dendro.png beside the input.
       subprocess.run(["sourmash", "plot", "--labels", "maxc"], check=True)
@@ -259,7 +329,7 @@ shell_command: |
                f"`signatures` collection would be short a genome and the job would still succeed.")
   print(f"published {_n_sigs} signature(s) to signatures/", file=sys.stderr)
   BRC_PY
-  python3 sourmash_panel.py --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)' --containment '$(inputs.containment)'
+  python3 sourmash_panel.py --processes "$GALAXY_SLOTS" --rendered rendered.txt --ids '$(inputs.identifiers.path)' --ksize '$(inputs.ksize)' --scaled '$(inputs.scaled)' --containment '$(inputs.containment)'
 inputs:
   - name: assemblies
     type: data_collection

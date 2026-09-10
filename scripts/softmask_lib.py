@@ -177,7 +177,8 @@ class UpgradeMessagesRefused(RuntimeError):
                          + "\n  ".join(lines))
 
 
-def invoke(gi: GalaxyInstance, wf_id: str, inputs: dict, history_id: str) -> dict:
+def invoke(gi: GalaxyInstance, wf_id: str, inputs: dict, history_id: str,
+           use_cached_job: bool = False) -> dict:
     """Invoke a workflow WITHOUT allow_tool_state_corrections, reporting what it would have hidden.
 
     ⛔ THE FLAG WAS NEVER A FIX. `workflow/modules.py::populate_module_and_state` either raises on a
@@ -192,9 +193,21 @@ def invoke(gi: GalaxyInstance, wf_id: str, inputs: dict, history_id: str) -> dic
     a repeat's conditional, and an OPTIONAL `data` input, which Galaxy counts as unset exactly like
     a required one -- leaving it unconnected is not the same as naming it null. Galaxy also raises
     on the FIRST offending step only, so one refusal is a floor, not a census.
+
+    ⚠ `use_cached_job` MAKES A RE-INVOKE CHEAP, AND ITS PRECONDITION IS A TRAP. Galaxy reuses any
+    prior job with identical tool version, inputs and parameters instead of re-running it, which
+    turns a re-invoke over an already-staged panel into minutes instead of tens of core-hours. But
+    the cache judges a job by its STATE, not by its outputs -- and a job killed at the scheduler
+    level can land `state=ok` with `exit_code=None` and ZERO-BYTE outputs. Measured on vgp
+    2026-09-10: `scancel` on a wedged busco left the job green with an empty `failed_metadata`
+    dataset, and sourmash green with `max_containment` at 0 bytes. Re-invoking with the cache on
+    would have reused both of those broken jobs and reported success.
+    ⛔ SO BEFORE RE-INVOKING WITH THE CACHE, DELETE EVERY OUTPUT OF THE JOBS BEING REDONE -- all of
+    them, not just the ones the workflow wires into collections. An undeleted output is a cache hit.
     """
     try:
-        return gi.workflows.invoke_workflow(wf_id, inputs=inputs, history_id=history_id)
+        return gi.workflows.invoke_workflow(wf_id, inputs=inputs, history_id=history_id,
+                                            use_cached_job=use_cached_job)
     except Exception as exc:
         body = getattr(exc, "body", None)
         if isinstance(body, str):
