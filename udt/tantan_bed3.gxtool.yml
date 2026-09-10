@@ -20,10 +20,18 @@
 # would silently disagree wherever the two paths differ.
 class: GalaxyUserTool
 id: brc-tantan-bed3
-version: "0.1.0"
+version: "0.2.0"
 name: tantan -> BED3 (BRC UDT)
 description: tantan gentle low-complexity intervals, stage 1 of 2
 container: quay.io/biocontainers/tantan:51--h5ca1c30_1
+requirements:
+  # ⚠ 8 GB, from the same measurement as windowmasker: 23 completed tantan jobs peaked at
+  # 1576-2506 MB against 3788 (66% at the top), and peak scales with genome size, so the eleven
+  # panel members above ~1.5 Gb push it toward the limit. 8 GB keeps the headroom without the 16
+  # windowmasker needs.
+  # ⚠ NO `cores_min`: tantan takes no thread flag.
+  - type: resource
+    ram_min: 8
 shell_command: |
   cat > lc2bed.awk <<'BRC_AWK'
   # tantan soft-masked FASTA (low-complexity lower-cased) -> BED3 (chrom, start, end).

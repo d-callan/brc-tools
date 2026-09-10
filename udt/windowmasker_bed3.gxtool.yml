@@ -20,10 +20,30 @@
 # would silently disagree wherever the two paths differ.
 class: GalaxyUserTool
 id: brc-windowmasker-bed3
-version: "0.1.0"
+version: "0.2.0"
 name: windowmasker -> BED3 (BRC UDT)
 description: NCBI WindowMasker genome-frequency repeats, stage 1 of 2
 container: quay.io/biocontainers/blast:2.17.0--h66d330f_0
+requirements:
+  # ⛔ 16 GB BECAUSE 3788 MB IS NOT ENOUGH FOR THE LARGEST MEMBERS OF A CANNABIS PANEL, MEASURED.
+  # 23 completed windowmasker jobs over the 19+4 cannabis runs peaked at 2468-3355 MB against a
+  # 3788 MB allowance -- 89% at the top -- and a least-squares fit over them gives
+  # `peak_MB = 1649 + 1.441 * input_MB` (inputs 620-1288 MB of uppercased FASTA, so input MB is
+  # effectively genome Mb). That crosses the allowance at ~1484 Mb of sequence, and ELEVEN of the
+  # 219 canonical assemblies are above it: SKSV at 2297 Mb projects to ~4958 MB, 131%.
+  #
+  # ⚠ THE PROJECTION IS AN EXTRAPOLATION AND IS LABELLED AS ONE. The fit was built on 620-1288 MB
+  # inputs; SKSV is beyond that range. The direction is solid -- a large intercept and a real slope
+  # -- but the eleven members at 102-110% are close enough that the truth could fall either side.
+  # 16 GB is chosen to make that uncertainty not matter rather than to match the projection.
+  #
+  # ⚠ AND THIS IS REAL ALLOCATION, NOT PAGE CACHE. `samtools_faidx` also reports peaks at 100% of
+  # the allowance, but it streams and the cgroup is full of reclaimable cache; windowmasker builds a
+  # k-mer counts structure over the whole genome, so there is nothing to reclaim under pressure.
+  #
+  # ⚠ NO `cores_min`: windowmasker takes no thread flag, so cores would be billed and unused.
+  - type: resource
+    ram_min: 16
 shell_command: |
   cat > interval2bed.awk <<'BRC_AWK'
   # NCBI dustmasker/windowmasker `-outfmt interval` -> BED3 (chrom, start, end).
