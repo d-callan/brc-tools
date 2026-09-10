@@ -21,13 +21,12 @@ than the intervals accounted for.
 from __future__ import annotations
 
 import argparse
-import os
 import pathlib
 import sys
 import time
 
 from bioblend.galaxy import GalaxyInstance
-from softmask_lib import fasta_stats, register_one
+from softmask_lib import connect, fasta_stats, register_one
 
 BEDTOOLS = "toolshed.g2.bx.psu.edu/repos/iuc/bedtools/bedtools_"
 
@@ -99,10 +98,10 @@ def main() -> int:
     ap.add_argument("--fasta", type=pathlib.Path, required=True)
     args = ap.parse_args()
 
-    url, key = os.environ.get("GALAXY_URL"), os.environ.get("GALAXY_API_KEY")
-    if not url or not key:
-        sys.exit("GALAXY_URL and GALAXY_API_KEY must be set.")
-    gi = GalaxyInstance(url=url.rstrip("/"), key=key)
+    # ⚠ THE SHARED SELECTOR, not plain GALAXY_URL: this registers UDTs and then runs them, and a
+    # driver that registers on one server while the rest of the suite invokes on another is the
+    # 2026-09-10 misrouting in miniature. See galaxy_server.
+    gi = connect()
 
     print("Registering the UDTs this chain needs")
     uuids = {n: register_one(gi, n)[2] for n in

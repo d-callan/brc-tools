@@ -78,6 +78,11 @@ import urllib.request
 
 import yaml
 
+# ⚠ scripts/ IS NOT A PACKAGE, so the sibling import needs its directory on sys.path. galaxy_server
+# is deliberately stdlib-only: this module must not acquire a bioblend dependency (see `upload`).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import galaxy_server                             # noqa: I001 -- follows the path insert
+
 #: Where the `_primary` proteome and anchor GFF3 files live. ⚠ NOT IN THIS REPOSITORY -- they are
 #: several GB of downloads, so this points outside it and $WFA_PROTEOMES overrides.
 PROTEOMES = pathlib.Path(os.environ.get("WFA_PROTEOMES", "proteomes")).expanduser()
@@ -187,14 +192,15 @@ def creds() -> tuple[str, str]:
     ⚠ ONE SCRIPT, TWO SERVERS, because the two staging runs must produce the SAME inputs. Forking it
     per server is how the collections quietly drift apart and a difference in the RESULT gets
     blamed on the workflow.
+
+    ⛔ THE LOOKUP MOVED TO `galaxy_server` ON 2026-09-10, AND THE REASON IS NOT TIDINESS. This
+    function once claimed that staging and invoking "read the same variable so they cannot disagree
+    about which server the ids belong to". They did not: `softmask_lib.connect()`, which every
+    invoking script uses, read plain `GALAXY_URL` and ignored `$WFA_SERVER`. A 219-genome panel was
+    staged on vgp and invoked on main, and nothing raised because the two share a database. The
+    claim is only true with ONE definition, so there is now exactly one.
     """
-    sfx = os.environ.get("WFA_SERVER", "")
-    u = os.environ.get(f"GALAXY_URL{sfx}", "").rstrip("/")
-    k = os.environ.get(f"GALAXY_API_KEY{sfx}", "")
-    if not (u and k):
-        sys.exit(f"set GALAXY_URL{sfx} and GALAXY_API_KEY{sfx}")
-    print(f"  server {u}")
-    return u, k
+    return galaxy_server.creds()
 
 
 URL, KEY = creds()
