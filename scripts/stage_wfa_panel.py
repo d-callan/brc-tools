@@ -36,6 +36,29 @@ figshare tarball has no third-party URL Galaxy can use, because the deposited ob
 archive, not the FASTA inside it, and Galaxy has no tool to open one. Unpack it here and list it
 under `from_disk`.
 
+⚠ A BIG PANEL WANTS A DURABLE UPLOAD HISTORY, OR A FAILURE COSTS THE WHOLE TRANSFER AGAIN. By
+default this creates a throwaway history and uploads everything into it, so a run that dies at file
+150 of 192 starts over from zero on the next attempt -- it cannot even see what already landed.
+Pass `--upload-history-file PATH` instead and the inputs accumulate in one history whose id is
+recorded there: every later run skips what is already staged and `ok`, and only the three
+collections are rebuilt. The Cannabis panel is 562 files and 65 GiB over the tunnel, where that is
+the difference between a resume and a restart.
+
+    python3 scripts/stage_wfa_panel.py --panel panels/cannabis.panel.yml \
+        --upload-history-file ../data/wfa_upload_history.id
+
+⚠ THE INPUTS THEN OUTLIVE THE RUN, AND RE-INVOKING IS NEARLY FREE. Staging copies the three
+collections into a fresh run history BY REFERENCE -- the element HDAs differ but the underlying
+`dataset_id` is the same, so a second invocation over an already-staged panel costs three API calls
+and no bytes. `wfa_inputs*.json` names the RUN history and the copies, which is what the workflow
+driver must use; `upload_history` in the same file names where the inputs actually live.
+
+⛔ THE RESUME IS KEYED ON THE DATASET NAME, AND GALAXY DOES NOT ENFORCE UNIQUE NAMES. Two datasets
+may share one name, so `resume_action` refuses an ambiguous name rather than picking one -- the same
+rule `one_file` applies to the filesystem, one layer up. It also skips the HIDDEN copy that building
+a collection leaves behind, without which nothing resumes at all; both facts were measured on vgp
+rather than assumed, and `--self-test` pins every branch.
+
 ⚠ THE `_primary` IN THE NAME IS A CLAIM, NOT A CERTIFICATE -- this script cannot verify it, since
 doing so needs the full proteome and its annotation, neither of which is staged. Audit the files
 themselves before a panel's BUSCO numbers are compared across members:
@@ -177,8 +200,14 @@ def creds() -> tuple[str, str]:
 URL, KEY = creds()
 
 
-def api(path, payload=None):
-    r = urllib.request.Request(URL + path, method="POST" if payload is not None else "GET",
+def api(path, payload=None, method=None):
+    """A Galaxy API call. GET with no payload, POST with one, or `method` to override.
+
+    ⚠ `method` EXISTS FOR `PUT`, which is how a dataset is purged. It defaults to the old
+    behaviour so every existing call site reads the same.
+    """
+    r = urllib.request.Request(URL + path,
+                               method=method or ("POST" if payload is not None else "GET"),
                                headers={"x-api-key": KEY, "content-type": "application/json"},
                                data=json.dumps(payload).encode() if payload is not None else None)
     with urllib.request.urlopen(r, timeout=900) as f:
@@ -286,6 +315,171 @@ def collection(history, name, pairs):
         "element_identifiers": [{"src": "hda", "id": i, "name": n} for n, i in pairs]})
 
 
+#: Dataset states in which the bytes are present and usable -- the only ones a resume may treat as
+#: done. ⛔ `empty` IS DELIBERATELY ABSENT, for the reason `wait()` records at length: a zero-byte
+#: upload used to pass staging and go into a collection.
+DONE_STATES = frozenset({"ok"})
+
+#: Terminal failures: the dataset exists but holds nothing usable. A resume PURGES these and
+#: uploads again -- left in place they would occupy the name forever and stall every later run.
+DEAD_STATES = frozenset({"error", "empty", "discarded", "failed_metadata"})
+
+
+def resume_action(entries: list[dict]) -> tuple[str, str | None]:
+    """What a resume must do about ONE upload name, given the datasets already carrying it.
+
+    Returns `("reuse"|"replace", hda_id)`, `("upload", None)`, or `("refuse", reason)`.
+
+    ⛔ KEPT PURE, AND SEPARATE FROM THE NETWORK, SO `--self-test` CAN REACH EVERY BRANCH. Each
+    case below cost something to learn, and none of them is testable if the decision is written
+    inline in `main()` beside the upload call.
+
+    ⛔ GALAXY ACCEPTS DUPLICATE DATASET NAMES. Measured on vgp 2026-09-10: the same name uploaded
+    twice yields two datasets, both `ok`, differing only in `hid`. So a name is NOT a key, and
+    taking the first match is the very defect `one_file` exists to prevent, one layer up. Refuse.
+
+    ⚠ A NON-TERMINAL STATE IS REFUSED RATHER THAN WAITED ON. `queued`/`running`/`upload` means
+    something may be staging it RIGHT NOW -- plausibly another run of this script, since the whole
+    point of a durable upload history is that runs share it. Purging it would corrupt that run and
+    uploading alongside it would duplicate the name.
+
+    ⚠ A DELETED OR PURGED DATASET IS TREATED AS ABSENT, not as a name in use. Uploading then leaves
+    one deleted dataset and one live one under the same name, which the filter above resolves on
+    the next pass -- so a purge-and-retry converges instead of deadlocking.
+
+    ⛔ HIDDEN DATASETS ARE SKIPPED, AND WITHOUT THAT NOTHING RESUMES AT ALL. Building a `list`
+    collection from HDAs does not reference them -- Galaxy makes a hidden (`visible: false`) copy
+    of each element and leaves the original visible. Measured on vgp 2026-09-10: after one clean
+    staging run the upload history held 8 datasets under 4 names, one visible and one hidden each,
+    so the very next run saw every name as ambiguous and refused. The hidden twin shares the
+    underlying dataset, so it costs nothing; it just must not be mistaken for a second upload.
+    `visible` defaults to True when absent, because a plain upload listing may omit it.
+    """
+    live = [e for e in entries
+            if not e.get("deleted") and not e.get("purged") and e.get("visible", True)]
+    if not live:
+        return "upload", None
+    if len(live) > 1:
+        return "refuse", (f"{len(live)} live datasets share this name ({[e['id'] for e in live]}). "
+                          f"Which one the collection should hold is not something to guess at; "
+                          f"purge the extras and re-run.")
+    only = live[0]
+    state = only.get("state")
+    if state in DONE_STATES:
+        return "reuse", only["id"]
+    if state in DEAD_STATES:
+        return "replace", only["id"]
+    return "refuse", (f"dataset {only['id']} is in state {state!r}, which is not terminal -- "
+                      f"another run may be staging it. Wait for it to settle, or purge it, rather "
+                      f"than racing it.")
+
+
+def history_index(history: str) -> dict[str, list[dict]]:
+    """Every DATASET in a history, grouped by name, for `resume_action` to judge.
+
+    ⚠ `history_content_type` IS FILTERED RATHER THAN ASSUMED. The listing returns collections too,
+    and an HDCA carries a name just as a dataset does but cannot be reused as an upload -- so
+    without this filter a collection named `assemblies` could be mistaken for a staged member.
+    """
+    listing = api(f"/api/histories/{history}/contents?v=dev"
+                  f"&keys=name,id,state,deleted,purged,visible,history_content_type")
+    out: dict[str, list[dict]] = {}
+    for e in listing:
+        if e.get("history_content_type") == "dataset":
+            out.setdefault(e["name"], []).append(e)
+    return out
+
+
+def purge_dataset(history: str, hda: str) -> None:
+    """Purge one dataset, freeing its name for a fresh upload."""
+    api(f"/api/histories/{history}/contents/datasets/{hda}", {"purged": True}, method="PUT")
+
+
+def copy_collection(dest_history: str, hdca: str) -> dict:
+    """Copy a whole collection into another history BY REFERENCE, in one call.
+
+    ⚠ THE BYTES DO NOT MOVE, AND THIS IS THE WHOLE REASON THE UPLOAD HISTORY PAYS OFF. Measured on
+    vgp 2026-09-10: the copy's element HDA ids differ from the source's, but each element's
+    underlying `dataset_id` is IDENTICAL -- one copy on disk, one charge against quota, however
+    many run histories point at it. So re-invoking a workflow over an already-staged panel costs
+    three API calls and no transfer.
+    """
+    return api(f"/api/histories/{dest_history}/contents",
+               {"source": "hdca", "content": hdca, "type": "dataset_collection"})
+
+
+def upload_history(panel: dict, explicit: str | None, id_file: pathlib.Path | None) -> str:
+    """The durable history local files accumulate in, found or created.
+
+    ⛔ THE ID IS PERSISTED RATHER THAN LOOKED UP BY NAME. Two histories may share a name -- Galaxy
+    does not stop that any more than it stops duplicate dataset names -- so resolving by name
+    would silently resume into whichever one the listing happened to return first, and a resume
+    that picks the wrong history re-uploads everything while reporting progress.
+    """
+    if explicit:
+        got = api(f"/api/histories/{explicit}")
+        print(f"  upload history {explicit} ({got.get('name')!r}) -- reusing")
+        return explicit
+    if id_file and id_file.exists():
+        hid = id_file.read_text(encoding="utf-8").strip()
+        if hid:
+            got = api(f"/api/histories/{hid}")
+            # ⛔ A PURGED HISTORY IS NOT A RESUME TARGET. Its datasets are gone but the id still
+            # resolves, so without this the run would "resume" into an empty history and upload
+            # everything again -- correct in the end, but silently, and after hours.
+            if got.get("purged") or got.get("deleted"):
+                sys.exit(f"the upload history recorded in {id_file} ({hid}) is deleted or purged. "
+                         f"Remove that file to start a fresh one; nothing here can tell whether "
+                         f"you meant to re-upload {panel['expected_assemblies']} assemblies.")
+            print(f"  upload history {hid} ({got.get('name')!r}) -- resuming from {id_file.name}")
+            return hid
+    hid = api("/api/histories",
+              {"name": f"WF-A inputs — {panel['name']} "
+                       f"({panel['expected_assemblies']} assemblies)"})["id"]
+    if id_file:
+        id_file.parent.mkdir(parents=True, exist_ok=True)
+        id_file.write_text(hid + "\n", encoding="utf-8")
+        print(f"  upload history {hid} -- created, recorded in {id_file}")
+    else:
+        print(f"  upload history {hid} -- created (pass --upload-history {hid} to resume)")
+    return hid
+
+
+def stage_local(history: str, index: dict[str, list[dict]], items: list[tuple[str, pathlib.Path]],
+                suffix: str, ext: str, what: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """Upload `items` into `history`, skipping whatever is already there and usable.
+
+    Returns `[(identifier, hda_id)]` in `items` order, and the ids of the ones actually uploaded
+    (the only ones `wait()` then has to poll).
+
+    ⚠ SERIAL, AND STILL DELIBERATELY SO. Resume changes what a failure COSTS, not what the tunnel
+    can carry; uploading concurrently would not widen it, and would multiply what has to be redone.
+    """
+    out: list[tuple[str, str]] = []
+    fresh: list[str] = []
+    skipped = 0
+    for n, (ident, path) in enumerate(items, 1):
+        name = f"{ident}{suffix}"
+        action, arg = resume_action(index.get(name, []))
+        if action == "refuse":
+            sys.exit(f"cannot resume {what} {ident} (dataset name {name!r}): {arg}")
+        if action == "reuse":
+            out.append((ident, arg))
+            skipped += 1
+            continue
+        if action == "replace":
+            print(f"    [{n}/{len(items)}] {what} {ident}: purging unusable {arg} and re-uploading",
+                  flush=True)
+            purge_dataset(history, arg)
+        hda = upload(history, path, name, ext)
+        out.append((ident, hda))
+        fresh.append(hda)
+        print(f"    [{n}/{len(items)}] uploaded {what} {ident} "
+              f"({path.stat().st_size / 1048576:.0f} MB)", flush=True)
+    print(f"  {what}: {len(out)} total -- {skipped} already staged, {len(fresh)} uploaded")
+    return out, fresh
+
+
 def self_test() -> int:
     """Exercise `load_panel` offline, breaking each property separately.
 
@@ -326,6 +520,60 @@ def self_test() -> int:
     # the pre-existing guards must still bite after the edit
     refuses({**base, "anchors": {"a": "A"}}, "have no proteome")
     refuses({**base, "expected_assemblies": 0}, "positive integer")
+
+    # ── the resume decision table ──────────────────────────────────────────────────────────────
+    # ⛔ EVERY BRANCH, INCLUDING THE REFUSALS, and each written by constructing the exact listing
+    # Galaxy returns. `resume_action` decides whether hours of upload are repeated or skipped; a
+    # test of only the happy path would let "reuse anything with the right name" pass.
+    def act(entries):
+        return resume_action(entries)[0]
+
+    assert act([]) == "upload", "an unseen name must upload"
+    assert act([{"id": "1", "state": "ok"}]) == "reuse", "a finished dataset must be reused"
+    assert resume_action([{"id": "abc", "state": "ok"}])[1] == "abc", "reuse must return the id"
+
+    # ⛔ MEASURED, NOT ASSUMED: Galaxy accepts two datasets under one name (vgp, 2026-09-10).
+    # Taking the first would stage a collection against an arbitrary one of them.
+    assert act([{"id": "1", "state": "ok"}, {"id": "2", "state": "ok"}]) == "refuse", \
+        "two live datasets under one name must refuse, not pick one"
+
+    # a terminal failure is redone; `empty` is a failure, per the reason wait() records
+    for dead in ("error", "empty", "discarded", "failed_metadata"):
+        assert act([{"id": "1", "state": dead}]) == "replace", f"{dead} must be replaced"
+
+    # ⚠ IN-FLIGHT IS REFUSED, NOT WAITED ON: another run may own it, and a durable upload history
+    # is precisely the thing two runs share.
+    for busy in ("queued", "running", "upload", "new", "paused", "setting_metadata", "deferred"):
+        assert act([{"id": "1", "state": busy}]) == "refuse", f"{busy} must refuse"
+
+    # ⚠ DELETED/PURGED READS AS ABSENT, so purge-and-retry converges instead of deadlocking on a
+    # name that can never be reused and can never be freed.
+    assert act([{"id": "1", "state": "ok", "deleted": True}]) == "upload"
+    assert act([{"id": "1", "state": "ok", "purged": True}]) == "upload"
+    assert act([{"id": "1", "state": "ok", "deleted": True},
+                {"id": "2", "state": "ok"}]) == "reuse", "a deleted twin must not make it ambiguous"
+
+    # ⛔ THE HIDDEN COLLECTION-ELEMENT TWIN, which is what a `list` collection leaves behind. This
+    # is not hypothetical: it broke the second run of the rehearsal on vgp before the filter
+    # existed, turning every name into an ambiguity refusal.
+    assert act([{"id": "1", "state": "ok", "visible": True},
+                {"id": "2", "state": "ok", "visible": False}]) == "reuse", \
+        "a hidden collection-element copy must not make its visible original ambiguous"
+    assert resume_action([{"id": "vis", "state": "ok", "visible": True},
+                          {"id": "hid", "state": "ok", "visible": False}])[1] == "vis", \
+        "the VISIBLE dataset is the one to reuse"
+    assert act([{"id": "1", "state": "ok", "visible": False}]) == "upload", \
+        "a hidden dataset alone is not a staged input"
+
+    # ⛔ THE THREE SUFFIXES MUST NOT COLLIDE, because all three types share one upload history and
+    # the name is the resume key. Distinct suffixes are what keeps `X.faa.gz` from matching the
+    # assembly `X.fasta.gz`.
+    suffixes = (".fasta.gz", ".faa.gz", ".gff3")
+    assert len(set(suffixes)) == len(suffixes), "the upload-name suffixes are not distinct"
+    for a in suffixes:
+        for b in suffixes:
+            assert a == b or not a.endswith(b), f"{a} ends with {b}: names could be confused"
+
     print("self-test: all guards bite")
     return 0
 
@@ -339,7 +587,18 @@ def main() -> int:
                     help="a panel definition under panels/ -- which genomes, which of them have a "
                          "proteome, and which are anchors. Required: this script stages whatever "
                          "panel it is given and knows nothing about any particular organism.")
+    ap.add_argument("--upload-history", metavar="ID",
+                    help="reuse this history as the durable upload target, skipping anything "
+                         "already staged in it. Without this (and --upload-history-file) the run "
+                         "creates a throwaway history and uploads everything, as it always did.")
+    ap.add_argument("--upload-history-file", type=pathlib.Path, metavar="PATH",
+                    help="read the upload history id from PATH, creating the history and writing "
+                         "the id there on the first run. The resumable form: one flag that is the "
+                         "same on every run, with no id to copy by hand.")
     args = ap.parse_args()
+    if args.upload_history and args.upload_history_file:
+        ap.error("--upload-history and --upload-history-file both name the upload history; "
+                 "pass one. The file form is the one to use in a script.")
     if args.self_test:
         return self_test()
     if args.panel is None:
@@ -350,10 +609,26 @@ def main() -> int:
     # ⚠ NAMED FROM THE PANEL AND ITS ASSERTED COUNT, NOT A LITERAL. The label said "(4 genomes)"
     # for as long as the panel had six in it, and a history whose label disagrees with its contents
     # is read as the contents being wrong. The count is checked against what resolves, below.
-    hist = api("/api/histories",
-               {"name": f"WF-A UDT — {panel['name']} "
-                        f"({panel['expected_assemblies']} assemblies)"})["id"]
-    print(f"  history {hist}")
+    # ⚠ TWO HISTORIES, AND THE SPLIT IS THE POINT. `hist` is where the inputs LIVE: durable and
+    # reused, so a failed run resumes instead of re-uploading. The run history is created after
+    # staging succeeds and receives the three collections by reference, which costs no transfer --
+    # so re-invoking a workflow over an already-staged panel is three API calls.
+    #
+    # ⚠ WITHOUT EITHER FLAG THE OLD BEHAVIOUR IS EXACT: one throwaway history, everything
+    # uploaded, no index consulted. That matters because panels live outside this repository and
+    # other people's scripts call this one.
+    resumable = bool(args.upload_history or args.upload_history_file)
+    if resumable:
+        hist = upload_history(panel, args.upload_history, args.upload_history_file)
+        index = history_index(hist)
+        print(f"  {sum(len(v) for v in index.values())} dataset(s) already in it, "
+              f"{len(index)} distinct name(s)")
+    else:
+        hist = api("/api/histories",
+                   {"name": f"WF-A UDT — {panel['name']} "
+                            f"({panel['expected_assemblies']} assemblies)"})["id"]
+        index = {}
+        print(f"  history {hist}")
 
     have = {}
     if panel["raw_collection"]:
@@ -401,65 +676,135 @@ def main() -> int:
             for ident, key in panel["from_disk"].items() if ident in wanted}
 
     asm = []
+    copied = 0
+    fresh_copy: list[str] = []
     for ident in wanted:
-        if ident in have:
-            d = api(f"/api/histories/{hist}/contents",
-                    {"source": "hda", "content": have[ident], "type": "dataset"})
-            asm.append((ident, d["id"]))
-    print(f"  copied {len(asm)} assemblies from the staged panel")
+        if ident not in have:
+            continue
+        # ⛔ A COPY IS RENAMED TO THE SAME KEY AN UPLOAD WOULD USE, so all three assembly routes
+        # are indexed alike and a resume can tell a copied member from an absent one. Without the
+        # rename the copy keeps the SOURCE dataset's name, `resume_action` never matches it, and
+        # every run copies it again -- duplicate names in a durable history, which then refuses.
+        name = f"{ident}.fasta.gz"
+        action, arg = resume_action(index.get(name, []))
+        if action == "refuse":
+            sys.exit(f"cannot resume copied assembly {ident} (dataset name {name!r}): {arg}")
+        if action == "reuse":
+            asm.append((ident, arg))
+            continue
+        if action == "replace":
+            purge_dataset(hist, arg)
+        d = api(f"/api/histories/{hist}/contents",
+                {"source": "hda", "content": have[ident], "type": "dataset"})
+        if resumable:
+            api(f"/api/histories/{hist}/contents/datasets/{d['id']}", {"name": name}, method="PUT")
+        asm.append((ident, d["id"]))
+        fresh_copy.append(d["id"])
+        copied += 1
+    print(f"  copied {copied} assemblies from the staged panel "
+          f"({len(asm) - copied} already present)")
 
     # ⚠ SERVER-SIDE FETCH, NOT AN UPLOAD. These two are not in the panel collection and their FASTAs
     # are not on this machine; Galaxy pulls them from NCBI directly, which costs no tunnel traffic.
-    fetch = [{"src": "url", "url": ncbi_fasta(acc, nm), "name": ident, "ext": "fasta.gz",
-              "to_posix_lines": False, "space_to_tab": False}
-             for ident, (acc, nm) in ((k, (v["accession"], v["assembly_name"]))
-                                      for k, v in panel["by_url"].items())
-             if ident in wanted and ident not in have]
+    # ⚠ A FETCHED DATASET IS NAMED `ident`, WITH NO SUFFIX -- unlike an upload's `{ident}.fasta.gz`
+    # -- and that difference is preserved rather than tidied away. The name is what an existing
+    # history already holds, so changing it would make every panel staged before this change look
+    # unstaged and re-fetch all of it. The two forms cannot collide: an identifier would have to
+    # literally end in `.fasta.gz`, which the slug rule forbids.
+    fetch, refetch = [], []
+    for ident, spec in panel["by_url"].items():
+        if ident not in wanted or ident in have:
+            continue
+        action, arg = resume_action(index.get(ident, []))
+        if action == "refuse":
+            sys.exit(f"cannot resume fetched assembly {ident} (dataset name {ident!r}): {arg}")
+        if action == "reuse":
+            asm.append((ident, arg))
+            continue
+        if action == "replace":
+            purge_dataset(hist, arg)
+        fetch.append({"src": "url", "url": ncbi_fasta(spec["accession"], spec["assembly_name"]),
+                      "name": ident, "ext": "fasta.gz",
+                      "to_posix_lines": False, "space_to_tab": False})
     if fetch:
         r = api("/api/tools/fetch", {"history_id": hist,
                                      "targets": [{"destination": {"type": "hdas"},
                                                   "elements": fetch}]})
         for o in r.get("outputs", []):
             asm.append((o["name"], o["id"]))
+            refetch.append(o["id"])
         print(f"  fetching {len(fetch)} assembly FASTA(s) from NCBI")
+    else:
+        print(f"  0 assemblies to fetch from NCBI ({len(panel['by_url'])} already staged)")
 
     # ⚠ SERIAL, AND THAT IS A DELIBERATE CHOICE RATHER THAN AN OVERSIGHT. This is the only route
     # that spends tunnel bandwidth, and a panel of two hundred genomes is tens of GB; uploading
     # them concurrently does not make the tunnel wider, but it does multiply what has to be redone
     # when one of them fails. The progress line exists because a silent hour reads as a hang.
-    for n, (ident, f) in enumerate(sorted(disk.items()), 1):
-        asm.append((ident, upload(hist, f, f"{ident}.fasta.gz", "fasta.gz")))
-        print(f"    [{n}/{len(disk)}] uploaded assembly {ident} "
-              f"({f.stat().st_size / 1048576:.0f} MB)", flush=True)
+    disk_staged, fresh_disk = stage_local(hist, index, sorted(disk.items()),
+                                          ".fasta.gz", "fasta.gz", "assembly")
+    asm.extend(disk_staged)
 
-    prot, anch = [], []
-    for ident, key in panel["proteomes"].items():
-        f = one_file(f"*_{key}_protein_primary.faa.gz", ident, "proteome")
-        prot.append((ident, upload(hist, f, f"{ident}.faa.gz", "fasta.gz")))
-        print(f"    uploaded proteome {ident}")
-    for ident, key in panel["anchors"].items():
-        f = one_file(f"*_{key}_genomic.gff.gz", ident, "anchor GFF3")
-        anch.append((ident, upload(hist, f, f"{ident}.gff3", "gff3")))
-        print(f"    uploaded anchor   {ident}")
+    prot_files = [(ident, one_file(f"*_{key}_protein_primary.faa.gz", ident, "proteome"))
+                  for ident, key in panel["proteomes"].items()]
+    anch_files = [(ident, one_file(f"*_{key}_genomic.gff.gz", ident, "anchor GFF3"))
+                  for ident, key in panel["anchors"].items()]
+    prot, fresh_prot = stage_local(hist, index, prot_files, ".faa.gz", "fasta.gz", "proteome")
+    anch, fresh_anch = stage_local(hist, index, anch_files, ".gff3", "gff3", "anchor GFF3")
 
-    wait([i for _, i in asm + prot + anch], "staging")
+    # ⛔ WAIT ONLY ON WHAT THIS RUN CREATED. Polling all 589 members costs one API call each per
+    # cycle, and a reused dataset was already `ok` when the index was read -- `resume_action` will
+    # not hand back anything else. In legacy mode every id is fresh, so this is the same set as
+    # before.
+    if resumable:
+        settle = sorted(set(fresh_copy + refetch + fresh_disk + fresh_prot + fresh_anch))
+        print(f"  waiting on {len(settle)} newly staged dataset(s) of "
+              f"{len(asm) + len(prot) + len(anch)}")
+    else:
+        settle = [i for _, i in asm + prot + anch]
+    wait(settle, "staging")
+
+    # ⛔ THE COLLECTION MUST HOLD WHAT THE PANEL PROMISED, AND THIS IS CHECKED BEFORE ANY
+    # COLLECTION EXISTS. Three routes feed one collection, and a member lost by any of them yields
+    # a shorter panel that stages cleanly; the assertion in `wanted` above cannot see this, because
+    # it counts the panel, not what reached Galaxy. It ran AFTER the build until 2026-09-10, which
+    # left a wrong-length collection and a run history sitting in Galaxy to be cleaned up by hand.
+    if len(asm) != panel["expected_assemblies"]:
+        # ⚠ THE BREAKDOWN COUNTS WHAT THIS RUN DID, and says so, because with a resume most of a
+        # correct panel is contributed by neither route -- it was already there. A line reading
+        # "0 fetched, 1 uploaded" for a 219-member panel is not a contradiction.
+        sys.exit(f"staged {len(asm)} assemblies but the panel expects "
+                 f"{panel['expected_assemblies']} -- of which THIS RUN copied {copied}, fetched "
+                 f"{len(fetch)} and uploaded {len(fresh_disk)}; the rest were already staged "
+                 f"({len(have)} in the raw collection, {len(disk)} resolved on disk). The history "
+                 f"is left in place to inspect.")
 
     c_asm = collection(hist, "assemblies", asm)
     c_prot = collection(hist, "proteomes", prot)
     c_anch = collection(hist, "anchor_gene_gff3s", anch)
     out = {"server": URL, "history": hist, "assemblies": c_asm["id"], "proteomes": c_prot["id"],
            "anchor_gene_gff3s": c_anch["id"]}
-    # ⛔ THE COLLECTION MUST HOLD WHAT THE PANEL PROMISED. Three routes now feed one collection,
-    # and a member lost by any of them yields a shorter panel that stages cleanly; the assertion
-    # in `wanted` above cannot see this, because it counts the panel, not what reached Galaxy.
-    if len(asm) != panel["expected_assemblies"]:
-        sys.exit(f"staged {len(asm)} assemblies but the panel expects "
-                 f"{panel['expected_assemblies']} -- {len(have)} copied, {len(fetch)} fetched, "
-                 f"{len(disk)} uploaded. The history is left in place to inspect.")
 
-    print(f"\n  assemblies        {c_asm['id']}  ({len(asm)})")
-    print(f"  proteomes         {c_prot['id']}  ({len(prot)})")
-    print(f"  anchor_gene_gff3s {c_anch['id']}  ({len(anch)})")
+    # ⚠ THE INPUTS STAY PUT AND THE RUN GETS A COPY. A workflow writes its outputs into the
+    # history it runs in, so invoking inside the upload history would mix results into the thing
+    # being reused -- and a later `history_index` would then have to tell an input from an output.
+    # The copy is by reference (see `copy_collection`), so this costs no transfer and no quota.
+    if resumable:
+        run_hist = api("/api/histories",
+                       {"name": f"WF-A UDT — {panel['name']} "
+                                f"({panel['expected_assemblies']} assemblies)"})["id"]
+        out = {"server": URL, "history": run_hist, "upload_history": hist,
+               "assemblies": copy_collection(run_hist, c_asm["id"])["id"],
+               "proteomes": copy_collection(run_hist, c_prot["id"])["id"],
+               "anchor_gene_gff3s": copy_collection(run_hist, c_anch["id"])["id"]}
+        print(f"\n  run history {run_hist} -- three collections copied by reference")
+
+    # ⚠ THE IDS PRINTED ARE THE ONES WRITTEN, taken from `out` rather than from the build. In
+    # resumable mode those are the RUN history's copies, not the upload history's originals, and an
+    # id from the wrong history is not an error that says so -- it is a 404 at invocation time.
+    print(f"\n  assemblies        {out['assemblies']}  ({len(asm)})")
+    print(f"  proteomes         {out['proteomes']}  ({len(prot)})")
+    print(f"  anchor_gene_gff3s {out['anchor_gene_gff3s']}  ({len(anch)})")
     dest = OUT_DIR / f"wfa_inputs{os.environ.get('WFA_SERVER', '')}.json"
     dest.write_text(json.dumps(out, indent=1))
     print(f"  wrote {dest}")
