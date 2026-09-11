@@ -107,9 +107,71 @@ def register_one(gi: GalaxyInstance, name: str) -> tuple[str, str, str]:
         sys.exit(f"{name}.gxtool.yml: version {doc.get('version')!r} is not PEP 440, and "
                  f"/api/unprivileged_tools refuses it (400 ToolVersionPEP404). Use a release "
                  f"(`0.2.0`), a dev release (`0.1.0.dev1`) or a local version (`0.1.0+probe1`).")
+    # ⛔ REUSE AN IDENTICAL ACTIVE REGISTRATION INSTEAD OF MINTING A NEW ONE. This function used to
+    # POST unconditionally, and because it runs on EVERY workflow invocation, each run left behind
+    # one fresh uuid per UDT. Measured on vgp 2026-09-11: `brc-samtools-faidx` v0.2.0 had TEN active
+    # registrations at the SAME version, `brc-fastan-*` and `brc-lc-classify` nine each, 22
+    # (tool, version) pairs duplicated in total. It also made them all un-deactivatable, because
+    # each run created BOTH a registration and a stored workflow binding it -- so every stale uuid
+    # is "referenced by a workflow" and cleanup finds nothing to remove. The count grew linearly
+    # with runs, forever.
+    existing = _identical_registration(gi, doc)
+    if existing:
+        return doc["id"], str(doc["version"]), existing
     created = gi.make_post_request(f"{gi.url}/unprivileged_tools",
                                    payload={"representation": doc}, params={"key": gi.key})
     return doc["id"], str(doc["version"]), created["uuid"]
+
+
+#: Fields that round-trip through `/api/unprivileged_tools` BYTE-IDENTICALLY, measured on vgp.
+#: These are also the fields that determine what the tool DOES: the code, the environment it runs
+#: in, and its identity. `inputs`/`outputs` are excluded deliberately -- see _identical_registration.
+_EXACT_FIELDS = ("id", "version", "class", "container", "shell_command", "requirements", "help")
+
+
+def _identical_registration(gi: GalaxyInstance, doc: dict) -> str | None:
+    """The uuid of an ACTIVE registration identical to `doc`, or None.
+
+    ⛔ MATCHING ON id + version WOULD BE ACTIVELY WRONG, WHICH IS WHY IT IS NOT DONE. An edit that
+    forgets to bump the version is exactly the drift `udt-drift` exists to catch; reusing on
+    id+version alone would then silently run STALE CODE under a current version number -- strictly
+    worse than the duplicate registrations this is fixing.
+
+    ⚠ AND EXACT EQUALITY OF THE WHOLE REPRESENTATION IS NOT AVAILABLE: the server normalises the
+    declarations on the way in. Measured, for one tool: `format: "fasta,fasta.gz"` comes back as
+    `["fasta", "fasta.gz"]`, a `value: false` default comes back as `None`, `optional: true` is
+    dropped, and an expanded `discover_datasets` block comes back abbreviated. Replicating that
+    normalisation here would be a second implementation of someone else's schema, drifting the
+    moment it changes.
+
+    ▶ SO THE COMPARISON IS EXACT ON THE FIELDS THAT ROUND-TRIP AND THAT DETERMINE BEHAVIOUR, plus
+    the input/output NAME SETS so a tool that gained an output is never mistaken for one that has
+    not. Anything else counts as different.
+
+    ⚠ IT FAILS SAFE BY CONSTRUCTION. A false "different" costs one duplicate registration -- the
+    behaviour this replaces, every time. A false "identical" would bind a workflow to the wrong
+    code, so every uncertainty resolves toward creating.
+    """
+    try:
+        body = gi.make_get_request(f"{gi.url}/unprivileged_tools").json()
+    except Exception:
+        return None                      # a probe that cannot run must not block a registration
+    if not isinstance(body, list):
+        return None
+    want_in = {str(i.get("name")) for i in (doc.get("inputs") or [])}
+    want_out = {str(o.get("name")) for o in (doc.get("outputs") or [])}
+    for t in body:
+        if not t.get("active", True):
+            continue
+        rep = t.get("representation") or {}
+        if any(rep.get(f) != doc.get(f) for f in _EXACT_FIELDS):
+            continue
+        if {str(i.get("name")) for i in (rep.get("inputs") or [])} != want_in:
+            continue
+        if {str(o.get("name")) for o in (rep.get("outputs") or [])} != want_out:
+            continue
+        return t.get("uuid")
+    return None
 
 
 def register_all(gi: GalaxyInstance, names: tuple[str, ...] = UDTS, verbose: bool = True) -> dict[str, str]:
@@ -219,3 +281,60 @@ def invoke(gi: GalaxyInstance, wf_id: str, inputs: dict, history_id: str,
         if data:
             raise UpgradeMessagesRefused(data) from exc
         raise
+
+
+def _self_test() -> int:
+    """The reuse matcher, including the shapes it must REFUSE.
+
+    ⚠ A HAPPY-PATH TEST WOULD PASS WITH THE MATCHER WIDE OPEN, which is the failure mode that
+    matters here: reusing too eagerly binds a workflow to the wrong code, while reusing too rarely
+    only costs a duplicate registration. So every case below except the first is a refusal.
+    """
+    class _Fake:
+        url = "http://x/api"
+        key = "k"
+
+        def __init__(self, tools):
+            self._t = tools
+
+        def make_get_request(self, _u):
+            class _R:
+                def __init__(self, b):
+                    self._b = b
+
+                def json(self):
+                    return self._b
+            return _R(self._t)
+
+    doc = {"id": "t", "version": "1.0.0", "class": "GalaxyUserTool", "container": "c",
+           "shell_command": "run", "requirements": [], "help": {"format": "markdown", "content": "h"},
+           "inputs": [{"name": "in"}], "outputs": [{"name": "out"}]}
+    stored = {"uuid": "U1", "active": True,
+              # the server normalises declarations; the matcher must tolerate that and still match
+              "representation": {**doc, "inputs": [{"name": "in", "format": ["fasta"]}],
+                                 "outputs": [{"name": "out", "optional": None}]}}
+    gi = _Fake([stored])
+    assert _identical_registration(gi, doc) == "U1", "an identical registration must be reused"
+
+    # ⛔ the drift case: same id AND version, different code -- reusing here would run stale code
+    assert _identical_registration(gi, {**doc, "shell_command": "run --other"}) is None
+    # a changed container or requirement is a different environment
+    assert _identical_registration(gi, {**doc, "container": "c2"}) is None
+    assert _identical_registration(gi, {**doc, "requirements": [{"type": "resource", "ram_min": 8}]}) is None
+    # an added or removed port is a different interface
+    assert _identical_registration(gi, {**doc, "outputs": [{"name": "out"}, {"name": "extra"}]}) is None
+    assert _identical_registration(gi, {**doc, "inputs": []}) is None
+    # a DEACTIVATED registration is not a candidate, however identical
+    assert _identical_registration(_Fake([{**stored, "active": False}]), doc) is None
+    # an unusable listing must not block a registration
+    assert _identical_registration(_Fake({"err_msg": "nope"}), doc) is None
+
+    print("softmask_lib self-test: identical reuse, and refusals for changed code, container, "
+          "requirements, ports, deactivated tools and an unreadable listing")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(_self_test())
+
