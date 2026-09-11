@@ -20,7 +20,7 @@
 # would silently disagree wherever the two paths differ.
 class: GalaxyUserTool
 id: brc-tantan-bed3
-version: "0.2.0"
+version: "0.3.0"
 name: tantan -> BED3 (BRC UDT)
 description: tantan gentle low-complexity intervals, stage 1 of 2
 container: quay.io/biocontainers/tantan:51--h5ca1c30_1
@@ -34,7 +34,19 @@ shell_command: |
   # Tracks absolute 0-based position within each record; emits maximal lowercase runs.
   # (content for cols 4-6 is added downstream by lc_classify.py)
   BEGIN { OFS = "\t"; st = -1 }
-  /^>/ { if (st >= 0) print c, st, pos; c = substr($1, 2); pos = 0; st = -1; next }
+  # ⛔ A HEADER WITH NO NAME IS A REFUSAL, NOT AN EMPTY CHROM COLUMN. `c = substr($1, 2)` returns ""
+  # for `> chrD assembly one`, because $1 is then just ">", and for a bare ">" too -- and the emitted
+  # BED3 carried a LEADING EMPTY FIELD at exit 0. Stage 2 does catch it ("names sequence '', which is
+  # not in upper.fa"), but stage 1's `intervals` dataset is published green and malformed, and any
+  # consumer reading it directly -- a mask_union, say -- has no such guard. $2 covers the
+  # space-after-> form; nothing covers a nameless header, so it stops here.
+  /^>/ {
+      if (st >= 0) print c, st, pos
+      c = substr($1, 2)
+      if (c == "") c = $2
+      if (c == "") { print "lc2bed: FASTA header with no sequence name: " $0 > "/dev/stderr"; exit 1 }
+      pos = 0; st = -1; next
+  }
   {
       n = length($0)
       for (i = 1; i <= n; i++) {
@@ -48,7 +60,7 @@ shell_command: |
   BRC_AWK
   set -o pipefail
   { if gzip -t '$(inputs.input.path)' 2>/dev/null; then gzip -cd '$(inputs.input.path)'; else cat '$(inputs.input.path)'; fi; } \
-    | awk '/^>/{print;next}{print toupper($0)}' > upper.fa &&
+    | awk 'BEGIN { bom = "\357\273\277" } NR == 1 && substr($0, 1, 3) == bom { $0 = substr($0, 4) } /^>/{print;next}{print toupper($0)}' > upper.fa &&
   tantan upper.fa | awk -f lc2bed.awk > intervals.bed3
 inputs:
   - name: input
