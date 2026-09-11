@@ -1,0 +1,359 @@
+"""Shared pieces of the softmask UDT scripts.
+
+WHY THIS EXISTS. Four scripts drive the same workflow -- run_softmask_udt (the whole thing),
+build_up_softmask (tier by tier), check_softmask_stages (one stage at a time) and
+verify_softmask_outputs (the result). They had grown byte-identical copies of `connect`,
+`await_dataset` and the invocation-state set, and near-identical copies of the UDT registration
+and the FASTA counter.
+
+⛔ THE DUPLICATED COPIES WERE NOT HARMLESS. Both hard-won corrections in this area had to be
+applied three times by hand: `await_dataset` learning that `state in ("ok", "error")` is not a
+readiness test, and SCHEDULING_IN_PROGRESS gaining `requires_materialization` and `cancelling`
+from Galaxy's own enum. A fix that must be repeated N times is a fix that will eventually be
+applied N-1 times.
+
+Only things that were ALREADY the same live here. `main`, the renderers and the per-script
+assertions differ for real reasons and stay where they are.
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import sys
+import time
+from typing import TYPE_CHECKING
+
+import yaml
+
+# ⛔ IMPORTED LAZILY, INSIDE connect(), SO THIS MODULE IS USABLE WITHOUT bioblend. It was a
+# module-level import, which made `import softmask_lib` -- and therefore this file's own self-test
+# -- impossible on a machine without the Galaxy SDK. CI is exactly such a machine: it lints and
+# self-tests without installing bioblend, so wiring the self-test in failed with
+# `ModuleNotFoundError: No module named 'bioblend'` while testing nothing.
+#
+# ⚠ EVERY OTHER USE IS AN ANNOTATION, and `from __future__ import annotations` above makes those
+# strings that are never evaluated. Only connect() actually constructs a client, so only connect()
+# needs the package present.
+if TYPE_CHECKING:
+    from bioblend.galaxy import GalaxyInstance
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+UDT_DIR = ROOT / "udt"
+
+# ⚠ scripts/ IS NOT A PACKAGE and these modules are run by path, so the sibling import resolves
+# only once its directory is on sys.path -- `python3 scripts/x.py` puts it there, `python3 -m` and
+# a symlinked entry point do not. Same insert, same reason, as check_workflow_ports.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import galaxy_server                             # noqa: E402, I001 -- must follow the path insert
+from check_udt_definitions import pep440_ok      # noqa: E402 -- must follow the path insert
+WORKFLOW = ROOT / "workflows/softmask/softmask_udt.gxwf.yml"
+
+#: The UDTs the softmask workflow needs, in dependency order.
+UDTS = ("fasta_uppercase", "dustmasker_bed3", "windowmasker_bed3", "tantan_bed3",
+        "lc_classify", "samtools_faidx", "fastan_gdb", "fastan_scan", "fastan_bed",
+        "masking_row", "masking_header")
+
+#: Invocation states in which Galaxy may still create jobs. Everything else means scheduling is
+#: finished, whatever the jobs are doing.
+#:
+#: ⛔ THE VALUES COME FROM GALAXY'S OWN ENUM, not from watching behaviour. lib/galaxy/schema/
+#: invocation.py::InvocationState documents each one, and two of these were missing when this set
+#: was written from observation alone:
+#:     new                       "Brand new workflow invocation"
+#:     ready                     "Workflow ready for another iteration of scheduling."
+#:     requires_materialization  "an otherwise NEW or READY workflow that requires inputs to be
+#:                                materialized (undeferred)"
+#:     cancelling                "invocation scheduler will cancel job in next iteration."
+#:
+#: ⚠ AND THE SAME FILE SETTLES WHY `completed` CANNOT BE USED AS THE WAIT CONDITION. It defines
+#: `scheduled` as "Workflow has been scheduled" and `completed` as "All jobs have reached terminal
+#: states" -- so `completed` is the state one WANTS, and it is nevertheless unreliable: measured
+#: over 60 invocations on this account, 50 `completed` and 9 `scheduled`, interleaved across the
+#: whole timeline, with structurally identical runs landing differently and one sitting `scheduled`
+#: for 6.8 days with all ten jobs `ok` and `update_time` frozen at creation. Galaxy records the
+#: transition in a separate `workflow_invocation_completion` row (model/__init__.py), so an
+#: invocation whose completion hook never fires stays `scheduled` forever. Wait on the JOBS.
+SCHEDULING_IN_PROGRESS = ("new", "ready", "requires_materialization", "cancelling")
+
+#: JOB states where the job has not finished and the model may still change -- Galaxy's own
+#: `Job.non_ready_states` (model/__init__.py:1801-1808), copied rather than approximated.
+#:
+#: ⛔ THE APPROXIMATION WAS WRONG IN BOTH DIRECTIONS, and it was written out twice. Two drivers
+#: carried `("new", "queued", "running", "paused")` inline:
+#:
+#:   * it MISSED `waiting`, `resubmitted` and `upload`, so a job in one of those made the pending
+#:     set empty, the wait broke early, and the run was reported "⛔ jobs did not all succeed"
+#:     while still progressing. `resubmitted` is the live one -- public instances resubmit a job
+#:     that exceeded walltime to a larger destination, and WF-C's KegAlign step is exactly that
+#:     kind of job.
+#:   * it INCLUDED `paused`, which is neither terminal (`ok`/`error`/`deleted`) nor non-ready: a
+#:     paused job waits for a person. Polling it to the ceiling turned "this run is paused" into
+#:     "⛔ TIMED OUT", which reads like an infrastructure problem rather than a decision waiting to
+#:     be made. Leaving `paused` out means the wait ends and the verdict reports it, since the
+#:     verdict already fails anything that is not `ok`.
+JOBS_UNFINISHED = ("new", "resubmitted", "upload", "waiting", "queued", "running")
+
+
+def connect() -> GalaxyInstance:
+    """A client for the server `$WFA_SERVER` selects. See `galaxy_server.creds`.
+
+    ⛔ THIS READ PLAIN `GALAXY_URL` UNTIL 2026-09-10 AND SO COULD NOT SELECT A SERVER AT ALL, while
+    `stage_wfa_panel` selected one by suffix. A 219-genome panel was staged on vgp and then invoked
+    on main, because staging and invoking are different scripts and only one of them honoured the
+    variable. Six scripts call this, so all six were affected; nothing raised, because vgp shares
+    main's database and every id resolved on both.
+    """
+    from bioblend.galaxy import GalaxyInstance  # lazy: see the TYPE_CHECKING guard above
+
+    return GalaxyInstance(*galaxy_server.creds())
+
+
+def register_one(gi: GalaxyInstance, name: str) -> tuple[str, str, str]:
+    """Create ONE UDT from udt/<name>.gxtool.yml, returning (tool_id, version, uuid)."""
+    doc = yaml.safe_load((UDT_DIR / f"{name}.gxtool.yml").read_text(encoding="utf-8"))
+    # ⛔ REFUSE A NON-PEP-440 VERSION HERE RATHER THAN LET THE SERVER DO IT. The create comes back
+    # `400 Tool failed lint checks: ToolVersionPEP404`, which names a linter and not the field, and
+    # arrives after the run has already set up a history. Worse, this helper registers a LIST of
+    # tools: one bad version fails the batch partway, leaving the earlier tools registered and the
+    # workflow un-runnable. Say which file and which value, before anything is created.
+    if not pep440_ok(str(doc.get("version", ""))):
+        sys.exit(f"{name}.gxtool.yml: version {doc.get('version')!r} is not PEP 440, and "
+                 f"/api/unprivileged_tools refuses it (400 ToolVersionPEP404). Use a release "
+                 f"(`0.2.0`), a dev release (`0.1.0.dev1`) or a local version (`0.1.0+probe1`).")
+    # ⛔ REUSE AN IDENTICAL ACTIVE REGISTRATION INSTEAD OF MINTING A NEW ONE. This function used to
+    # POST unconditionally, and because it runs on EVERY workflow invocation, each run left behind
+    # one fresh uuid per UDT. Measured on vgp 2026-09-11: `brc-samtools-faidx` v0.2.0 had TEN active
+    # registrations at the SAME version, `brc-fastan-*` and `brc-lc-classify` nine each, 22
+    # (tool, version) pairs duplicated in total. It also made them all un-deactivatable, because
+    # each run created BOTH a registration and a stored workflow binding it -- so every stale uuid
+    # is "referenced by a workflow" and cleanup finds nothing to remove. The count grew linearly
+    # with runs, forever.
+    existing = _identical_registration(gi, doc)
+    if existing:
+        return doc["id"], str(doc["version"]), existing
+    created = gi.make_post_request(f"{gi.url}/unprivileged_tools",
+                                   payload={"representation": doc}, params={"key": gi.key})
+    return doc["id"], str(doc["version"]), created["uuid"]
+
+
+#: Fields that round-trip through `/api/unprivileged_tools` BYTE-IDENTICALLY, measured on vgp.
+#: These are also the fields that determine what the tool DOES: the code, the environment it runs
+#: in, and its identity. `inputs`/`outputs` are excluded deliberately -- see _identical_registration.
+_EXACT_FIELDS = ("id", "version", "class", "container", "shell_command", "requirements", "help")
+
+
+def _identical_registration(gi: GalaxyInstance, doc: dict) -> str | None:
+    """The uuid of an ACTIVE registration identical to `doc`, or None.
+
+    ⛔ MATCHING ON id + version WOULD BE ACTIVELY WRONG, WHICH IS WHY IT IS NOT DONE. An edit that
+    forgets to bump the version is exactly the drift `udt-drift` exists to catch; reusing on
+    id+version alone would then silently run STALE CODE under a current version number -- strictly
+    worse than the duplicate registrations this is fixing.
+
+    ⚠ AND EXACT EQUALITY OF THE WHOLE REPRESENTATION IS NOT AVAILABLE: the server normalises the
+    declarations on the way in. Measured, for one tool: `format: "fasta,fasta.gz"` comes back as
+    `["fasta", "fasta.gz"]`, a `value: false` default comes back as `None`, `optional: true` is
+    dropped, and an expanded `discover_datasets` block comes back abbreviated. Replicating that
+    normalisation here would be a second implementation of someone else's schema, drifting the
+    moment it changes.
+
+    ▶ SO THE COMPARISON IS EXACT ON THE FIELDS THAT ROUND-TRIP AND THAT DETERMINE BEHAVIOUR, plus
+    the input/output NAME SETS so a tool that gained an output is never mistaken for one that has
+    not. Anything else counts as different.
+
+    ⚠ IT FAILS SAFE BY CONSTRUCTION. A false "different" costs one duplicate registration -- the
+    behaviour this replaces, every time. A false "identical" would bind a workflow to the wrong
+    code, so every uncertainty resolves toward creating.
+    """
+    # ⚠ BROAD ON PURPOSE, AND IT FAILS TOWARD CREATING. bioblend raises its own ConnectionError and
+    # the JSON decode raises something else again; enumerating them here would make a NEW failure
+    # mode -- an unlisted exception escaping and aborting a registration that would otherwise have
+    # succeeded. Returning None costs one duplicate registration, which is exactly the behaviour
+    # this function replaces.
+    try:
+        body = gi.make_get_request(f"{gi.url}/unprivileged_tools").json()
+    except Exception:  # noqa: BLE001 -- see above: a probe that cannot run must not block a create
+        return None
+    if not isinstance(body, list):
+        return None
+    want_in = {str(i.get("name")) for i in (doc.get("inputs") or [])}
+    want_out = {str(o.get("name")) for o in (doc.get("outputs") or [])}
+    for t in body:
+        if not t.get("active", True):
+            continue
+        rep = t.get("representation") or {}
+        if any(rep.get(f) != doc.get(f) for f in _EXACT_FIELDS):
+            continue
+        if {str(i.get("name")) for i in (rep.get("inputs") or [])} != want_in:
+            continue
+        if {str(o.get("name")) for o in (rep.get("outputs") or [])} != want_out:
+            continue
+        return t.get("uuid")
+    return None
+
+
+def register_all(gi: GalaxyInstance, names: tuple[str, ...] = UDTS, verbose: bool = True) -> dict[str, str]:
+    """Create each UDT, returning {tool_id: uuid}.
+
+    ⚠ THERE IS NO UPDATE. Every create makes a NEW tool, so re-running this leaves the previous
+    definition beside the new one. That is Galaxy's behaviour, not a bug here, but it means the
+    uuid returned by THIS call is the only one guaranteed to match the YAML on disk -- never reuse
+    a uuid recorded by an earlier run after editing a definition.
+    """
+    mapping = {}
+    for name in names:
+        tool_id, version, uuid = register_one(gi, name)
+        mapping[tool_id] = uuid
+        if verbose:
+            print(f"  registered {tool_id:24} v{version} -> {uuid}")
+    if not verbose:
+        print(f"  registered {len(mapping)} UDT(s)")
+    return mapping
+
+
+def await_dataset(gi: GalaxyInstance, dataset_id: str, label: str, tries: int = 1200) -> None:
+    """Block until a dataset is ready, and DIE if it errored or never settled.
+
+    ⛔ `state in ("ok", "error")` IS NOT A READINESS TEST. It was used as one here, so an upload
+    that failed -- bad format detection, truncated transfer -- became a collection element and the
+    whole workflow ran on it. Exhausting the retries fell through just as silently.
+    """
+    state = "unknown"
+    for _ in range(tries):
+        state = gi.datasets.show_dataset(dataset_id)["state"]
+        if state == "ok":
+            return
+        if state in ("error", "discarded", "failed_metadata"):
+            info = gi.datasets.show_dataset(dataset_id).get("misc_info") or ""
+            sys.exit(f"{label} is in state {state!r} and cannot be used: {info[:200]}")
+        time.sleep(5)
+    sys.exit(f"{label} never became ready after {tries * 5}s (last state {state!r}).")
+
+
+def fasta_stats(text: str) -> tuple[int, int, int]:
+    """(sequences, residues, lowercase residues).
+
+    Callers that want only two of the three unpack and discard; this was two functions differing
+    solely in whether they counted headers.
+    """
+    seqs = res = low = 0
+    for line in text.splitlines():
+        if line.startswith(">"):
+            seqs += 1
+            continue
+        res += len(line)
+        low += sum(1 for c in line if "a" <= c <= "z")
+    return seqs, res, low
+
+
+class UpgradeMessagesRefused(RuntimeError):
+    """Galaxy refused an invocation because some step's `state:` leaves a parameter unset."""
+
+    def __init__(self, data: dict) -> None:
+        self.data = data
+        lines = [f"step {i}: {k}: {v}"
+                 for i in sorted(data, key=int) for k, v in sorted(data[i].items())]
+        super().__init__("Galaxy refused the invocation over unset parameters:\n  "
+                         + "\n  ".join(lines))
+
+
+def invoke(gi: GalaxyInstance, wf_id: str, inputs: dict, history_id: str,
+           use_cached_job: bool = False) -> dict:
+    """Invoke a workflow WITHOUT allow_tool_state_corrections, reporting what it would have hidden.
+
+    ⛔ THE FLAG WAS NEVER A FIX. `workflow/modules.py::populate_module_and_state` either raises on a
+    step's upgrade messages or, with the flag, calls `log.debug` -- to Galaxy's server log, which no
+    response exposes. Passing it does not settle which value a parameter takes; it only removes the
+    one place that would have told us the question was open. Every parameter this workflow's steps
+    can take is now named in softmask_udt.gxwf.yml, so there is nothing to silence, and a refusal
+    here is real news rather than noise to be switched off.
+
+    ⚠ THE REFUSAL IS THE ONLY RELIABLE AUDIT. Comparing a step's `state:` against the tool's
+    parameter list misses two shapes, both of which really occurred here: a parameter nested inside
+    a repeat's conditional, and an OPTIONAL `data` input, which Galaxy counts as unset exactly like
+    a required one -- leaving it unconnected is not the same as naming it null. Galaxy also raises
+    on the FIRST offending step only, so one refusal is a floor, not a census.
+
+    ⚠ `use_cached_job` MAKES A RE-INVOKE CHEAP, AND ITS PRECONDITION IS A TRAP. Galaxy reuses any
+    prior job with identical tool version, inputs and parameters instead of re-running it, which
+    turns a re-invoke over an already-staged panel into minutes instead of tens of core-hours. But
+    the cache judges a job by its STATE, not by its outputs -- and a job killed at the scheduler
+    level can land `state=ok` with `exit_code=None` and ZERO-BYTE outputs. Measured on vgp
+    2026-09-10: `scancel` on a wedged busco left the job green with an empty `failed_metadata`
+    dataset, and sourmash green with `max_containment` at 0 bytes. Re-invoking with the cache on
+    would have reused both of those broken jobs and reported success.
+    ⛔ SO BEFORE RE-INVOKING WITH THE CACHE, DELETE EVERY OUTPUT OF THE JOBS BEING REDONE -- all of
+    them, not just the ones the workflow wires into collections. An undeleted output is a cache hit.
+    """
+    try:
+        return gi.workflows.invoke_workflow(wf_id, inputs=inputs, history_id=history_id,
+                                            use_cached_job=use_cached_job)
+    except Exception as exc:
+        body = getattr(exc, "body", None)
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except ValueError:
+                body = None
+        data = body.get("err_data") if isinstance(body, dict) else None
+        if data:
+            raise UpgradeMessagesRefused(data) from exc
+        raise
+
+
+def _self_test() -> int:
+    """The reuse matcher, including the shapes it must REFUSE.
+
+    ⚠ A HAPPY-PATH TEST WOULD PASS WITH THE MATCHER WIDE OPEN, which is the failure mode that
+    matters here: reusing too eagerly binds a workflow to the wrong code, while reusing too rarely
+    only costs a duplicate registration. So every case below except the first is a refusal.
+    """
+    class _Fake:
+        url = "http://x/api"
+        key = "k"
+
+        def __init__(self, tools):
+            self._t = tools
+
+        def make_get_request(self, _u):
+            class _R:
+                def __init__(self, b):
+                    self._b = b
+
+                def json(self):
+                    return self._b
+            return _R(self._t)
+
+    doc = {"id": "t", "version": "1.0.0", "class": "GalaxyUserTool", "container": "c",
+           "shell_command": "run", "requirements": [], "help": {"format": "markdown", "content": "h"},
+           "inputs": [{"name": "in"}], "outputs": [{"name": "out"}]}
+    stored = {"uuid": "U1", "active": True,
+              # the server normalises declarations; the matcher must tolerate that and still match
+              "representation": {**doc, "inputs": [{"name": "in", "format": ["fasta"]}],
+                                 "outputs": [{"name": "out", "optional": None}]}}
+    gi = _Fake([stored])
+    assert _identical_registration(gi, doc) == "U1", "an identical registration must be reused"
+
+    # ⛔ the drift case: same id AND version, different code -- reusing here would run stale code
+    assert _identical_registration(gi, {**doc, "shell_command": "run --other"}) is None
+    # a changed container or requirement is a different environment
+    assert _identical_registration(gi, {**doc, "container": "c2"}) is None
+    assert _identical_registration(gi, {**doc, "requirements": [{"type": "resource", "ram_min": 8}]}) is None
+    # an added or removed port is a different interface
+    assert _identical_registration(gi, {**doc, "outputs": [{"name": "out"}, {"name": "extra"}]}) is None
+    assert _identical_registration(gi, {**doc, "inputs": []}) is None
+    # a DEACTIVATED registration is not a candidate, however identical
+    assert _identical_registration(_Fake([{**stored, "active": False}]), doc) is None
+    # an unusable listing must not block a registration
+    assert _identical_registration(_Fake({"err_msg": "nope"}), doc) is None
+
+    print("softmask_lib self-test: identical reuse, and refusals for changed code, container, "
+          "requirements, ports, deactivated tools and an unreadable listing")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(_self_test())
+

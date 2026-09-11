@@ -9,7 +9,13 @@
     </required_files>
     <version_command>python '$__tool_directory__/phase_e_consensus.py' --help | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
-mkdir -p stage &&
+mkdir -p stage beds &&
+## Native per-strain gene BEDs, keyed by strain. A projected annotation keeps the
+## REFERENCE gene's id, so without these the same physical gene enters the graph
+## twice and every group reports an inflated copy number.
+#for $b in $gene_beds#
+ln -s '$b' 'beds/${b.element_identifier}.bed' &&
+#end for#
 ## Rebuild the {anchor}-as-ref/{query}.classification.tsv tree from the
 ## nested list:list collection (outer element = anchor, inner = query).
 ## The bundled script globs this tree by filename, so each inner element
@@ -23,20 +29,31 @@ ln -s '$q' 'stage/${a.element_identifier}-as-ref/${q.element_identifier}.classif
 python '$__tool_directory__/phase_e_consensus.py'
     --liftoff_dir stage
     --rbest '$rbest'
+#if $graph#
     --graph '$graph'
+#end if#
     --anchors '$anchors'
     --strains '$strains'
     --ref '$ref'
+    --gene-beds 'beds/*.bed'
+    --alias-overlap '$alias_overlap'
     --output '$ortholog_table'
     ]]></command>
     <inputs>
         <param name="classifications" type="data_collection" collection_type="list:list" format="tabular,tsv"
                label="Per-anchor classification tables (list:list)"
                help="A nested 'list:list' collection. The OUTER element identifier is the anchor strain name; each INNER element identifier is a query strain name and its dataset is that query's Phase C.4 classification.tsv (columns reference_gene_id, query_gene_id, source, intactness, query_chrom, query_start, query_end, ...). The tool rebuilds the {anchor}-as-ref/{query}.classification.tsv directory tree the script expects."/>
+        <param name="gene_beds" type="data_collection" collection_type="list" format="bed"
+               label="Per-strain native gene BEDs"
+               help="The gene_bed collection, element identifier = strain. Used to map each projected gene back onto the native gene at the same locus. A projection carries the REFERENCE gene's id (Liftoff writes PVPAM_130008300 into PvC01's GFF), so without this every projection becomes a second node for a locus that already has one and max_copies -- which the labels key on -- is inflated."/>
+        <param name="alias_overlap" type="float" value="0.5" min="0.0" max="1.0"
+               label="Projected-to-native reciprocal overlap"
+               help="How much a projected gene must overlap a native gene to be called the same gene. On the 2026-06-12 data 36.9% of projections sit at 1.0 and 16.0% overlap no native gene at all; the rest form a gradient, so this knob decides how much of it is merged. Lower values recover more single-copy orthologs but merge on weaker positional evidence."/>
         <param argument="--rbest" type="data" format="tabular,tsv" label="Reciprocal-best chain edges"
                help="rbest_edges.tsv (columns strain_a, gene_a, strain_b, gene_b, ...). Each row unions the two (strain, gene) nodes."/>
-        <param argument="--graph" type="data" format="tabular,tsv" label="Graph co-membership edges"
-               help="graph_edges.tsv (columns strain_a, gene_a, strain_b, gene_b, ...). Each row unions the two (strain, gene) nodes."/>
+        <param argument="--graph" type="data" format="tabular,tsv" optional="true"
+               label="Graph co-membership edges (optional)"
+               help="graph_edges.tsv from a pggb/odgi graph. Optional. On the 2026-06-12 data the graph contributed zero edges, and running with no graph at all yields the same 5,731 orthogroups gene for gene, so the pipeline no longer depends on WF-D."/>
         <param argument="--anchors" type="text" value="" label="Anchor strain list"
                help="Space-separated anchor strain names. Each must match an outer element identifier of the classification collection.">
             <validator type="regex" message="Space-separated names: letters, digits, underscore, hyphen, dot">[A-Za-z0-9_.\- ]+</validator>

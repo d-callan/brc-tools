@@ -32,6 +32,7 @@ inputs:
       Directed per-(hinge,query) AXT alignments from Phase C.1, oriented so the
       hinge is the AXT target. Outer list element_identifier = hinge strain;
       inner list element_identifier = query strain.
+    position: {top: 0, left: 0}
   target_sizes:
     type: collection
     collection_type: "list:list"
@@ -39,26 +40,32 @@ inputs:
       Per-(hinge,query) target chrom .sizes (Phase B), paired with pairwise_axts
       by the same outer=hinge / inner=query identifiers. axtToMaf needs the
       target (hinge) and query .sizes for each pair.
+    position: {top: 120, left: 0}
   query_sizes:
     type: collection
     collection_type: "list:list"
     doc: >
       Per-(hinge,query) query chrom .sizes (Phase B), outer=hinge / inner=query.
+    position: {top: 240, left: 0}
   compare_csv:
     type: data
     doc: >
       Phase A sourmash compare.csv N x N similarity matrix. Whole-collection
       (non-mapped) input; multiz_fold orders the fold DESCENDING (closest first).
+    position: {top: 390, left: 300}
   hinge_names:
     type: collection
     collection_type: list
     doc: >
-      One text dataset per hinge whose element_identifier == the hinge strain
-      name, parallel to the outer dimension of pairwise_axts. Used to feed the
-      multiz_fold --hinge scalar per map-over job. (See README: this parallel
-      label collection is the gxformat2 workaround for deriving the hinge name
-      from a map-over identifier.)
+      One text dataset per hinge, parallel to the outer dimension of
+      pairwise_axts, whose element_identifier is the hinge strain name and whose
+      CONTENT is that same name on one line. multiz_fold reads the content.
+      Galaxy cannot route a map-over element identifier into a text parameter --
+      connecting this collection to one substitutes the repr of the element
+      object, which is how every fold in the 2026-06-13 runs died -- so the name
+      travels as data instead.
 
+    position: {top: 510, left: 300}
 steps:
   axt_to_maf:
     tool_id: ucsc_axtomaf
@@ -83,33 +90,39 @@ steps:
       t_prefix: ""
       q_prefix: ""
     ## MAP-OVER GAP: production impl/10_multiz.sh sets -tPrefix="{hinge}."
-    ## -qPrefix="{query}." so s-lines read H.chr / Q.chr (WF-K then renames
-    ## strain s-lines to GenBank). These prefixes are per-element scalars that
-    ## must be derived from the map-over element identifiers, which gxformat2
-    ## cannot do inside a pure map-over (same limitation that forces the
-    ## hinge_names parallel-label collection). Left empty here; verified live
-    ## that multiz_fold's ordering (multiz_order.py) keys ONLY on the MAF
-    ## collection element_identifiers + compare.csv labels, NOT the s-line
-    ## prefixes, so the fold still composes correctly with empty prefixes.
-    ## To restore the production "strain.chrom" s-line naming, supply t_prefix /
-    ## q_prefix per-element (e.g. parallel label collections like hinge_names).
+    ## -qPrefix="{query}." so s-lines read H.chr / Q.chr. Those prefixes are
+    ## per-element scalars derived from the map-over element identifiers, which
+    ## gxformat2 cannot supply inside a pure map-over, so they stay empty here
+    ## and axtToMaf emits bare contig accessions (QMFC01000014.1).
+    ##
+    ## An earlier note here concluded the fold "still composes correctly with
+    ## empty prefixes" on the grounds that multiz_order.py keys only on element
+    ## identifiers and compare.csv labels. The ordering claim holds; the
+    ## conclusion does not. multiz itself identifies a species by the text
+    ## before the first "." in src, so bare accessions read as one species per
+    ## contig. multiz_fold now restores the strain.contig naming as it stages
+    ## each pairwise MAF -- it knows the query from the element identifier and
+    ## the hinge from hinge_names -- which keeps axtToMaf a stock IUC tool.
     out:
       - out
 
+    position: {top: 100, left: 300}
   multiz_fold:
     tool_id: multiz_fold
     doc: >
       Maps over the OUTER hinge dimension: each job receives one hinge's full
       inner list of per-query MAFs as pairwise_mafs, plus compare.csv and the
-      hinge name. Folds closest-first by DESCENDING sourmash similarity. OUR
-      wrapper (tool_id multiz_fold).
+      hinge label. Folds closest-first by DESCENDING sourmash similarity, and
+      rewrites each pairwise MAF's src names to strain.contig on the way in.
+      OUR wrapper (tool_id multiz_fold).
     in:
       pairwise_mafs: axt_to_maf/out
       compare_csv: compare_csv
-      hinge: hinge_names
+      hinge_label: hinge_names
     out:
       - folded_maf
 
+    position: {top: 370, left: 600}
 outputs:
   multiz_mafs:
     outputSource: multiz_fold/folded_maf

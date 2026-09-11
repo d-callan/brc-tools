@@ -1,0 +1,93 @@
+<tool id="collection_anchor_grid" name="Collection anchor grid" version="1.0+galaxy0" profile="23.0">
+    <description>anchor x query chain selection + relabel map for the TOGA2 pass</description>
+    <requirements>
+        <requirement type="package" version="3.12">python</requirement>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+python '$__tool_directory__/anchor_grid.py'
+    --anchors-file '$anchors_file'
+    --strains-file '$strains_file'
+    --keep '$keep'
+    --relabel '$relabel'
+    --order '$order'
+    ]]></command>
+    <!--
+        ONE IDENTIFIER PER LINE, NOT SPACE-JOINED, SO THE TWO EDITIONS CANNOT DISAGREE.
+        This used to build `#echo " ".join(...)#` into an inline argument and the script split it
+        on whitespace, which destroys the one thing it was carrying: an element identifier
+        containing a space (Galaxy permits one) arrived as several identifiers. Measured: one
+        anchor `P knowlesi H` against a three strain panel produced a NINE row keep list naming
+        chains that do not exist, exit 0, while the User Defined Tool edition (handed the
+        identifiers as a file, because a UDT has no Cheetah) produced the correct two. The
+        script's whitespace refusal could never fire on that path, because the split had already
+        happened, so the guard covered the port and not the wrapper it is supposed to mirror.
+        A configfile carries the identifiers verbatim and both editions now take the same route.
+    -->
+    <configfiles>
+        <configfile name="anchors_file">#for $el in $anchors#${el.element_identifier}
+#end for#</configfile>
+        <configfile name="strains_file">#for $el in $strains#${el.element_identifier}
+#end for#</configfile>
+    </configfiles>
+    <inputs>
+        <param name="anchors" type="data_collection" collection_type="list"
+               label="Anchor collection"
+               help="Genomes that donate annotation. Their element identifiers form the target side of the wanted chains."/>
+        <param name="strains" type="data_collection" collection_type="list"
+               label="Strain (query) collection"
+               help="The full panel. Anchors must also appear here, since WF-C only produced chains for panel members."/>
+    </inputs>
+    <outputs>
+        <data name="keep" format="txt" label="${tool.name} on ${on_string}: chain ids to keep"/>
+        <data name="relabel" format="tabular" label="${tool.name} on ${on_string}: chain relabel map"/>
+        <data name="order" format="txt" label="${tool.name} on ${on_string}: grid order"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="3">
+            <param name="anchors">
+                <collection type="list">
+                    <element name="A" value="empty.txt"/>
+                    <element name="B" value="empty.txt"/>
+                </collection>
+            </param>
+            <param name="strains">
+                <collection type="list">
+                    <element name="A" value="empty.txt"/>
+                    <element name="B" value="empty.txt"/>
+                    <element name="C" value="empty.txt"/>
+                </collection>
+            </param>
+            <!-- 2 anchors x 3 strains = 6 cells, minus the 2 self-cells = 4 -->
+            <output name="keep" value="keep.txt" ftype="txt"/>
+            <output name="relabel" value="relabel.tsv" ftype="tabular"/>
+            <output name="order" value="order.txt" ftype="txt"/>
+        </test>
+    </tests>
+    <help><![CDATA[
+Bridges WF-C's chain collection onto WF-C2's projection grid.
+
+WF-C emits one cleaned chain per ordered strain pair, keyed ``{target}.{query}``
+(56 cells for 8 strains). WF-C2's grid is anchors x strains with the anchor
+self-cells dropped, keyed ``{anchor}_{query}`` (21 cells for 3 anchors x 8
+strains). TOGA2's ``--chain_file`` is the reference-to-query chain and its
+reference is the anchor, so cell ``{anchor}_{query}`` needs the chain whose
+**target** is the anchor, i.e. ``{anchor}.{query}``.
+
+This emits the two files that bridge them:
+
+- **chain ids to keep** — one ``{anchor}.{query}`` per line, for
+  ``__FILTER_FROM_FILE__`` with ``remove_if_absent``.
+- **chain relabel map** — ``{anchor}.{query}<TAB>{anchor}_{query}``, for
+  ``__RELABEL_FROM_FILE__``.
+- **grid order** — ``{anchor}_{query}`` in cross-product order, for
+  ``__SORTLIST__`` with ``sort_type: file``. Galaxy pairs collections in a
+  map-over by **position**, not by identifier: the other grids are in
+  anchor-collection order while chains filtered out of WF-C keep WF-C's
+  alphabetical order, so without this every cell receives another cell's chain.
+
+Both are derived from the two collections' element identifiers, so a new panel
+needs no hand-authored config. Fails loudly if an anchor is not also a member of
+the strain collection, since WF-C would never have produced its chains.
+    ]]></help>
+    <citations/>
+</tool>

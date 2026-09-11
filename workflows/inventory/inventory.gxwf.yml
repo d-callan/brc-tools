@@ -26,24 +26,71 @@ inputs:
     type: collection
     collection_type: list
     doc: >-
-      Per-strain protein FASTAs (parallel to assemblies, keyed by strain).
-      BUSCO runs -m prot, so it MUST map over proteins, not assemblies.
+      Protein FASTAs for the panel members that HAVE an annotation, keyed by strain. ⚠ A SUBSET of
+      `assemblies`, not parallel to it: BUSCO runs -m prot so it needs a protein FASTA, while
+      sourmash and faidx need only sequence. A panel whose members are not all annotated is the
+      expected case — the rest get genes from WF-C2 by projection, which is what those workflows
+      are for. One protein per gene, because BUSCO reads `duplicated` straight off the file.
     position: {top: 380, left: 300}
+  sourmash_containment:
+    type: boolean
+    default: false
+    doc: >-
+      Also publish a containment matrix. OFF by default -- see `containment_matrix`.
   busco_lineage:
     type: string
-    default: apicomplexa_odb10
-    doc: BUSCO lineage dataset (species-configurable, e.g. <clade>_odb10).
+    default: apicomplexa_odb12
+    doc: >-
+      BUSCO lineage dataset, species-configurable. ⛔ THE SUFFIX MUST MATCH THE CACHED DATABASE
+      THE `busco` STEP RESOLVES AGAINST, and `_odb10` names are NOT valid under the one the tool
+      now defaults to. usegalaxy.org 2026-09-03 offers all-odb12 (495 lineages, the tool default),
+      all-odb10 (193) and v5 (67); `apicomplexa_odb10` appears only in the latter two, so the
+      previous default could not be selected at all. ⚠ Names also changed between releases --
+      odb10's `eudicots` is odb12's `eudicotyledons` -- so this is not a matter of editing the
+      digits. For a non-Plasmodium panel pick the narrowest lineage that contains the organism:
+      odb12 reaches order level for many clades (e.g. `rosales_odb12` for Cannabaceae) where
+      odb10 stopped at `eudicots_odb10`.
     position: {top: 500, left: 300}
+  anchor_gene_gff3s:
+    type: collection
+    collection_type: list
+    doc: >-
+      Curated gene GFF3 for each anchor, keyed by anchor name. A subset of the
+      panel, so this collection is shorter than assemblies. anchor_prep derives
+      the BED12 and the isoforms table from it, which WF-C2 needs.
+    position: {top: 620, left: 300}
 outputs:
   similarity_matrix:
     outputSource: sourmash_compare/output
+  containment_matrix:
+    outputSource: sourmash_compare/containment_matrix
+  max_containment_matrix:
+    outputSource: sourmash_compare/max_containment_matrix
+    doc: >-
+      Symmetric max-containment matrix. ⚠ ABSENT unless `sourmash_containment` is true, and it
+      ERASES a size difference: a perfect subset scores 1.00. Read alongside
+      `similarity_matrix` -- the gap between them is what identifies a contained member.
+  max_containment_heatmap:
+    outputSource: sourmash_compare/max_containment_heatmap
+    doc: Clustered heatmap over the symmetric size-robust matrix. Absent unless requested.
+  max_containment_dendrogram:
+    outputSource: sourmash_compare/max_containment_dendrogram
+    doc: The size-robust tree. Absent unless requested.
+    doc: >-
+      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
+      true. Not interchangeable with `similarity_matrix`: Jaccard divides by the union and so
+      scores a size difference as distance, which on a mixed-size panel is the wrong ordering
+      for WF-I to fold on.
     doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
   signatures:
     outputSource: sourmash_sketch/output
     doc: Per-strain sourmash signatures (.sig), BRC-reusable.
   busco_summaries:
     outputSource: busco/busco_sum
-    doc: Per-strain BUSCO short summaries.
+    doc: >-
+      BUSCO short summaries, keyed by PROTEOME and so shorter than `assemblies` — correct, not a
+      partial run. It measures ANNOTATION completeness, so a genome with no annotation has no
+      entry.
   sourmash_heatmap:
     outputSource: sourmash_compare/heatmap
     doc: Clustered sourmash similarity heatmap (PNG; hierarchical clustering).
@@ -55,13 +102,28 @@ outputs:
     doc: MultiQC HTML — per-strain BUSCO completeness + the sourmash clustered heatmap & dendrogram.
   sizes:
     outputSource: panel_sizes/out_file1
-    doc: Per-strain .sizes (chrom<TAB>length), derived from assemblies; reused by C/D/I/J.
+    doc: Per-strain .sizes (chrom<TAB>length), derived from assemblies; consumed by WF-C.
   self_pairs:
     outputSource: panel_self_pairs/output
     doc: One X_X per strain (WF-C alignment-grid diagonal to exclude).
   relabel_map:
     outputSource: panel_relabel_map/output
-    doc: A_B<TAB>A.B for every ordered pair (Phase E ids; WF-C relabel).
+    doc: A_B<TAB>A.B per distinct ordered pair (Phase E ids; WF-C relabel).
+  anchor_bed12s:
+    outputSource: anchor_prep/bed12
+    doc: >-
+      Per-anchor protein-coding BED12, with the GENE id in column 4 (WF-C2 triage/merge reference
+      bed and TOGA2 --ref_annotation). ⛔ NOT the transcript id, which is what this doc said until
+      it was checked against the tool: gffread --bed writes the transcript there and
+      `build_anchor_inputs.py` rewrites the column to the gene id, because `phase_c4_merge` keys
+      its reference gene set off column 4 (brc-tools Finding F3). The UDT edition's doc had it
+      right; this one did not.
+  anchor_isoforms:
+    outputSource: anchor_prep/isoforms
+    doc: >-
+      Per-anchor gene<TAB>transcript table (TOGA2 --isoform_file). Derived from
+      the same GFF3 as the BED12 in the same step, so the two cannot disagree
+      on transcript ids.
 
 steps:
   sourmash_sketch:
@@ -89,6 +151,7 @@ steps:
       integer `ksize`; emits CSV via `--csv`. Validated e2e 2026-06-07.
     in:
       signatures: sourmash_sketch/output
+      containment: sourmash_containment
     state:
       ksize: 31
     position: {top: 690, left: 600}
@@ -102,13 +165,26 @@ steps:
       input: proteomes
       lineage|lineage_dataset: busco_lineage
     state:
-      # Real IUC busco schema (5.8.0+galaxy2): mode is the test_param of the
-      # `busco_mode` conditional, NOT a top-level `mode` key. lineage_dataset is
-      # a SELECT populated by the busco lineage data manager; on this server it
-      # has ZERO options (verified 2026-06-07: busco_database.loc empty) and the
-      # data_manager_fetch_busco tool is NOT installed, so select_lineage cannot
-      # run until that DM is installed and fetches <lineage>_odb10. Also: inputs
-      # must be proteomes (-m prot); test_data ships only genomes.
+      # Real IUC busco schema: mode is the test_param of the `busco_mode`
+      # conditional, NOT a top-level `mode` key. Inputs must be proteomes
+      # (-m prot); test_data ships only genomes.
+      #
+      # ⚠ THE LINEAGE SITUATION HAS CHANGED SINCE THIS COMMENT WAS WRITTEN. It
+      # recorded (2026-06-07) that busco_database.loc was EMPTY, the fetch data
+      # manager was absent, and select_lineage therefore could not run. On
+      # usegalaxy.org as of 2026-09-03 that is no longer so: three cached
+      # databases are installed (all-odb12 2026-03-20, all-odb10 2026-03-19, v5)
+      # carrying 755 lineage options between them, and select_lineage works.
+      #
+      # ⛔ `cached_db` IS DELIBERATELY LEFT UNSET, AND THAT IS A CHOICE WORTH
+      # SEEING. It is a top-level tool parameter naming WHICH cached database the
+      # lineage select is filtered against, and it currently defaults to
+      # all-odb12-2026-03-20-145944. Leaving it unset keeps this workflow
+      # portable to instances holding a different set, but it also means the
+      # lineage the run actually resolves depends on the server's default on the
+      # day -- and a `busco_lineage` valid on one instance is unselectable on
+      # another. Pinning it would trade that away for reproducibility; see the
+      # PR discussion.
       busco_mode:
         mode: prot
       lineage:
@@ -206,3 +282,40 @@ steps:
           tags: name:wfc_sizes
         action_type: TagDatasetAction
         output_name: out_file1
+  anchor_prep:
+    tool_id: anchor_prep
+    label: anchor_prep
+    doc: >-
+      Derives the two annotation artefacts WF-C2 needs from each anchor's GFF3:
+      a protein-coding BED12 (gffread --bed, filtered) and a gene<TAB>transcript
+      isoforms table (Parent/ID of every mRNA feature). Both come out of one
+      call on one GFF3, which is what guarantees their transcript ids agree --
+      TOGA2 cannot tie projections back to genes otherwise. Previously these
+      were built outside Galaxy and staged by hand.
+    in:
+      input: anchor_gene_gff3s
+    out:
+      bed12: {}
+      isoforms: {}
+    position: {top: 620, left: 600}
+    post_job_actions:
+      RenameDatasetActionbed12:
+        action_arguments:
+          newname: 'WF-C2 input: anchor_bed12s'
+        action_type: RenameDatasetAction
+        output_name: bed12
+      TagDatasetActionbed12:
+        action_arguments:
+          tags: name:wfc2_anchor_bed12
+        action_type: TagDatasetAction
+        output_name: bed12
+      RenameDatasetActionisoforms:
+        action_arguments:
+          newname: 'WF-C2 input: anchor_isoforms'
+        action_type: RenameDatasetAction
+        output_name: isoforms
+      TagDatasetActionisoforms:
+        action_arguments:
+          tags: name:wfc2_anchor_isoforms
+        action_type: TagDatasetAction
+        output_name: isoforms

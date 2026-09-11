@@ -41,14 +41,18 @@ chainPreNet → chainNet → netChainSubset → chainStitchId = **20 directed cl
 chains** (both directions come straight from the cross product). The
 reciprocal-best branch (swap → sort → chainNet with swapped sizes → subset →
 stitch → swap → sort) yields the rbest chains. `relabel_from_file` rewrites both
-to `A.B`.
+to `A.B`, in **strict** mode: an element the map does not cover fails the step
+rather than keeping its `A_B` name, which is the only way a map built from the
+wrong collection can be caught. That requires `relabel_map` to have exactly one
+row per element, so it omits the `A_A` diagonal the self-pair filter removes —
+20 rows here, not 25.
 
 | Input | Type | Source |
 |---|---|---|
 | `masked_fastas` | list | WF-B softmasked FASTAs (id=strain) |
 | `sizes` | list | WF-A `.sizes` (id=strain) |
 | `self_pairs` | txt | strain self-pair ids `X_X` to exclude (WF-A) |
-| `relabel_map` | tabular | `A_B<TAB>A.B` id map for Phase E (WF-A) |
+| `relabel_map` | tabular | `A_B<TAB>A.B` id map for Phase E, no diagonal (WF-A) |
 
 **Outputs:** `cleaned_chains` (20, id `A.B`), `rbest_chains` (id `A.B`),
 `pairwise_axt`.
@@ -60,15 +64,27 @@ to `A.B`.
 > exact GT parity, add a `__FILTER_FROM_FILE__` reducing the rbest branch to an
 > `A<B` id set.
 
-## WF-C2 — `project_annotations` (Liftoff-only)
+## WF-C2 — `project_annotations` (Liftoff + TOGA2 rescue)
 
 `cross_product_flat(anchor_assemblies, assemblies)` builds the anchor×query grid
 (3×5 = 15 cells; plus parallel grids for the anchor GFF/BED12 and query
 softmasked FASTA, all keyed `anchor_query` and mutually aligned) → filter 3 self
 → 12. The anchor self-cell id list (`A_A`) is generated **internally** by
 `collection_self_pairs` on the anchor element identifiers (no input file).
-Liftoff → phase_c2_triage → phase_c4_merge (`use_toga: no`) map over the grid →
-**12 merged annotations + 12 classification tables**.
+Liftoff → phase_c2_triage → phase_c4_merge map over the grid. Genes that fail
+triage are **not** dropped: `toga2` re-projects them with CESAR2 over WF-C's
+cleaned chains, and the merge folds both passes (`use_toga: yes`), tagging each
+call `source=liftoff` or `source=cesar2` with a TOGA2 intactness class.
+
+`collection_anchor_grid` bridges the two workflows. WF-C emits one cleaned chain
+per ordered strain pair keyed `{target}.{query}`; this grid is keyed
+`{anchor}_{query}`. TOGA2's `--chain_file` is reference-to-query with the anchor
+as reference, so cell `{anchor}_{query}` needs chain `{anchor}.{query}`. The tool
+emits the selection list and rename map from the two collections' element
+identifiers — no hand-authored config per panel.
+
+**Pass 1 alone needs nothing from WF-C**: Liftoff aligns each gene itself. The
+`cleaned_chains` input exists solely for the rescue pass.
 
 `query_name` is a constant label: per-element scalars derived from a map-over
 identifier are not expressible in gxformat2, but the per-cell query *data* is
@@ -81,16 +97,23 @@ id, not the internal label.
 | `anchor_gene_gff3s` | list | anchor `gene.gff3` (gene-level types renamed to `gene`; Liftoff default mode finds zero `gene` features in the native `protein_coding_gene`/`ncRNA_gene`/`pseudogene` GFF3) |
 | `anchor_bed12s` | list | anchor BED12 (triage/merge ref-bed) |
 | `assemblies` | list | query unmasked FASTAs (Liftoff target = query) |
-| `query_masked` | list | query softmasked FASTAs (triage query-fasta; WF-B) |
+| `query_masked` | list | query softmasked FASTAs (triage query-fasta, TOGA2 `--query_2bit`; WF-B) |
+| `anchor_masked` | list | anchor softmasked FASTAs (TOGA2 `--ref_2bit`; WF-B) |
+| `anchor_isoforms` | list | anchor gene→transcript tables (TOGA2 `--isoform_file`; `anchor_prep`) |
+| `cleaned_chains` | list | cleaned chains for every ordered pair, id `target.query` (WF-C) |
 
 **Outputs:** `merged_annotations` (12, id `anchor_query`), `classifications` (12).
 
-> **TOGA2 note.** This one-click form is **Liftoff-only**, matching the
-> ground-truth run (which fell back to Liftoff-only because the TOGA1 image was
-> unpullable). The TOGA2 v2.0.8 rescue branch (`toga2.py run` over the full
-> anchor BED12 + cleaned chain, merged with `use_toga: yes`) is a per-anchor
-> add-on; it is GPU-independent but CPU/IO-heavy and container-only
-> (`toga2:local`), so it is not wired into the one-click map-over here.
+> **TOGA2 note.** The rescue pass is wired in and on. It is container-only —
+> no bioconda package, no biocontainer — and runs from an Apptainer SIF built
+> from upstream's def, pinned to v2.0.8 (the tag the wrapper's CLI mapping and
+> output schema were verified against). It is GPU-independent but CPU/IO-heavy:
+> **82 minutes for a single cell** on 16 cores, driving its own Nextflow
+> pipeline with the local executor inside one allocation.
+>
+> Verified on PvW1→PvP01: 16,874 classification rows against 10,782 for Liftoff
+> alone — 4,707 `liftoff`/`I` plus 6,092 `cesar2` (FI 3,906, L 1,876, UL 170,
+> I 135, PI 5). The full 21-cell grid has not yet been run with it enabled.
 
 ## History
 

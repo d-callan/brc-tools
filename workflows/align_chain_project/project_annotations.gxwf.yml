@@ -30,7 +30,7 @@ inputs:
   anchor_bed12s:
     type: collection
     collection_type: list
-    doc: anchor BED12 (triage/merge ref-bed), id=anchor
+    doc: anchor BED12 (triage/merge ref-bed; WF-A anchor_prep), id=anchor
     position: {top: 20, left: 20}
   assemblies:
     type: collection
@@ -42,6 +42,21 @@ inputs:
     collection_type: list
     doc: query softmasked FASTAs (triage query-fasta; WF-B), id=strain
     position: {top: 40, left: 40}
+  anchor_masked:
+    type: collection
+    collection_type: list
+    doc: anchor softmasked FASTAs (TOGA2 --ref_2bit; WF-B), id=anchor
+    position: {top: 50, left: 50}
+  anchor_isoforms:
+    type: collection
+    collection_type: list
+    doc: anchor gene<TAB>transcript tables (TOGA2 --isoform_file; WF-A anchor_prep), id=anchor
+    position: {top: 60, left: 60}
+  cleaned_chains:
+    type: collection
+    collection_type: list
+    doc: cleaned chains for every ordered strain pair (WF-C), id=target.query
+    position: {top: 70, left: 70}
 steps:
   # anchor self-cells (A_A) to exclude from the projection grid — generated
   # internally from the anchor_assemblies element identifiers (no input file).
@@ -165,19 +180,157 @@ steps:
       liftoff_clean_gff3: {}
       summary_json: {}
     position: {top: 150, left: 150}
+  # --- TOGA2 rescue (pass 2) -------------------------------------------
+  # Liftoff handles the clean majority; TOGA2/CESAR2 re-projects the rest via
+  # the chain alignment, and classifies intactness properly (I/PI/UL/PG/L/M/FI)
+  # rather than the pass/fail Liftoff gives. This is where WF-C's chains enter:
+  # everything above this point is independent of WF-C.
+
+  # anchor softmasked FASTA per grid cell (TOGA2 --ref_2bit)
+  p_grid_ancmask:
+    tool_id: __CROSS_PRODUCT_FLAT__
+    in:
+      input_a: anchor_masked
+      input_b: query_masked
+    out:
+      output_a: {}
+      output_b: {}
+    position: {top: 170, left: 170}
+  p_anc_masked:
+    tool_id: __FILTER_FROM_FILE__
+    in:
+      input: p_grid_ancmask/output_a
+      how|filter_source: gen_anchor_self_pairs/output
+    state:
+      how:
+        how_filter: remove_if_present
+    out:
+      output_filtered: {}
+    position: {top: 180, left: 180}
+
+  # anchor isoforms table per grid cell (TOGA2 --isoform_file)
+  p_grid_iso:
+    tool_id: __CROSS_PRODUCT_FLAT__
+    in:
+      input_a: anchor_isoforms
+      input_b: assemblies
+    out:
+      output_a: {}
+      output_b: {}
+    position: {top: 190, left: 190}
+  p_anc_iso:
+    tool_id: __FILTER_FROM_FILE__
+    in:
+      input: p_grid_iso/output_a
+      how|filter_source: gen_anchor_self_pairs/output
+    state:
+      how:
+        how_filter: remove_if_present
+    out:
+      output_filtered: {}
+    position: {top: 200, left: 200}
+
+  # WF-C emits 56 chains keyed {target}.{query}; this grid needs the 21 whose
+  # target is an anchor, renamed to {anchor}_{query} so they line up cell for
+  # cell with everything above. Both id lists are derived from the collections.
+  gen_chain_grid:
+    tool_id: collection_anchor_grid
+    in:
+      anchors: anchor_assemblies
+      strains: assemblies
+    out:
+      keep: {}
+      relabel: {}
+      order: {}
+    position: {top: 210, left: 210}
+  p_chain_keep:
+    tool_id: __FILTER_FROM_FILE__
+    in:
+      input: cleaned_chains
+      how|filter_source: gen_chain_grid/keep
+    state:
+      how:
+        how_filter: remove_if_absent
+    out:
+      output_filtered: {}
+    position: {top: 220, left: 220}
+  p_chain:
+    tool_id: __RELABEL_FROM_FILE__
+    in:
+      input: p_chain_keep/output_filtered
+      how|labels: gen_chain_grid/relabel
+    state:
+      # the relabel map is 2-column old<TAB>new; without how_select: tabular the
+      # tool reads the file as a positional list and takes the whole line as the
+      # new identifier. Matches WF-C's relabel_cleaned / relabel_rbest steps.
+      how:
+        how_select: tabular
+        # ⛔ STRICT, AND THE COUNTS WERE MEASURED BEFORE SETTING IT. Galaxy takes
+        # `default = None if strict else element_identifier`, so with strict off an
+        # element the map does not cover keeps its `A.B` name and the step still
+        # succeeds -- and TOGA2 downstream is keyed on the `A_B` form. Strict also
+        # compares row count against element count, which is why this needed
+        # checking rather than copying from WF-C: `gen_chain_grid` writes `keep`
+        # and `relabel` from ONE pairs list and `p_chain_keep` filters with
+        # `remove_if_absent` against that same `keep`, so the survivors equal the
+        # rows -- 21 and 21 for the documented 3-anchor, 8-strain panel.
+        # ⚠ IT REFUSES WHEN WF-C LEFT A GRID CELL UNPRODUCED (20 against 21), and
+        # that is the point: without strict the projection runs on an incomplete
+        # grid and reports success. scripts/check_relabel_strict.py checks both.
+        strict: true
+    out:
+      output: {}
+    position: {top: 230, left: 230}
+  # Galaxy pairs collections in a map-over by POSITION, not by element
+  # identifier. Every other grid here comes from __CROSS_PRODUCT_FLAT__ and is
+  # in anchor-collection order; a chain collection filtered out of WF-C keeps
+  # WF-C's alphabetical order. Without this sort each cell is handed another
+  # cell's chain, TOGA2 reports "Processed 0 chains" and exits -- and since the
+  # identifiers are all correct, nothing looks wrong.
+  p_chain_sort:
+    tool_id: __SORTLIST__
+    in:
+      input: p_chain/output
+      sort_type|sort_file: gen_chain_grid/order
+    state:
+      sort_type:
+        sort_type: file
+    out:
+      output: {}
+    position: {top: 235, left: 235}
+
+  p_toga2:
+    tool_id: toga2
+    in:
+      ref_bed12: p_anc_bed/output_filtered
+      chain: p_chain_sort/output
+      ref_fasta: p_anc_masked/output_filtered
+      query_fasta: p_qry_masked/output_filtered
+      isoforms: p_anc_iso/output_filtered
+    out:
+      loss_summary: {}
+      orthology_classification: {}
+      query_annotation: {}
+      query_genes: {}
+    position: {top: 240, left: 240}
+
   p_merge:
     tool_id: phase_c4_merge
     in:
       liftoff_clean: p_triage/liftoff_clean_gff3
       ref_bed: p_anc_bed/output_filtered
+      toga|loss_summary: p_toga2/loss_summary
+      toga|orthology: p_toga2/orthology_classification
+      toga|query_annotation: p_toga2/query_annotation
+      toga|query_genes: p_toga2/query_genes
     state:
       query: query
       toga:
-        use_toga: 'no'
+        use_toga: 'yes'
     out:
       annotation_gff3: {}
       classification_tsv: {}
-    position: {top: 160, left: 160}
+    position: {top: 250, left: 250}
 outputs:
   merged_annotations:
     outputSource: p_merge/annotation_gff3

@@ -1,0 +1,110 @@
+global:
+  default_inherits: default
+
+tools:
+  default:
+    cores: 1
+    mem: 4
+    scheduling:
+      require: [slurm]
+  (.*bwa.*|.*bowtie.*|.*spades.*|.*unicycler.*|.*trinity.*|.*assembl.*):
+    cores: 16
+    mem: 120
+    rules:
+      - if: input_size >= 50
+        cores: 20
+        mem: 220
+        scheduling:
+          require: [bigmem]
+
+  # KegAlign — GPU seeding aligner (Phase C). Routed to the A5000 nodes via the
+  # 'gpu' destination. slurm-drmaa 1.0.8 can't pass --gres, and cgroup has no
+  # ConstrainDevices, so GPU access only needs the job to LAND on node02/03.
+  # cores=12 on 20-core nodes => at most ONE kegalign per node => one per GPU
+  # (the exclusivity that --gres=gpu:1 would otherwise provide).
+  (.*kegalign.*):
+    cores: 12
+    mem: 40
+    scheduling:
+      require: [gpu]
+
+  # batched_lastz runs lastz --parallel=GALAXY_SLOTS. Reference used xargs -P 16;
+  # match it so repeat-heavy pairs don't serialize (default 2 cores was ~8x slow).
+  (.*batched_lastz.*):
+    cores: 16
+    mem: 24
+
+  # hyphy is AVX-compiled; node01/node04 (Ivy Bridge) lack AVX2 -> SIGILL.
+  # Pin BUSTED to the Cascade Lake AVX2/AVX512 nodes.
+  (.*hyphy.*|.*busted.*):
+    cores: 1
+    mem: 8
+    scheduling:
+      require: [avx2]
+
+  # PGGB pangenome graph build (Phase D) + sub-steps — CPU heavy.
+  (.*pggb.*|.*wfmash.*|.*seqwish.*|.*smoothxg.*):
+    cores: 16
+    mem: 64
+
+
+  # TOGA2 ortholog rescue (Phase C.4 pass 2). TOGA2 drives itself with Nextflow;
+  # we let that run with the LOCAL executor inside a single fat allocation rather
+  # than letting it submit its own SLURM jobs, so the whole run is one Galaxy job.
+  #
+  # Pinned to node02/node03 for the same reason as hyphy: the container is built
+  # on the head node (AVX2) while node01/node04 are Ivy Bridge without AVX2.
+  # node03 has 245 GB, node02 119 GB, so 100 GB fits either.
+  (.*toga2.*):
+    cores: 16
+    mem: 100
+    # NOT pinned to the avx2 nodes: the verified PvW1->PvP01 run executed on
+    # node01 (Ivy Bridge, no AVX2) with ~800 CESAR tasks all exiting 0 and no
+    # SIGILL, so CESAR2 does not need AVX2 and pinning would halve throughput
+    # for the 21-cell grid. hyphy still requires it -- that SIGILL is real.
+    params:
+      singularity_enabled: true
+      # Galaxy's dataset, job-working and tmp dirs all live under /data.
+      singularity_volumes: "$job_directory:rw,$tool_directory:ro,$job_directory/outputs:rw,$working_directory:rw,/data:rw"
+      # Nextflow must not try to reach a scheduler from inside the container.
+      singularity_run_extra_arguments: "--env NXF_EXECUTOR=local --env NXF_ANSI_LOG=false"
+
+destinations:
+  slurm:
+    runner: slurm
+    max_accepted_cores: 24
+    max_accepted_mem: 245
+    scheduling:
+      accept: [slurm]
+    params:
+      nativeSpecification: "--nodes=1 --ntasks=1 --cpus-per-task={cores} --mem={int(round(mem*1024))}"
+
+  gpu:
+    runner: slurm
+    max_accepted_cores: 20
+    max_accepted_mem: 245
+    scheduling:
+      accept: [slurm, gpu]
+    params:
+      nativeSpecification: "--nodes=1 --ntasks=1 --cpus-per-task={cores} --mem={int(round(mem*1024))} --nodelist=node02,node03"
+
+  # AVX2-only nodes. node01/node04 are Ivy Bridge (no AVX2); node02/node03 are
+  # Xeon W-2255. Selected with `scheduling: require: [avx2]`.
+  avx2:
+    runner: slurm
+    max_accepted_cores: 20
+    max_accepted_mem: 245
+    scheduling:
+      accept: [slurm, avx2]
+    params:
+      nativeSpecification: "--nodes=1 --ntasks=1 --cpus-per-task={cores} --mem={int(round(mem*1024))} --nodelist=node02,node03"
+
+  # The 245 GB node, for jobs that need more memory than the others have.
+  bigmem:
+    runner: slurm
+    max_accepted_cores: 20
+    max_accepted_mem: 245
+    scheduling:
+      accept: [slurm, bigmem]
+    params:
+      nativeSpecification: "--nodes=1 --ntasks=1 --cpus-per-task={cores} --mem={int(round(mem*1024))} --nodelist=node03"

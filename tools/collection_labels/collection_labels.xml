@@ -1,0 +1,41 @@
+<tool id="collection_labels" name="Collection element labels" version="1.0.0+galaxy0" profile="24.0">
+    <description>one dataset per element, holding that element's identifier</description>
+    <command detect_errors="aggressive"><![CDATA[
+printf '%s\n' '$input.element_identifier' > '$label'
+    ]]></command>
+    <inputs>
+        <param name="input" type="data" format="data"
+               label="Collection to label"
+               help="Map this over a collection. Each job writes its element's identifier to a one-line dataset, so the output is a parallel collection carrying the names as DATA."/>
+    </inputs>
+    <outputs>
+        <data name="label" format="txt" label="${on_string}: ${input.element_identifier}"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="1">
+            <param name="input" value="a.txt" ftype="txt"/>
+            <output name="label">
+                <assert_contents>
+                    <has_line line="a"/>
+                    <has_n_lines n="1"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help format="markdown"><![CDATA[
+**Collection element labels** — turn element identifiers into data.
+
+Galaxy cannot route a collection element identifier into a text parameter. Connect
+a collection to one and you get the internal representation of the element object
+rather than its name — which is how every fold in WF-I's 2026-06-13 runs died.
+
+The workaround is to carry the name as a dataset. Map this tool over a collection
+and each job writes its own element identifier to a one-line file, giving a
+parallel collection whose contents are the names. A downstream tool then reads the
+name from the file.
+
+That is what `multiz_fold`'s `hinge_label` input expects, and this replaces the
+hand-built `hinge_names` collection that previously had to be uploaded.
+    ]]></help>
+    <citations/>
+</tool>

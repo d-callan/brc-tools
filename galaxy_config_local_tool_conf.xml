@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<toolbox tool_path="/home/anton/git/brc-tools/tools" monitor="true">
+<toolbox tool_path="/data/galaxy_local/tools" monitor="true">
   <section id="pangenome_input" name="Pangenome :: Input prep">
     <tool file="pansn_rename/pansn_rename.xml"/>
     <tool file="fasta_concat/fasta_concat.xml"/>
@@ -31,6 +31,11 @@
   <section id="pangenome_masking" name="Pangenome :: Masking / repeats">
     <tool file="sdust/sdust.xml"/>
     <tool file="longdust/longdust.xml"/>
+    <tool file="dustmasker/dustmasker.xml"/>
+    <tool file="windowmasker/windowmasker.xml"/>
+    <tool file="tantan/tantan.xml"/>
+    <tool file="fastan/fastan.xml"/>
+    <tool file="masking_table/masking_table.xml"/>
   </section>
   <section id="pangenome_maf" name="Pangenome :: MAF / multiz">
     <tool file="process_maf/process_maf.xml"/>
@@ -47,6 +52,10 @@
     <tool file="toga2/toga2.xml"/>
   </section>
   <section id="pangenome_collections" name="Pangenome :: Collection helpers">
+    <tool file="collection_self_pairs/collection_self_pairs.xml"/>
+    <tool file="collection_labels/collection_labels.xml"/>
+    <tool file="collection_relabel_map/collection_relabel_map.xml"/>
+    <tool file="collection_anchor_grid/collection_anchor_grid.xml"/>
   </section>
   <section id="pangenome_phylo" name="Pangenome :: Phylogenetics">
     <tool file="iqtree3/iqtree3.xml"/>

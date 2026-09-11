@@ -1,0 +1,183 @@
+{
+ "history": "cb183a1d519b63a2",
+ "invocation": "e37f25bfb58457fb",
+ "state": "completed",
+ "steps": {
+  "axt_to_maf": {
+   "order": 5,
+   "outputs": [
+    {
+     "bytes": 357509717,
+     "collection_type": "list:list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "maf",
+     "kind": "collection",
+     "name": "out",
+     "note": "357,509,717 bytes; showing the first lines only",
+     "shown": "PvP01 / PvW1",
+     "text": "##maf version=1 scoring=blastz\n# lastz.v1.04.22 --allocate:traceback=1.99G --format=axt --output=tmp3.block0.r0.plus.split1.axt --segments=tmp3.block0.r0.plus.split1.segments --strand=plus --gappedthresh=6000 --inner=2000 --ydrop=15000 \n#\n# hsp_threshold      = 3000\n# gapped_threshold   = 6000\n# x_drop             = 910\n# y_drop             = 15000\n# gap_open_penalty   = 400\n# gap_extend_penalty = 30\n#        A    C    G    T\n#   A   91 -114  -31 -123\n#   C -114  100 -125  -31",
+     "truncated": true
+    }
+   ]
+  },
+  "compare_csv": {
+   "order": 3,
+   "outputs": [
+    {
+     "bytes": 1151,
+     "ext": "csv",
+     "kind": "dataset",
+     "name": "output",
+     "text": "MHC087,PAM,PvC01,PvP01,PvSY56,PvT01,PvW1,Sal-I\n1.0,0.6361469475315079,0.6271564370379064,0.6375850949480473,0.23472783154258425,0.6282403712571311,0.6410990269032627,0.6488820979762387\n0.6361469475315079,1.0,0.680527657022935,0.6861826697892272,0.24052037111738606,0.6699859032422543,0.6894827268822483,0.6989800781622343\n0.6271564370379064,0.680527657022935,1.0,0.6806051691531835,0.2366700638842626,0.6736619634458534,0.698729305394343,0.6795597288725825\n0.6375850949480473,0.6861826697892272,0.6806051691531835,1.0,0.23971237542576007,0.6848754771859662,0.6854314783035058,0.6828107767449189\n0.23472783154258425,0.24052037111738606,0.2366700638842626,0.23971237542576007,1.0,0.23818241091355918,0.24230612452868644,0.25170501287052516\n0.6282403712571311,0.6699859032422543,0.6736619634458534,0.6848754771859662,0.23818241091355918,1.0,0.6838800146323619,0.6740941859376463\n0.6410990269032627,0.6894827268822483,0.698729305394343,0.6854314783035058,0.24230612452868644,0.6838800146323619,1.0,0.6932532967208404\n0.6488820979762387,0.6989800781622343,0.6795597288725825,0.6828107767449189,0.25170501287052516,0.6740941859376463,0.6932532967208404,1.0",
+     "total_lines": 9,
+     "truncated": false
+    }
+   ]
+  },
+  "hinge_names": {
+   "order": 4,
+   "outputs": [
+    {
+     "bytes": 6,
+     "collection_type": "list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "txt",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01",
+     "text": "PvP01",
+     "total_lines": 1,
+     "truncated": false
+    }
+   ]
+  },
+  "multiz_fold": {
+   "order": 6,
+   "outputs": [
+    {
+     "bytes": 1934247974,
+     "collection_type": "list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "maf",
+     "kind": "collection",
+     "name": "folded_maf",
+     "note": "1,934,247,974 bytes; showing the first lines only",
+     "shown": "PvP01",
+     "text": "##maf version=1 scoring=multiz\n# multiz.v11.2 ./multiz_tmp_2umP8M.maf pairs/PvSY56.maf 1 \n# multiz.v11.2 ./multiz_tmp_LaN77M.maf pairs/MHC087.maf 1 \n# multiz.v11.2 ./multiz_tmp_DuCtO5.maf pairs/PvC01.maf 1 \n# multiz.v11.2 ./multiz_tmp_I4JAMs.maf pairs/Sal-I.maf 1 \n# multiz.v11.2 ./multiz_tmp_62YmB7.maf pairs/PvT01.maf 1 \n# multiz.v11.2 pairs/PAM.maf pairs/PvW1.maf 1 \n# lastz.v1.04.22 --allocate:traceback=1.99G --format=axt --output=tmp3.block0.r0.plus.split1.axt --segments=tmp3.block0.r0.plus.split1.segments --strand=plus --gappedthresh=6000 --inner=2000 --ydrop=15000 \n#\n# hsp_threshold      = 3000\n# gapped_threshold   = 6000\n# x_drop             = 910",
+     "truncated": true
+    }
+   ]
+  },
+  "pairwise_axts": {
+   "order": 0,
+   "outputs": [
+    {
+     "bytes": 101031025,
+     "collection_type": "list:list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "axt.gz",
+     "kind": "collection",
+     "name": "output",
+     "note": "axt.gz, 101,031,025 bytes",
+     "shown": "PvP01 / PvW1"
+    }
+   ]
+  },
+  "query_sizes": {
+   "order": 2,
+   "outputs": [
+    {
+     "bytes": 485,
+     "collection_type": "list:list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "tabular",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01 / PvW1",
+     "text": "CAJZCX010000001.1\t34526\nCAJZCX010000002.1\t5994\nCAJZCX010000003.1\t3726833\nCAJZCX010000004.1\t3659351\nCAJZCX010000005.1\t2525149\nCAJZCX010000006.1\t2251416\nCAJZCX010000007.1\t2236137\nCAJZCX010000008.1\t2117118\nCAJZCX010000009.1\t1871636\nCAJZCX010000010.1\t1817621\nCAJZCX010000011.1\t1739391\nCAJZCX010000012.1\t1363284",
+     "total_lines": 19,
+     "truncated": true
+    }
+   ]
+  },
+  "target_sizes": {
+   "order": 1,
+   "outputs": [
+    {
+     "bytes": 4899,
+     "collection_type": "list:list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "tabular",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01 / PvW1",
+     "text": "LT635626.1\t29582\nLT635627.1\t5989\nLT635612.2\t1021664\nLT635613.2\t956327\nLT635614.2\t896704\nLT635615.1\t1012024\nLT635616.2\t1524814\nLT635617.2\t1042791\nLT635618.2\t1652210\nLT635619.1\t1761288\nLT635620.2\t2237066\nLT635621.2\t1548844",
+     "total_lines": 242,
+     "truncated": true
+    }
+   ]
+  }
+ },
+ "when": "2026-08-05",
+ "workflow": "I"
+}

@@ -20,7 +20,16 @@ sourmash sketch dna
                help="Nucleotide FASTA for one assembly, plain or gzipped. One DNA signature is produced."/>
     </inputs>
     <outputs>
-        <data name="output" format="json" label="${tool.name} on ${on_string}: signature (k=31, scaled=1000)"/>
+        <!-- ⛔ `sourmash.sig`, NOT `json`, AND THE DIFFERENCE IS ONE-DIRECTIONAL.
+             Galaxy's registry makes SourmashSignature a SUBCLASS of Json, so a
+             `sourmash.sig` dataset satisfies any `json` input — but `json` does NOT
+             satisfy a `sourmash.sig` input, and there is NO CONVERTER in either
+             direction. IUC's sourmash_compare declares `format="sourmash.sig"`, so a
+             signature published as `json` cannot be piped into it at all: the datatype
+             has to be changed by hand. Emitting the subclass costs nothing and keeps
+             both consumers reachable. Requires Galaxy >= 25.0, where the datatype
+             landed; @PROFILE@ is 26.0, so that floor is already declared. -->
+        <data name="output" format="sourmash.sig" label="${tool.name} on ${on_string}: signature (k=31, scaled=1000)"/>
     </outputs>
     <tests>
         <test expect_num_outputs="1">

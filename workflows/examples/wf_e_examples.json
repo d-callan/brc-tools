@@ -1,0 +1,256 @@
+{
+ "history": "6bba8e615983c09d",
+ "invocation": "feb4114d4f866b50",
+ "state": "completed",
+ "steps": {
+  "c4_classifications": {
+   "order": 0,
+   "outputs": [
+    {
+     "bytes": 1055933,
+     "collection_type": "list",
+     "element_ids": [
+      "PvW1_PvP01",
+      "PvW1_PAM",
+      "PvW1_PvSY56",
+      "PvW1_Sal-I",
+      "PvW1_PvT01",
+      "PvW1_PvC01",
+      "PvW1_MHC087",
+      "PAM_Sal-I",
+      "PvSY56_PvP01",
+      "PvSY56_PvW1",
+      "PvSY56_PAM",
+      "PvSY56_Sal-I",
+      "PvSY56_PvT01",
+      "PvSY56_PvC01",
+      "PvSY56_MHC087"
+     ],
+     "elements": 15,
+     "ext": "tabular",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvW1_PvP01",
+     "text": "reference_gene_id\tquery_gene_id\tsource\tintactness\tquery_chrom\tquery_start\tquery_end\tquery_strand\torthology_class\nPVW1_000015400\tPVW1_000015400\tliftoff\tI\tFLZR02000001.1\t136113\t137215\t+\tliftoff_clean\nPVW1_000015800\tPVW1_000015800\tliftoff\tI\tFLZR02000001.1\t157615\t158300\t+\tliftoff_clean\nPVW1_000022600\tPVW1_000022600\tliftoff\tI\tFLZR02000001.1\t177088\t178336\t-\tliftoff_clean\nPVW1_000022700\tPVW1_000022700\tliftoff\tI\tFLZR02000001.1\t180421\t181585\t-\tliftoff_clean\nPVW1_130005200\tPVW1_130005200\tliftoff\tI\tFLZR02000001.1\t192877\t194048\t-\tliftoff_clean\nPVW1_000016100\tPVW1_000016100\tliftoff\tI\tFLZR02000001.1\t261211\t262567\t-\tliftoff_clean\nPVW1_000016300\tPVW1_000016300\tliftoff\tI\tFLZR02000001.1\t270017\t271223\t-\tliftoff_clean\nPVW1_000019800\tPVW1_000019800\tliftoff\tI\tFLZR02000001.1\t286772\t287952\t-\tliftoff_clean\nPVW1_100021700\tPVW1_100021700\tliftoff\tI\tFLZR02000002.1\t115703\t116964\t-\tliftoff_clean\nPVW1_100021800\tPVW1_100021800\tliftoff\tI\tFLZR02000002.1\t120928\t122336\t-\tliftoff_clean\nPVW1_100021900\tPVW1_100021900\tliftoff\tI\tFLZR02000002.1\t127867\t129283\t-\tliftoff_clean",
+     "total_lines": 16875,
+     "truncated": true
+    }
+   ]
+  },
+  "cls_nested": {
+   "order": 10,
+   "outputs": [
+    {
+     "bytes": 1055933,
+     "collection_type": "list:list",
+     "element_ids": [
+      "PvW1",
+      "PAM",
+      "PvSY56"
+     ],
+     "elements": 3,
+     "ext": "tabular",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvW1 / PvP01",
+     "text": "reference_gene_id\tquery_gene_id\tsource\tintactness\tquery_chrom\tquery_start\tquery_end\tquery_strand\torthology_class\nPVW1_000015400\tPVW1_000015400\tliftoff\tI\tFLZR02000001.1\t136113\t137215\t+\tliftoff_clean\nPVW1_000015800\tPVW1_000015800\tliftoff\tI\tFLZR02000001.1\t157615\t158300\t+\tliftoff_clean\nPVW1_000022600\tPVW1_000022600\tliftoff\tI\tFLZR02000001.1\t177088\t178336\t-\tliftoff_clean\nPVW1_000022700\tPVW1_000022700\tliftoff\tI\tFLZR02000001.1\t180421\t181585\t-\tliftoff_clean\nPVW1_130005200\tPVW1_130005200\tliftoff\tI\tFLZR02000001.1\t192877\t194048\t-\tliftoff_clean\nPVW1_000016100\tPVW1_000016100\tliftoff\tI\tFLZR02000001.1\t261211\t262567\t-\tliftoff_clean\nPVW1_000016300\tPVW1_000016300\tliftoff\tI\tFLZR02000001.1\t270017\t271223\t-\tliftoff_clean\nPVW1_000019800\tPVW1_000019800\tliftoff\tI\tFLZR02000001.1\t286772\t287952\t-\tliftoff_clean\nPVW1_100021700\tPVW1_100021700\tliftoff\tI\tFLZR02000002.1\t115703\t116964\t-\tliftoff_clean\nPVW1_100021800\tPVW1_100021800\tliftoff\tI\tFLZR02000002.1\t120928\t122336\t-\tliftoff_clean\nPVW1_100021900\tPVW1_100021900\tliftoff\tI\tFLZR02000002.1\t127867\t129283\t-\tliftoff_clean",
+     "total_lines": 16875,
+     "truncated": true
+    }
+   ]
+  },
+  "cls_ok": {
+   "order": 8,
+   "outputs": [
+    {
+     "bytes": 1055933,
+     "collection_type": "list",
+     "element_ids": [
+      "PvW1_PvP01",
+      "PvW1_PAM",
+      "PvW1_PvSY56",
+      "PvW1_Sal-I",
+      "PvW1_PvT01",
+      "PvW1_PvC01",
+      "PvW1_MHC087",
+      "PAM_Sal-I",
+      "PvSY56_PvP01",
+      "PvSY56_PvW1",
+      "PvSY56_PAM",
+      "PvSY56_Sal-I",
+      "PvSY56_PvT01",
+      "PvSY56_PvC01",
+      "PvSY56_MHC087"
+     ],
+     "elements": 15,
+     "ext": "tabular",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvW1_PvP01",
+     "text": "reference_gene_id\tquery_gene_id\tsource\tintactness\tquery_chrom\tquery_start\tquery_end\tquery_strand\torthology_class\nPVW1_000015400\tPVW1_000015400\tliftoff\tI\tFLZR02000001.1\t136113\t137215\t+\tliftoff_clean\nPVW1_000015800\tPVW1_000015800\tliftoff\tI\tFLZR02000001.1\t157615\t158300\t+\tliftoff_clean\nPVW1_000022600\tPVW1_000022600\tliftoff\tI\tFLZR02000001.1\t177088\t178336\t-\tliftoff_clean\nPVW1_000022700\tPVW1_000022700\tliftoff\tI\tFLZR02000001.1\t180421\t181585\t-\tliftoff_clean\nPVW1_130005200\tPVW1_130005200\tliftoff\tI\tFLZR02000001.1\t192877\t194048\t-\tliftoff_clean\nPVW1_000016100\tPVW1_000016100\tliftoff\tI\tFLZR02000001.1\t261211\t262567\t-\tliftoff_clean\nPVW1_000016300\tPVW1_000016300\tliftoff\tI\tFLZR02000001.1\t270017\t271223\t-\tliftoff_clean\nPVW1_000019800\tPVW1_000019800\tliftoff\tI\tFLZR02000001.1\t286772\t287952\t-\tliftoff_clean\nPVW1_100021700\tPVW1_100021700\tliftoff\tI\tFLZR02000002.1\t115703\t116964\t-\tliftoff_clean\nPVW1_100021800\tPVW1_100021800\tliftoff\tI\tFLZR02000002.1\t120928\t122336\t-\tliftoff_clean\nPVW1_100021900\tPVW1_100021900\tliftoff\tI\tFLZR02000002.1\t127867\t129283\t-\tliftoff_clean",
+     "total_lines": 16875,
+     "truncated": true
+    }
+   ]
+  },
+  "consensus": {
+   "order": 12,
+   "outputs": [
+    {
+     "bytes": 834643,
+     "ext": "tabular",
+     "kind": "dataset",
+     "name": "ortholog_table",
+     "text": "orthogroup_id\tlabel\tn_strains\tmax_copies\tclique\tdensity\tPvP01\tPvW1\tPAM\tPvSY56\tPvT01\tPvC01\tMHC087\nOG000001\tCORE-VAR\t7\t822\t0.629\t0.0007\tPVP01_0001490,PVP01_0001500,PVP01_0001530,PVP01_0001630,PVP01_0001640,PVP01_0001660,PVP01_0001750,PVP01_0001790,PVP01_0001800,PVP01_0001820,PVP01_0001850,PVP01_0001870,PVP01_0001890,PVP01_0001910,PVP01_0001950,PVP01_0001960,PVP01_0001980,PVP01_0001990,PVP01_0002000,PVP01_0002010,PVP01_0002020,PVP01_0002040,PVP01_0002050,PVP01_0002060,PVP01_0002100,PVP01_0002130,PVP01_0002140,PVP01_0002160,PVP01_0002180,PVP01_0002240,PVP01_0002260,PVP01_0002280,PVP01_0002290,PVP01_0002310,PVP01_0002320,PVP01_0002330,PVP01_0002340,PVP01_0002350,PVP01_0002370,PVP01_0002380,PVP01_0002390,PVP01_0002400,PVP01_0002420,PVP01_0002430,PVP01_0002460,PVP01_0002480,PVP01_0002490,PVP01_0002510,PVP01_0002530,PVP01_0002540,PVP01_0002570,PVP01_0002580,PVP01_0002660,PVP01_0002670,PVP01_0002680,PVP01_0002690,PVP01_0002700,PVP01_0002720,PVP01_0002760,PVP01_0002790,PVP01_0002850,PVP01_0002860,PVP01_0003020,PVP01_0003030,PVP01_0003040,PVP01_0003080,PVP01_0003090,PVP01_0003130,PVP01_0003160,PVP01_0003240,PVP01_0003270,PVP01_0003280,PVP01_0003340,PVP01_0003350,PVP01_0003430,PVP01_0003470,PVP01_0003490,PVP01_0003520,PVP01_0003530,PVP01_0003540,PVP01_0003560,PVP01_0003610,PVP01_0003620,PVP01_0003660,PVP01_0003670,PVP01_0003680,PVP01_0003690,PVP01_0003720,PVP01_0003880,PVP01_0004000,PVP01_\n...",
+     "total_lines": 5517,
+     "truncated": true
+    }
+   ]
+  },
+  "gene_bed": {
+   "order": 9,
+   "outputs": [
+    {
+     "bytes": 272806,
+     "collection_type": "list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "bed",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01",
+     "text": "FLZR02000001.1\t52\t669\tPVP01_0000010\nFLZR02000001.1\t2796\t3513\tPVP01_0000020\nFLZR02000001.1\t7306\t10065\tPVP01_0000030\nFLZR02000001.1\t10223\t12567\tPVP01_0000040\nFLZR02000001.1\t14214\t16428\tPVP01_0000050\nFLZR02000001.1\t19749\t20668\tPVP01_0000060\nFLZR02000001.1\t22289\t24167\tPVP01_0000070\nFLZR02000001.1\t25134\t26442\tPVP01_0000080\nFLZR02000001.1\t29657\t31833\tPVP01_0000090\nFLZR02000001.1\t32764\t38478\tPVP01_0000100\nFLZR02000001.1\t39886\t40931\tPVP01_0000110\nFLZR02000001.1\t42849\t44718\tPVP01_0000120",
+     "total_lines": 6846,
+     "truncated": true
+    }
+   ]
+  },
+  "native_annotations": {
+   "order": 2,
+   "outputs": [
+    {
+     "bytes": 7974714,
+     "collection_type": "list",
+     "element_ids": [
+      "PvP01",
+      "PvW1",
+      "PAM",
+      "PvSY56",
+      "Sal-I",
+      "PvT01",
+      "PvC01",
+      "MHC087"
+     ],
+     "elements": 8,
+     "ext": "gff3",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01",
+     "text": "##gff-version 3\n##species http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=9000000036\n##sequence-region PvP01_01_v2 1 1021664\n##sequence-region PvP01_02_v2 1 956327\n##sequence-region PvP01_03_v2 1 896704\n##sequence-region PvP01_04_v2 1 1012024\n##sequence-region PvP01_05_v2 1 1524814\n##sequence-region PvP01_06_v2 1 1042791\n##sequence-region PvP01_07_v2 1 1652210\n##sequence-region PvP01_08_v2 1 1761288\n##sequence-region PvP01_09_v2 1 2237066\n##sequence-region PvP01_10_v2 1 1548844",
+     "total_lines": 57451,
+     "truncated": true
+    }
+   ]
+  },
+  "rbest_chains": {
+   "order": 1,
+   "outputs": [
+    {
+     "bytes": 681629,
+     "collection_type": "list",
+     "element_ids": [
+      "PvP01.PvW1",
+      "PvP01.PAM",
+      "PvP01.PvSY56",
+      "PvP01.Sal-I",
+      "PvP01.PvT01",
+      "PvP01.PvC01",
+      "PvP01.MHC087",
+      "PvW1.PvP01",
+      "PvW1.PAM",
+      "PvW1.PvSY56",
+      "PvW1.Sal-I",
+      "PvW1.PvT01",
+      "PvW1.PvC01",
+      "PvW1.MHC087",
+      "PAM.PvP01",
+      "PAM.PvW1",
+      "PAM.PvSY56",
+      "PAM.Sal-I",
+      "PAM.PvT01",
+      "PAM.PvC01",
+      "PAM.MHC087",
+      "PvSY56.PvP01",
+      "PvSY56.PvW1",
+      "PvSY56.PAM",
+      "PvSY56.Sal-I",
+      "PvSY56.PvT01",
+      "PvSY56.PvC01",
+      "PvSY56.MHC087",
+      "Sal-I.PvP01",
+      "Sal-I.PvW1",
+      "Sal-I.PAM",
+      "Sal-I.PvSY56",
+      "Sal-I.PvT01",
+      "Sal-I.PvC01",
+      "Sal-I.MHC087",
+      "PvT01.PvP01",
+      "PvT01.PvW1",
+      "PvT01.PAM",
+      "PvT01.PvSY56",
+      "PvT01.Sal-I",
+      "PvT01.PvC01",
+      "PvT01.MHC087",
+      "PvC01.PvP01",
+      "PvC01.PvW1",
+      "PvC01.PAM",
+      "PvC01.PvSY56",
+      "PvC01.Sal-I",
+      "PvC01.PvT01",
+      "PvC01.MHC087",
+      "MHC087.PvP01",
+      "MHC087.PvW1",
+      "MHC087.PAM",
+      "MHC087.PvSY56",
+      "MHC087.Sal-I",
+      "MHC087.PvT01",
+      "MHC087.PvC01"
+     ],
+     "elements": 56,
+     "ext": "chain",
+     "kind": "collection",
+     "name": "output",
+     "shown": "PvP01.PvW1",
+     "text": "chain 293884749 LT635625.2 3153402 + 54 3151230 CAJZCX010000003.1 3726833 + 60825 3232427 1\n362\t1\t0\n1687\t0\t1\n5243\t18\t0\n14421\t0\t1\n1735\t1\t0\n680\t0\t1\n1539\t0\t1\n5809\t0\t1\n20\t0\t1\n303\t0\t1\n590\t2\t0",
+     "total_lines": 87224,
+     "truncated": true
+    }
+   ]
+  },
+  "rbest_overlap": {
+   "order": 11,
+   "outputs": [
+    {
+     "bytes": 8694907,
+     "ext": "tabular",
+     "kind": "dataset",
+     "name": "rbest_edges",
+     "text": "strain_a\tgene_a\tstrain_b\tgene_b\toverlap_a\toverlap_b\nPvC01\tPVC01_140005100\tMHC087\tPVP01_0010340_0\t0.996\t1.000\nPvC01\tPVC01_140005300\tMHC087\tPVP01_0009940_0\t0.990\t1.000\nPvC01\tPVC01_140008300\tMHC087\tPVP01_1402900_0\t0.975\t1.000\nPvC01\tPVC01_140008500\tMHC087\tPVP01_1403100_0\t1.000\t1.000\nPvC01\tPVC01_140009200\tMHC087\tPVP01_1403800_0\t1.000\t1.000\nPvC01\tPVC01_140010100\tMHC087\tPVP01_1404700_0\t1.000\t0.958\nPvC01\tPVC01_140010900\tMHC087\tPVP01_1405500_0\t1.000\t1.000\nPvC01\tPVC01_140012800\tMHC087\tPVP01_1407400_0\t0.995\t1.000\nPvC01\tPVC01_140013400\tMHC087\tPVP01_1408000_0\t0.999\t1.000\nPvC01\tPVC01_140013800\tMHC087\tPVP01_1408400_0\t1.000\t1.000\nPvC01\tPVC01_140015000\tMHC087\tPVP01_1409600_0\t0.999\t1.000",
+     "total_lines": 155758,
+     "truncated": true
+    }
+   ]
+  }
+ },
+ "when": "2026-08-05",
+ "workflow": "E"
+}

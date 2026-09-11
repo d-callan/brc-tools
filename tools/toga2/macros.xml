@@ -10,18 +10,29 @@
         that runs Nextflow over real genome alignments.
 
         The upstream hillerlab/TOGA2 repo ships ONLY an apptainer/Singularity
-        def (supply/containers/apptainer.def), no published Docker image.
-        We translated that def into a Dockerfile (FROM continuumio/anaconda3)
-        and built a LOCAL image tagged `toga2:local`. The Galaxy container
-        resolver picks this up from the local Docker daemon. Replace with a
-        digest-pinned reference (`ghcr.io/.../toga2@sha256:...`) once an
-        upstream Docker image is published.
+        def (supply/containers/apptainer.def); there is no published Docker
+        image, no bioconda package and no biocontainer, so this tool cannot
+        resolve through conda like the rest of this repo.
+
+        We build a SIF from the upstream def, pinned to the v2.0.8 tag that the
+        wrapper's CLI mapping and output schema were verified against (upstream
+        main is already past v2.0.9; re-verify before moving the pin), and
+        place it on shared storage so every compute node sees one copy:
+
+            apptainer build toga2-2.0.8.sif tools/toga2/toga2-2.0.8.def
+
+        That def is in this directory. It is upstream's with the clone pinned
+        to the v2.0.8 tag and apt forced to IPv4; see its header for why.
+
+        Deployments that keep the image elsewhere only need to override this
+        token. Replace with a digest-pinned `docker://` reference once an
+        upstream image is published.
     -->
-    <token name="@TOGA_IMAGE@">toga2:local</token>
+    <token name="@TOGA_IMAGE@">/data/containers/toga2-2.0.8.sif</token>
 
     <xml name="requirements">
         <requirements>
-            <container type="docker">@TOGA_IMAGE@</container>
+            <container type="singularity">@TOGA_IMAGE@</container>
         </requirements>
     </xml>
 

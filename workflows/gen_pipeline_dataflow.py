@@ -22,6 +22,11 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # id -> (relative file, phase letter, column index, short title)
+# Workflows that have been reviewed and have a detail page with real run evidence
+# behind every node. gen_pipeline_io_map.py imports this and builds one tab per
+# entry, so the two pages cannot disagree about what has been vetted.
+VETTED = ["A", "B", "C", "C2", "E", "I"]
+
 WF_META = {
     "A":  ("workflows/inventory/inventory.gxwf.yml",                     "A",  0, "WF-A inventory"),
     "B":  ("workflows/softmask/softmask.gxwf.yml",                       "B",  0, "WF-B softmask"),
@@ -54,12 +59,22 @@ COL = {
 
 # Curated inter-workflow data edges: (from_wf, from_output, to_wf, to_input)
 # Source = each consuming workflow's own input doc (e.g. WF-C masked_fastas "(WF-B)").
+#
+# An edge here says "this output is the intended source for that input". It does
+# NOT promise the two collections have compatible shapes, which is why STAGED
+# below records the ones that still need a human in between.
 EDGES = [
     ("A", "sizes", "C", "sizes"),
     ("A", "self_pairs", "C", "self_pairs"),
     ("A", "relabel_map", "C", "relabel_map"),
+    ("A", "anchor_bed12s", "C2", "anchor_bed12s"),
+    ("A", "anchor_isoforms", "C2", "anchor_isoforms"),
     ("B", "softmasked_fasta", "C", "masked_fastas"),
     ("B", "softmasked_fasta", "C2", "query_masked"),
+    ("B", "softmasked_fasta", "C2", "anchor_masked"),
+    # WF-C -> WF-C2 exists only because of the TOGA2 rescue pass: Liftoff does
+    # its own gene-level alignment, so pass 1 needs nothing from WF-C.
+    ("C", "cleaned_chains", "C2", "cleaned_chains"),
     ("B", "softmasked_fasta", "F", "ref_fasta"),
     ("B", "softmasked_fasta", "F", "query_fasta"),
     ("B", "softmasked_fasta", "J", "target_fastas"),
@@ -70,7 +85,10 @@ EDGES = [
     ("C2", "classifications", "E", "c4_classifications"),
     ("C2", "merged_annotations", "F", "query_gff"),
     ("C2", "merged_annotations", "K", "annotation_gffs"),
-    ("D", "odgi_og", "E", "graph"),
+    # WF-D (pggb) has no consumers. WF-E used to take its odgi graph, but on the
+    # 2026-06-12 data that graph contributed zero edges, and running WF-E with no
+    # graph at all gives the same 5,731 orthogroups gene for gene -- so the input
+    # was dropped rather than kept as a dependency that does nothing.
     ("A", "similarity_matrix", "I", "compare_csv"),
     ("A", "sizes", "I", "target_sizes"),
     ("A", "sizes", "I", "query_sizes"),
@@ -83,6 +101,25 @@ EDGES = [
     ("H", "busted_json", "K", "busted_relaxed"),
     ("I", "multiz_mafs", "K", "multiz_mafs"),
 ]
+
+# Edges above that a run cannot actually follow yet: the data is the intended
+# one, but it has to be reshaped or staged by hand first. Checked against the
+# real invocations on 2026-08-05 -- every WF-I input in run e37f25bfb58457fb was
+# uploaded via __DATA_FETCH__ or rebuilt by hand, none came from an upstream
+# workflow's output collection.
+STAGED = {
+    ("C", "pairwise_axt", "I", "pairwise_axts"):
+        "WF-C emits a flat list of 56 pairs keyed A_B; WF-I needs list:list, "
+        "outer=hinge / inner=query. Reshaped by hand.",
+    ("A", "sizes", "I", "target_sizes"):
+        "WF-A's sizes is one .sizes per strain; WF-I needs one per (hinge, query) "
+        "as list:list. Uploaded.",
+    ("A", "sizes", "I", "query_sizes"):
+        "Same shape gap as target_sizes. Uploaded.",
+    ("A", "similarity_matrix", "I", "compare_csv"):
+        "Same content, but staged as an upload (sourmash_compare_8x8.csv) rather "
+        "than taken from WF-A's output.",
+}
 
 
 def slug(s):
@@ -148,7 +185,15 @@ def main():
     def card(wid):
         w = wf[wid]
         c = COL[wid]
-        r = [f'<div class="hdr" style="background:{c}"><span class="badge">{w["ph"]}</span>{esc(w["title"])}</div>',
+        reviewed = wid in VETTED
+        if reviewed:
+            mark = (f'<a class="seen" href="pipeline_io_map.html#tab-wf-{wid}" '
+                    f'title="Reviewed: open the step-level detail for this workflow">'
+                    f'&#10003; detail</a>')
+        else:
+            mark = '<span class="unseen" title="Not yet reviewed: no detail page, no captured run">unreviewed</span>'
+        r = [f'<div class="hdr" style="background:{c}"><span class="badge">{w["ph"]}</span>'
+             f'{esc(w["title"])}{mark}</div>',
              '<div class="body"><div class="sec-lbl">inputs</div>']
         for name, doc in w["ins"]:
             conn = ("in", wid, name) in connected
@@ -165,7 +210,8 @@ def main():
             r.append(f'<div class="{cls}"{tip}><span class="pn">{esc(name)}</span>'
                      f'<span class="dot out" id="port|{wid}|out|{name}" style="--c:{c}"></span></div>')
         r.append("</div>")
-        return f'<div class="card" data-wf="{wid}">' + "".join(r) + "</div>"
+        rv = " reviewed" if reviewed else " unreviewed"
+        return f'<div class="card{rv}" data-wf="{wid}">' + "".join(r) + "</div>"
 
     cols = {}
     for wid in WF_META:
@@ -175,7 +221,9 @@ def main():
         cards = "".join(card(w) for w in cols[ci])
         colhtml.append(f'<div class="col"><div class="coltitle">{COLNAMES[ci]}</div>{cards}</div>')
 
-    edges_js = json.dumps([{"from": f, "fp": fo, "to": t, "tp": ti} for f, fo, t, ti in EDGES])
+    edges_js = json.dumps([{"from": f, "fp": fo, "to": t, "tp": ti,
+                            "staged": STAGED.get((f, fo, t, ti))}
+                           for f, fo, t, ti in EDGES])
     wfcolor_js = json.dumps({w: COL[w] for w in WF_META})
 
     html = TEMPLATE.format(cols="".join(colhtml), edges=edges_js, wfcolor=wfcolor_js,
@@ -209,6 +257,13 @@ header .sub{{color:var(--mut);font-size:12px}}
 .card.dim{{opacity:.28}}
 .card.hot{{box-shadow:0 0 0 2px var(--hot,#fff),0 10px 26px rgba(0,0,0,.5)}}
 .hdr{{color:#fff;font-weight:650;padding:7px 11px;display:flex;align-items:center;gap:8px;font-size:13px}}
+.hdr .seen,.hdr .unseen{{margin-left:auto;font-size:10.5px;font-weight:600;letter-spacing:.03em;
+  padding:2px 7px;border-radius:10px;white-space:nowrap}}
+.hdr .seen{{background:rgba(255,255,255,.92);color:#111;text-decoration:none}}
+.hdr .seen:hover{{background:#fff;text-decoration:underline}}
+.hdr .unseen{{background:rgba(0,0,0,.28);color:rgba(255,255,255,.85);font-weight:500}}
+.card.unreviewed{{opacity:.72}}
+.card.unreviewed:hover{{opacity:1}}
 .badge{{background:rgba(255,255,255,.22);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700}}
 .body{{padding:6px 0 8px}}
 .sec-lbl{{color:var(--mut);font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding:5px 12px 2px}}
@@ -238,7 +293,7 @@ footer code{{color:#cbd5e1}}
   </div>
 </header>
 <div id="canvas"><svg id="edges"></svg><div class="cols">{cols}</div></div>
-<footer>Inter-workflow edges are data dependencies taken from each workflow's input docs (e.g. WF-C <code>masked_fastas</code> ← WF-B <code>softmasked_fasta</code>). “ext” = raw/external pipeline input. Auto-generated by <code>workflows/gen_pipeline_dataflow.py</code> from <code>workflows/*/*.gxwf.yml</code> + <code>pggb-pangenome-build.ga</code> — do not edit by hand.</footer>
+<footer><b>&#10003; detail</b> marks a workflow that has been reviewed and has a step-level page behind it, with a real sample from a named invocation on every node &mdash; follow the link on its card, or open the <a href="pipeline_io_map.html">workflow detail pages</a>. Workflows marked <b>unreviewed</b> are drawn here because they are part of the pipeline's wiring, but nothing has been captured from them and their ports are read from the workflow files alone. <b>Solid</b> edges are wired: the upstream output can be handed straight to the downstream input. <b>Dashed</b> edges name the intended source but cannot be connected as they stand &mdash; usually a collection-shape gap &mdash; so the data is reshaped or uploaded by hand; hover a dashed edge for the reason. Edges are taken from each workflow's input docs (e.g. WF-C <code>masked_fastas</code> ← WF-B <code>softmasked_fasta</code>). “ext” = raw/external pipeline input. Auto-generated by <code>workflows/gen_pipeline_dataflow.py</code> from <code>workflows/*/*.gxwf.yml</code> + <code>pggb-pangenome-build.ga</code> — do not edit by hand.</footer>
 <script>
 const EDGES={edges}, WFCOLOR={wfcolor};
 function draw(){{
@@ -255,7 +310,13 @@ function draw(){{
     const dx=Math.max(48,Math.abs(x2-x1)*0.45);
     const p=document.createElementNS(ns,'path');
     p.setAttribute('d',`M${{x1}},${{y1}} C${{x1+dx}},${{y1}} ${{x2-dx}},${{y2}} ${{x2}},${{y2}}`);
-    p.setAttribute('class','path'); p.setAttribute('stroke',WFCOLOR[e.from]);
+    p.setAttribute('class', e.staged ? 'path staged' : 'path');
+    p.setAttribute('stroke',WFCOLOR[e.from]);
+    if(e.staged){{
+      p.setAttribute('stroke-dasharray','7 5');
+      const t=document.createElementNS(ns,'title');
+      t.textContent='Not wired yet — '+e.staged; p.appendChild(t);
+    }}
     p.dataset.from=e.from; p.dataset.to=e.to; svg.appendChild(p);
   }});
 }}

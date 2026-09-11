@@ -1,0 +1,70 @@
+name: pages
+
+# Publish the pipeline documentation to GitHub Pages.
+#
+# Both pages are REGENERATED from the workflow definitions at deploy time rather
+# than copied from the committed HTML, so the published site can never drift from
+# workflows/*/*.gxwf.yml even if someone forgets to re-run a generator locally.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workflows/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer commit supersede an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyyaml
+
+      - name: Regenerate documentation
+        run: |
+          python workflows/gen_pipeline_io_map.py
+          python workflows/gen_pipeline_dataflow.py
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          # The A->K overview is the front page: it shows every workflow and marks
+          # which have been reviewed. The step-level page carries the reviewed ones
+          # in detail, one tab each.
+          #
+          # Both files are ALSO published under their own names, because the two
+          # pages link to each other by those names -- which keeps the links working
+          # when the committed HTML is opened straight from the repo, and keeps any
+          # existing bookmark to pipeline_dataflow.html alive.
+          cp workflows/pipeline_dataflow.html _site/index.html
+          cp workflows/pipeline_dataflow.html _site/pipeline_dataflow.html
+          cp workflows/pipeline_io_map.html   _site/pipeline_io_map.html
+          ls -la _site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

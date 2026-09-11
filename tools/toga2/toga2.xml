@@ -38,6 +38,29 @@ ln -s '$isoforms'    isoforms.tsv &&
 faToTwoBit ref.fa   ref.2bit &&
 faToTwoBit query.fa query.2bit &&
 
+## TOGA2 orchestrates itself with Nextflow, which needs somewhere writable.
+## Galaxy runs containers with `--contain --cleanenv --no-mount tmp`, so /tmp
+## inside is the image's own read-only one and TMPDIR arrives empty. That
+## breaks Nextflow twice over, both silently:
+##   * the container's %environment sets NXF_HOME=\$TMPDIR/.nextflow, which
+##     collapses to /.nextflow -- unwritable, so it dies before starting;
+##   * its launcher does mktemp in /tmp, gets nothing, and then runs
+##     `curl -o ''`, reporting a bogus "cannot connect to the internet".
+## The job working directory is bind-mounted and writable, so point both at
+## it. These must be exported HERE, not passed in from outside: the
+## container's %environment is applied after any --env and would win.
+mkdir -p nxf_tmp &&
+export TMPDIR="\$(pwd)/nxf_tmp" &&
+export NXF_HOME="\$(pwd)/.nextflow" &&
+export NXF_ANSI_LOG=false &&
+## The upstream def installs Nextflow from get.nextflow.io, i.e. whatever is
+## newest at BUILD time -- so the image is not reproducible, and a current
+## build ships a Nextflow whose strict parser rejects TOGA2 2.0.8's own
+## execute_joblist.nf ("Statements cannot be mixed with script declarations").
+## Ask for the legacy parser. NOTE: the v1 parser is deprecated upstream, so
+## the durable fix is to pin NXF_VER in the container build instead.
+export NXF_SYNTAX_PARSER=v1 &&
+
 toga2.py run
     --ref_2bit ref.2bit
     --query_2bit query.2bit

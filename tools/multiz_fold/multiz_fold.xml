@@ -6,16 +6,34 @@
     <expand macro="requirements"/>
     <required_files>
         <include path="multiz_order.py"/>
+        <include path="maf_prefix_srcs.py"/>
     </required_files>
     <version_command><![CDATA[multiz 2>&1 | head -1]]></version_command>
     <command detect_errors="aggressive"><![CDATA[
 mkdir -p pairs &&
 
-## Stage each pairwise-MAF collection element under its query strain name
-## (element_identifier). Galaxy stores datasets as .dat, so symlink to a real
-## .maf path that the fold loop and multiz can consume by name.
+## The hinge name arrives as the CONTENT of a one-line dataset rather than as a
+## text parameter. A workflow that maps this tool over the hinge dimension has
+## no way to put a map-over element identifier into a text param -- connecting
+## the collection to one yields the repr of a DatasetCollectionElement, which is
+## how every fold in the 2026-06-13 runs died on the name validator.
+HINGE=\$(tr -d '[:space:]' < '$hinge_label') &&
+case "\$HINGE" in
+    ''|*[!A-Za-z0-9_.-]*)
+        echo "hinge label dataset must hold one strain name (letters, digits, underscore, hyphen, dot); got: '\$HINGE'" >&2 ;
+        exit 1 ;;
+esac &&
+
+## Stage each pairwise-MAF element under its query strain name
+## (element_identifier), prefixing the src names so multiz can tell the two
+## species apart -- it splits src on the first '.', so bare contig accessions
+## would read as one species per contig.
 #for $el in $pairwise_mafs
-ln -s '$el' 'pairs/${el.element_identifier}.maf' &&
+python '$__tool_directory__/maf_prefix_srcs.py'
+    --hinge "\$HINGE"
+    --query '${el.element_identifier}'
+    --input '$el'
+    --output 'pairs/${el.element_identifier}.maf' &&
 printf '%s\n' '$el.element_identifier' >> queries.txt &&
 #end for
 
@@ -23,7 +41,7 @@ printf '%s\n' '$el.element_identifier' >> queries.txt &&
 ## hinge (Decision 5: similarity, 1.0 = identical). NOT mash ascending distance.
 python '$__tool_directory__/multiz_order.py'
     --compare-csv '$compare_csv'
-    --hinge '$hinge'
+    --hinge "\$HINGE"
     --queries \$(cat queries.txt)
     > order.txt &&
 
@@ -55,15 +73,13 @@ cp "\$PREV" '$folded_maf'
         <param argument="--compare-csv" type="data" format="csv"
                label="sourmash compare.csv similarity matrix"
                help="N+1 row sourmash compare.csv (header of strain labels, then one similarity row per strain). Similarity is 1.0 = identical; fold order sorts DESCENDING (closest first)."/>
-        <param argument="--hinge" type="text"
-               label="Hinge strain name"
-               help="The reference strain of this fold. Must appear as a label in compare.csv.">
-            <validator type="empty_field"/>
-            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
-        </param>
+        <param name="hinge_label" type="data" format="txt"
+               label="Hinge strain name (one-line dataset)"
+               help="A text dataset whose contents are the hinge strain name, e.g. a single line reading PvW1. It must appear as a label in compare.csv. This is a dataset rather than a text box so that a workflow mapping over the hinge dimension can supply one name per job -- Galaxy cannot route a map-over element identifier into a text parameter."/>
     </inputs>
     <outputs>
-        <data name="folded_maf" format="maf" label="${tool.name} on ${on_string}: ${hinge}.multiz.maf"/>
+        <data name="folded_maf" format="maf"
+              label="${tool.name} on ${on_string}: ${hinge_label.element_identifier}.multiz.maf"/>
     </outputs>
     <tests>
         <!-- 3-way fold: hinge H vs A and vs B; A closer than B by similarity. -->
@@ -75,7 +91,7 @@ cp "\$PREV" '$folded_maf'
                 </collection>
             </param>
             <param name="compare_csv" value="compare.csv"/>
-            <param name="hinge" value="H"/>
+            <param name="hinge_label" value="hinge_H.txt" ftype="txt"/>
             <output name="folded_maf">
                 <assert_contents>
                     <has_text text="##maf"/>
@@ -94,11 +110,32 @@ cp "\$PREV" '$folded_maf'
                 </collection>
             </param>
             <param name="compare_csv" value="compare.csv"/>
-            <param name="hinge" value="H"/>
+            <param name="hinge_label" value="hinge_H.txt" ftype="txt"/>
             <output name="folded_maf">
                 <assert_contents>
                     <has_line_matching expression="^s H\..*"/>
                     <has_line_matching expression="^s A\..*"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Bare src names, which is what axtToMaf emits when t_prefix/q_prefix
+             are empty. multiz splits src on the first '.', so these must be
+             prefixed with the strain names before the fold or every contig
+             reads as its own species. -->
+        <test expect_num_outputs="1">
+            <param name="pairwise_mafs">
+                <collection type="list">
+                    <element name="A" value="H_vs_A.bare.maf" ftype="maf"/>
+                    <element name="B" value="H_vs_B.bare.maf" ftype="maf"/>
+                </collection>
+            </param>
+            <param name="compare_csv" value="compare.csv"/>
+            <param name="hinge_label" value="hinge_H.txt" ftype="txt"/>
+            <output name="folded_maf">
+                <assert_contents>
+                    <has_line_matching expression="^s H\.chr1 .*"/>
+                    <has_line_matching expression="^s A\.chr1 .*"/>
+                    <has_line_matching expression="^s B\.chr1 .*"/>
                 </assert_contents>
             </output>
         </test>
@@ -140,8 +177,22 @@ each step.
   alignments. The **element identifier is the query strain name**, and the
   hinge must be the reference (top) row of every block.
 - *compare.csv* — the sourmash N×N similarity matrix used to order the fold.
-- *Hinge strain name* — the reference strain; must be a label in
-  `compare.csv`.
+- *Hinge strain name* — a one-line text dataset holding the reference strain
+  name, which must be a label in `compare.csv`. It is a dataset rather than a
+  text box because a workflow maps this tool over the hinge dimension and
+  Galaxy cannot route a map-over element identifier into a text parameter;
+  connecting a collection to one substitutes the repr of the element object.
+
+-----
+
+**src names.** multiz decides which species a row belongs to by reading the
+text before the first `.` in the MAF `src` field, so every row must arrive as
+`strain.contig`. `axtToMaf` writes whatever the AXT carried, which for chained
+alignments is a bare contig accession such as `QMFC01000014.1` — one species
+per contig as far as multiz is concerned. This tool therefore rewrites the src
+names as it stages each pairwise MAF, taking the target row's strain from the
+hinge and the query row's from the element identifier. A src that already
+carries the right prefix is left alone.
 
 **Output**
 
