@@ -232,6 +232,64 @@ if str(a.containment).lower() in ("true", "1", "yes"):
                     "-o", "maxc", "--csv", "max_containment.csv", *sigs], check=True)
     # `sourmash plot` writes <prefix>.matrix.png and <prefix>.dendro.png beside the input.
     subprocess.run(["sourmash", "plot", "--labels", "maxc"], check=True)
+
+    # ⛔ THE DENDROGRAM sourmash PUBLISHES IS A PICTURE, AND A PICTURE IS NOT A TREE. `sourmash
+    # plot` emits PNG or PDF and nothing else -- no branch lengths, no leaf order, nothing any
+    # other tool can read. So the same linkage it draws is also written as NEWICK here, which is
+    # what iTOL, FigTree, ggtree and ete3 consume. Same clustering, in a form that leaves Galaxy.
+    #
+    # ⚠ average linkage, and it is a CHOICE rather than a default worth hiding: `sourmash plot`
+    # itself clusters with scipy's default `single` linkage, which chains through intermediates and
+    # on a panel with haplotype pairs produces long ladders. `average` (UPGMA) is what a reader
+    # expects of a distance dendrogram. ⛔ THE TWO THEREFORE DISAGREE: the PNG and this Newick are
+    # not the same tree, and the Newick names its method in a comment so nobody has to guess.
+    #
+    # ⚠ 1 - max_containment IS A DISSIMILARITY, NOT AN EVOLUTIONARY DISTANCE. Branch lengths here
+    # are in that unit. Read the tree as "shares content with", never as descent: on this panel a
+    # haplotype pair scores ~0.62 while the 8x size pair scores 0.858, because neither haplotype
+    # contains the other while a small genome IS largely inside a big one.
+    import csv as _csv
+
+    import numpy as _np
+    from scipy.cluster.hierarchy import linkage as _linkage
+    from scipy.cluster.hierarchy import to_tree as _to_tree
+    from scipy.spatial.distance import squareform as _squareform
+
+    with pathlib.Path("max_containment.csv").open(newline="", encoding="utf-8") as _fh:
+        _rows = [r for r in _csv.reader(_fh) if r and not r[0].startswith("#")]
+    _labels = _rows[0]
+    _M = _np.array([[float(v) for v in r] for r in _rows[1:]], dtype=float)
+    if _M.shape != (len(_labels), len(_labels)):
+        sys.exit(f"max_containment.csv is {_M.shape}, not square against its {len(_labels)} "
+                 f"labels -- refusing to build a tree from a matrix whose shape it cannot trust.")
+    # ⛔ SYMMETRISED AND ZERO-DIAGONALLED BEFORE squareform, WHICH REFUSES OTHERWISE. max-containment
+    # is symmetric by construction, but the two triangles are computed separately and differ in the
+    # last bits; `squareform` raises on that rather than rounding, and the raise is about "not
+    # symmetric" with no hint that the asymmetry is 1e-16.
+    _D = 1.0 - _M
+    _D = (_D + _D.T) / 2.0
+    _np.fill_diagonal(_D, 0.0)
+    _Z = _linkage(_squareform(_D, checks=False), method="average")
+
+    def _newick(_node, _parent_height):
+        """One clade, with the branch length that reaches it from its parent."""
+        _length = _parent_height - _node.dist
+        if _node.is_leaf():
+            return f"{_labels[_node.id]}:{_length:.6f}"
+        _kids = ",".join(_newick(_c, _node.dist) for _c in (_node.get_left(), _node.get_right()))
+        return f"({_kids}):{_length:.6f}"
+
+    _root = _to_tree(_Z)
+    # ⛔ PURE NEWICK, NO LEADING COMMENT. A bracketed `[...]` comment is legal Newick and was
+    # written here first, but acceptance across the tools this file exists for -- iTOL, FigTree,
+    # ggtree -- is uneven, and a tree some readers reject defeats the point of emitting it. The
+    # method and the units live in the output's label and help text instead, where nothing can
+    # choke on them.
+    pathlib.Path("max_containment.newick").write_text(
+        f"({','.join(_newick(_c, _root.dist) for _c in (_root.get_left(), _root.get_right()))});\n",
+        encoding="utf-8")
+    print(f"wrote max_containment.newick ({len(_labels)} leaves, average linkage over "
+          f"1 - max_containment)", file=sys.stderr)
 else:
     # ⚠ OFF BY DEFAULT, AND NOTHING IS WRITTEN WHEN OFF -- deliberately, rather than emitting an
     # empty CSV. A zero-row matrix is the silent-success shape this project keeps finding: it

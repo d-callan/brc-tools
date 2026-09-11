@@ -260,7 +260,7 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.8.0"
+version: "0.9.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -401,6 +401,23 @@ outputs:
     optional: true
     from_work_dir: maxc.matrix.png
     label: max-containment clustered heatmap
+  # ⛔ THE TREE AS DATA, BECAUSE `sourmash plot` ONLY EMITS A PICTURE. Its CLI offers PNG or PDF and
+  # nothing else, so the dendrogram it draws cannot be re-rooted, re-coloured, annotated or compared
+  # outside Galaxy. This is the same clustering written as Newick, for iTOL / FigTree / ggtree / ete3.
+  # ⚠ IT IS NOT THE SAME TREE AS THE PNG, and that is deliberate: `sourmash plot` uses scipy's
+  # default SINGLE linkage, which chains through intermediates and ladders badly on a panel holding
+  # haplotype pairs. This uses AVERAGE linkage (UPGMA), which is what a reader expects of a distance
+  # dendrogram. Whichever is read, it must not be the one nobody chose.
+  # ⚠ BRANCH LENGTHS ARE IN `1 - max_containment`, A DISSIMILARITY, NOT EVOLUTIONARY DISTANCE. On
+  # this panel a haplotype pair sits near 0.62 while an 8x size pair reaches 0.858 -- because a
+  # small genome IS largely inside a big one while neither haplotype contains the other. Read it as
+  # "shares content with", never as descent.
+  - name: max_containment_newick
+    type: data
+    format: newick
+    optional: true
+    from_work_dir: max_containment.newick
+    label: max-containment tree, Newick (average linkage over 1 - max_containment; branch lengths are dissimilarity, NOT evolutionary distance)
   - name: max_containment_dendrogram
     type: data
     format: png
