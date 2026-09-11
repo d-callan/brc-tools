@@ -260,7 +260,7 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.9.0"
+version: "0.10.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -355,6 +355,19 @@ outputs:
     format: csv
     from_work_dir: similarity.csv
     label: sourmash similarity matrix (CSV, labelled by strain)
+  # ⛔ EVERY TREE THIS TOOL DRAWS NOW ALSO LEAVES AS DATA. The Jaccard dendrogram was published only
+  # as a PNG while the max-containment one had a Newick, so the single most useful question about
+  # them -- do the two clusterings agree, and where -- could not be asked of the outputs at all. It
+  # is the SAME emitter for both (see write_newick), because two trees built by two copies of the
+  # logic are not comparable even when they look it.
+  # ⚠ NOT `optional`, unlike the max-containment pair: similarity.csv is always written, so this
+  # tree always exists. ⚠ AND THE ASYMMETRIC `containment` MATRIX DELIBERATELY GETS NO TREE --
+  # containment(A,B) != containment(B,A), so any clustering of it is an artefact of row order.
+  - name: similarity_newick
+    type: data
+    format: newick
+    from_work_dir: similarity.newick
+    label: sourmash similarity tree, Newick (average linkage over 1 - Jaccard; branch lengths are dissimilarity, NOT evolutionary distance)
   # ⛔ PUBLISHED BECAUSE JACCARD IS CONFOUNDED BY ASSEMBLY SIZE, and this panel spans 286 Mb to
   # 2,297 Mb. Jaccard divides by the UNION, so a 286 Mb assembly caps at 286/800 = 0.36 against an
   # 800 Mb genome even as a perfect subset, and a 2,297 Mb unpurged one caps at ~0.35 against the
