@@ -2,6 +2,11 @@
     <description>NCBI symmetric-DUST low-complexity intervals as content-annotated BED6</description>
     <requirements>
         <requirement type="package" version="2.17.0">blast</requirement>
+        <!-- python3 runs lc_classify.py in <command>; without this the tool dies at
+             exit 127 under biocontainer/singularity resolution, where the blast and
+             tantan images carry no interpreter (measured, see build_softmask_udts.py).
+             A conda-only Galaxy hid it by falling back to the system python. -->
+        <requirement type="package" version="3.12">python</requirement>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
 set -o pipefail &&

@@ -1,0 +1,44 @@
+# A WF-A staging panel. Copy this, fill it in, and pass it with
+#
+#     python3 scripts/stage_wfa_panel.py --panel <your>.panel.yml
+#
+# ⛔ THE PANEL IS DATA BECAUSE THE PIPELINE IS SHARED. These workflows run over more than one
+# organism set from the same code, so which genomes are in a set, which of them carry an annotation
+# and which serve as anchors are facts about a DATASET. Keep a real panel with the dataset it
+# describes -- its membership reasoning (assembly provenance, contiguity, why a genome is in or
+# out) belongs wherever that survey is recorded, not in this repository.
+#
+# ⚠ AS SHIPPED THIS FILE REFUSES. `expected_assemblies: 0` cannot match a real collection, so a
+# copy that was never filled in fails the count check rather than staging something arbitrary.
+name: REPLACE ME — a short label, used for the Galaxy history name
+
+# How many assemblies the finished `assemblies` collection must hold. Asserted against what
+# actually resolves, so a silently shorter panel refuses instead of staging cleanly.
+expected_assemblies: 0
+
+# Id of a pre-staged Galaxy collection to copy members from, or `null` to stage everything from
+# `by_url`. ⚠ If most members have no URL, this is REQUIRED rather than an optimisation: without it
+# the run resolves to however many `by_url` covers and the count check refuses.
+raw_collection: null
+
+# Identifiers the pre-staged collection does not hold. Each must appear in `by_url`.
+extra: []
+
+# identifier -> {accession, assembly_name}, for anything fetched server-side from NCBI. Both fields
+# are needed: the FTP path is built from the pair, so a wrong assembly_name is a 404 at fetch time
+# rather than a validation error.
+#   MyStrain: {accession: GCF_000000000.1, assembly_name: ASM0v1}
+by_url: {}
+
+# identifier -> file key, for the members that HAVE a protein FASTA. ⚠ A SUBSET of the assemblies,
+# and that is the expected case: `proteomes` feeds BUSCO alone, which needs an annotation, while
+# sourmash and faidx need only sequence. Members without one get their genes by projection in
+# WF-C2. The staged file is `*_<key>_protein_primary.faa.gz` under $WFA_PROTEOMES, one protein per
+# gene -- see scripts/primary_proteome.py.
+#   MyStrain: ASM0v1
+proteomes: {}
+
+# identifier -> file key, for the members whose curated GFF3 seeds the projections. Must be a
+# subset of `proteomes`: an anchor's GFF3 and its proteome come from the same annotation release.
+# The staged file is `*_<key>_genomic.gff.gz`.
+anchors: {}

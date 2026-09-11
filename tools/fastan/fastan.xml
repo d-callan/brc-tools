@@ -1,14 +1,26 @@
-<tool id="fastan" name="fastan" version="0.8+galaxy0" profile="23.0">
+<tool id="fastan" name="fastan" version="0.8+galaxy1" profile="23.0">
     <description>FASTAN tandem-repeat arrays as content-annotated BED6</description>
     <!--
-      NOTE: bioconda fastan 0.5 does not implement masking (-m); the .1ano tandem
-      annotation requires the 0.8 line, and FASTGA's ANOtoBED converter is not in the
-      fastga 1.5 conda package yet. Until bioconda ships fastan 0.8 + ANOtoBED
-      (see bioconda-recipes PR #66389) this wrapper calls locally-built binaries
-      under /data/galaxy_local/bin (NFS-shared, node-readable). Flip to conda
-      requirements once those land.
+      Dependencies come from bioconda. Both of the blockers this wrapper was written
+      around have since been resolved upstream:
+        * fastan 0.8 (masking-enabled, -m / .1ano) shipped in bioconda-recipes PR #66389,
+          merged 2026-06-17; bioconda now offers 0.5 and 0.8.
+        * ANOtoBED IS installed by the fastga package; see its build.sh, which installs
+          ANOtoBED, BEDtoANO, ANOstat and ANOshow alongside FAtoGDB.
+      FAtoGDB and ANOtoBED come from fastga; FasTAN comes from fastan.
+
+      fastga is pinned to 1.5.20260729, NOT 1.5, and the difference is not cosmetic.
+      Released 1.5 contains ANOtoBED but cannot READ what FasTAN writes. Upstream
+      redefined the ano M record and added a P record in 0a4a4db ("ANO file definition
+      change", 2026-04-23), three months after v1.5 was tagged, and no release has
+      followed. FASTAN 0.8 emits the new schema, so the ANOtoBED in fastga 1.5 exits
+      "Failed to open .1ano file", naming no version, which is what makes this worth
+      pinning rather than documenting. bioconda-recipes#68612 added 1.5.20260729.
     -->
-    <requirements/>
+    <requirements>
+        <requirement type="package" version="0.8">fastan</requirement>
+        <requirement type="package" version="1.5.20260729">fastga</requirement>
+    </requirements>
     <command detect_errors="exit_code"><![CDATA[
 set -o pipefail &&
 #if str($input.ext) == 'fasta.gz'
@@ -17,10 +29,9 @@ set -o pipefail &&
     cat '$input'
 #end if
 | awk '/^>/{print;next}{print toupper(\$0)}' > in.fa &&
-/data/galaxy_local/bin/FAtoGDB in.fa gdb || true ;
-/data/galaxy_local/bin/FasTAN -m -p -T\${GALAXY_SLOTS:-4} gdb &&
-/data/galaxy_local/bin/ANOtoBED gdb.1ano
-| grep -v '^#'
+FAtoGDB in.fa gdb || true ;
+FasTAN -m -p -T\${GALAXY_SLOTS:-4} gdb &&
+ONEview gdb.1ano
 | awk -f '$__tool_directory__/ano2bed6.awk'
 | LC_ALL=C sort -k1,1 -k2,2n > '$output'
     ]]></command>
@@ -34,8 +45,9 @@ set -o pipefail &&
 **FASTAN** (Gene Myers) — tandem-array finder. Detects tandem repeats and partitions
 them into units. Emitted as **BED6**: name = ``u<unit_size>`` (tandem unit length),
 score = unit identity (0-1000 grayscale), strand = real orientation. Complementary to
-the DUST/low-complexity tracks. Pipeline: ``FAtoGDB`` -> ``FasTAN -m -p`` (.1ano) ->
-``ANOtoBED``. Input is upper-cased first.
+the DUST/low-complexity tracks. Pipeline: ``FAtoGDB`` -> ``FasTAN -m -p`` (.1ano) -> ``ONEview`` +
+awk. NOT ``ANOtoBED``, which reports contig-relative coordinates under the scaffold name (see
+check_coordinates.py). Input is upper-cased first.
     ]]></help>
     <citations><citation type="doi">10.1101/2023.04.01.535214</citation></citations>
 </tool>

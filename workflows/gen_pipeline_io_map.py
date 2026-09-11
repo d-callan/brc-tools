@@ -31,7 +31,7 @@ import sys
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gen_pipeline_dataflow import EDGES, WF_META  # single source of truth for wiring
+from gen_pipeline_dataflow import EDGES, WF_META, VETTED  # single source of truth
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -69,13 +69,14 @@ WFCOL = {"A": BRC["primary"], "B": BRC["info"], "C": BRC["warning"],
 # downward, so the canvas grows vertically as phases are added rather than
 # sideways — the page scrolls the way a long pipeline actually reads.
 # Producers must precede consumers so every cross-workflow edge points down.
-VETTED = ["A", "B", "C", "C2", "E", "I"]
 
 
 
 EXTERNAL = {
     ("A", "assemblies"): "Staged panel genomes — $PV4_SSD/pv4_full/inputs/assemblies/{strain}.fa",
-    ("A", "proteomes"): "gffread-derived protein FASTAs; PvP01 + Sal-I use PlasmoDB curated sets",
+    ("A", "proteomes"): ("gffread-derived protein FASTAs; PvP01 + Sal-I use PlasmoDB curated sets. "
+                         "A SUBSET of assemblies in general — it feeds BUSCO alone, which needs an "
+                         "annotation; equal to it on Pv4 only because every strain there has one"),
     ("A", "busco_lineage"): "Literal string — apicomplexa_odb10 for Pv4",
     ("B", "assemblies"): "Same staged panel genomes as WF-A",
     ("C2", "anchor_assemblies"): "Staged genomes, restricted to the 3 curated anchors",
@@ -85,45 +86,76 @@ EXTERNAL = {
     ("C2", "anchor_isoforms"): "anchor_prep output — gene<TAB>transcript per anchor (TOGA2 --isoform_file)",
 }
 
+#: The panel the page illustrates. ⛔ EVERY SHAPE BELOW IS DERIVED FROM THESE TWO NUMBERS, NEVER
+#: TYPED OUT, because a count written twice is a count that can disagree with itself -- and it did:
+#: WF-A's `relabel_map` output read "64 rows" long after the A_A diagonal was dropped (it is n**2-n),
+#: while WF-C's `relabel_map` INPUT read 64 too, so the page contradicted itself across the very
+#: cross-workflow edge that connects them. Derived, that pair cannot drift.
+#:
+#: ⚠ THESE ARE Pv4 NUMBERS AND THE PAGE SAYS SO. This document is the Pv4 clean re-run. Another
+#: panel through the same pipeline is a different size, and changing these to it would misdescribe
+#: every observed-run note on the page. Change them together with the run they describe.
+PANEL_N = 8                      #: staged panel genomes
+ANCHOR_N = 3                     #: curated anchors, a subset of the panel
+PAIRS_N = PANEL_N * PANEL_N - PANEL_N          #: ordered pairs, self-cells removed
+GRID_N = ANCHOR_N * (PANEL_N - 1)              #: anchor x query cells, anchor self-cells removed
+
+_LIST_STRAIN = f"list[{PANEL_N}] · id=strain"
+_LIST_ANCHOR = f"list[{ANCHOR_N}] · id=anchor"
+
 SHAPE = {
-    ("A", "in", "assemblies"): "list[8] · id=strain",
-    ("A", "in", "proteomes"): "list[8] · id=strain",
+    ("A", "in", "assemblies"): _LIST_STRAIN,
+    # ⚠ A SUBSET in general -- it feeds BUSCO alone, which needs an annotation. Equal to
+    # `assemblies` on Pv4 only because every strain there has an annotation.
+    ("A", "in", "proteomes"): _LIST_STRAIN,
     ("A", "in", "busco_lineage"): "string",
-    ("A", "out", "similarity_matrix"): "1 CSV · 8x8",
-    ("A", "out", "signatures"): "list[8]",
-    ("A", "out", "busco_summaries"): "list[8]",
+    ("A", "out", "similarity_matrix"): f"1 CSV · {PANEL_N}x{PANEL_N}",
+    # ⚠ ALL FOUR ARE CONDITIONAL on the `sourmash_containment` input and the shape says so: an
+    # empty cell would read as "shape unknown", which is what five pre-existing WF-A ports here
+    # already look like. Derived from PANEL_N for the same reason every other count is -- a shape
+    # written twice can disagree with itself.
+    ("A", "in", "sourmash_containment"): "boolean · default false",
+    ("A", "out", "containment_matrix"): f"1 CSV · {PANEL_N}x{PANEL_N} · ASYMMETRIC · only if asked",
+    ("A", "out", "max_containment_matrix"):
+        f"1 CSV · {PANEL_N}x{PANEL_N} · symmetric · only if asked",
+    ("A", "out", "max_containment_heatmap"): "1 PNG · only if asked",
+    ("A", "out", "max_containment_dendrogram"): "1 PNG · only if asked",
+    ("A", "out", "signatures"): f"list[{PANEL_N}]",
+    ("A", "out", "busco_summaries"): f"list[{PANEL_N}] · one per PROTEOME, not per strain",
     ("A", "out", "sourmash_heatmap"): "1 PNG",
     ("A", "out", "sourmash_dendrogram"): "1 PNG",
     ("A", "out", "qc_report"): "1 HTML",
-    ("A", "out", "sizes"): "list[8] · id=strain",
-    ("A", "out", "self_pairs"): "1 txt · 8 rows",
-    ("A", "out", "relabel_map"): "1 tabular · 64 rows",
-    ("B", "in", "assemblies"): "list[8] · id=strain",
-    ("B", "out", "softmasked_fasta"): "list[8] · id=strain",
-    ("B", "out", "fasta_index"): "list[8]",
-    ("B", "out", "dustmasker_bed"): "list[8] · BED6",
-    ("B", "out", "windowmasker_bed"): "list[8] · BED6",
-    ("B", "out", "tantan_bed"): "list[8] · BED6",
-    ("B", "out", "fastan_bed"): "list[8] · BED6",
-    ("B", "out", "masking_table"): "1 tabular · 8x4",
+    ("A", "out", "sizes"): _LIST_STRAIN,
+    ("A", "out", "self_pairs"): f"1 txt · {PANEL_N} rows",
+    ("A", "out", "relabel_map"): f"1 tabular · {PAIRS_N} rows (no A_A diagonal)",
+    ("B", "in", "assemblies"): _LIST_STRAIN,
+    ("B", "out", "softmasked_fasta"): _LIST_STRAIN,
+    ("B", "out", "fasta_index"): f"list[{PANEL_N}]",
+    ("B", "out", "dustmasker_bed"): f"list[{PANEL_N}] · BED6",
+    ("B", "out", "windowmasker_bed"): f"list[{PANEL_N}] · BED6",
+    ("B", "out", "tantan_bed"): f"list[{PANEL_N}] · BED6",
+    ("B", "out", "fastan_bed"): f"list[{PANEL_N}] · BED6",
+    ("B", "out", "masking_table"): f"1 tabular · {PANEL_N}x4",
     ("B", "out", "masking_report"): "1 HTML",
-    ("C", "in", "masked_fastas"): "list[8] · id=strain",
-    ("C", "in", "sizes"): "list[8] · id=strain",
-    ("C", "in", "self_pairs"): "1 txt · 8 rows",
-    ("C", "in", "relabel_map"): "1 tabular · 64 rows",
-    ("C", "out", "cleaned_chains"): "list[56] · id=A.B",
-    ("C", "out", "rbest_chains"): "list[56] · id=A.B",
-    ("C", "out", "pairwise_axt"): "list[56] · id=A_B",
-    ("C2", "in", "anchor_assemblies"): "list[3] · id=anchor",
-    ("C2", "in", "anchor_gene_gff3s"): "list[3] · id=anchor",
-    ("C2", "in", "anchor_bed12s"): "list[3] · id=anchor",
-    ("C2", "in", "assemblies"): "list[8] · id=strain",
-    ("C2", "in", "query_masked"): "list[8] · id=strain",
-    ("C2", "in", "anchor_masked"): "list[3] · id=anchor",
-    ("C2", "in", "anchor_isoforms"): "list[3] · id=anchor",
-    ("C2", "in", "cleaned_chains"): "list[56] · id=target.query",
-    ("C2", "out", "merged_annotations"): "list[21] · id=anchor_query",
-    ("C2", "out", "classifications"): "list[21] · id=anchor_query",
+    ("C", "in", "masked_fastas"): _LIST_STRAIN,
+    ("C", "in", "sizes"): _LIST_STRAIN,
+    ("C", "in", "self_pairs"): f"1 txt · {PANEL_N} rows",
+    # ⛔ THE SAME EXPRESSION AS WF-A's OUTPUT, which is the point: strict mode compares this row
+    # count against the collection being relabelled, so the two ends of this edge must agree.
+    ("C", "in", "relabel_map"): f"1 tabular · {PAIRS_N} rows (no A_A diagonal)",
+    ("C", "out", "cleaned_chains"): f"list[{PAIRS_N}] · id=A.B",
+    ("C", "out", "rbest_chains"): f"list[{PAIRS_N}] · id=A.B",
+    ("C", "out", "pairwise_axt"): f"list[{PAIRS_N}] · id=A_B",
+    ("C2", "in", "anchor_assemblies"): _LIST_ANCHOR,
+    ("C2", "in", "anchor_gene_gff3s"): _LIST_ANCHOR,
+    ("C2", "in", "anchor_bed12s"): _LIST_ANCHOR,
+    ("C2", "in", "assemblies"): _LIST_STRAIN,
+    ("C2", "in", "query_masked"): _LIST_STRAIN,
+    ("C2", "in", "anchor_masked"): _LIST_ANCHOR,
+    ("C2", "in", "anchor_isoforms"): _LIST_ANCHOR,
+    ("C2", "in", "cleaned_chains"): f"list[{PAIRS_N}] · id=target.query",
+    ("C2", "out", "merged_annotations"): f"list[{GRID_N}] · id=anchor_query",
+    ("C2", "out", "classifications"): f"list[{GRID_N}] · id=anchor_query",
 }
 
 FALLBACK_DOC = {
@@ -859,7 +891,9 @@ def main():
     A('<header><div><h1>Pv4 pangenome pipeline</h1>'
       '<div class="sub">How to choose the inputs, and what every step of the vetted workflows '
       'does with them. Worked throughout on the 8-strain <i>Plasmodium vivax</i> panel.</div></div>'
-      f'<div class="score"><b>{len(VETTED)}</b> of 12 verified</div></header>')
+      f'<div class="score"><b>{len(VETTED)}</b> of 12 verified</div>'
+      '<a class="backlink" href="pipeline_dataflow.html">&larr; pipeline overview</a>'
+      '</header>')
 
     tabbed = [w for w in VETTED if w in examples]
     A('<nav><button class="tab active" data-tab="overview">Overview</button>'
@@ -1058,7 +1092,9 @@ def main():
 
     A('<footer>Step graphs, ports and docs parsed from <code>workflows/*/*.gxwf.yml</code>; '
       'cross-workflow wiring imported from <code>gen_pipeline_dataflow.EDGES</code> so this and the '
-      '<a href="pipeline_dataflow.html">A&rarr;K overview</a> cannot disagree. Run evidence read off '
+      '<a href="pipeline_dataflow.html">pipeline overview</a> cannot disagree. That overview is the '
+      'front page and shows all twelve workflows; this page carries the six that have been '
+      'reviewed, one tab each. Run evidence read off '
       'the live Galaxy. Generated by <code>workflows/gen_pipeline_io_map.py</code> &mdash; do not edit '
       'by hand.</footer>')
 
@@ -1141,6 +1177,9 @@ svg.solo .ns{fill:var(--mut);font:9.5px -apple-system,Segoe UI,Roboto,sans-serif
 svg.solo .e{stroke-width:1.5;opacity:.5}
 .expanel{margin-top:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:14px 16px;min-height:90px}
 .exempty{color:var(--mut);font-size:13px;font-style:italic}
+.backlink{margin-left:16px;font-size:12.5px;color:var(--mut);text-decoration:none;
+  border:1px solid var(--line);border-radius:12px;padding:3px 10px;white-space:nowrap}
+.backlink:hover{color:var(--ink);border-color:var(--line2);background:var(--surface)}
 .excols{border-collapse:collapse;margin:10px 0 6px;font-size:12.5px;width:100%}
 .excols th{text-align:left;font-weight:600;color:var(--mut);border-bottom:1px solid var(--line);
   padding:4px 8px 4px 0;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
@@ -1289,13 +1328,29 @@ window.addEventListener('mousemove',e=>{if(!down)return;cv.scrollLeft=sl-(e.clie
 window.addEventListener('load',()=>document.getElementById('zf').click());
 
 // ---- tabs ----
-document.querySelectorAll('nav .tab').forEach(b=>b.onclick=()=>{
+function showTab(name, scroll){
+  const pane = document.getElementById('tab-'+name);
+  const btn  = document.querySelector('nav .tab[data-tab="'+name+'"]');
+  if(!pane || !btn) return false;
   document.querySelectorAll('nav .tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  document.getElementById('tab-'+b.dataset.tab).classList.add('active');
-  window.scrollTo({top:0});
+  btn.classList.add('active');
+  pane.classList.add('active');
+  if(scroll !== false) window.scrollTo({top:0});
+  return true;
+}
+document.querySelectorAll('nav .tab').forEach(b=>b.onclick=()=>{
+  showTab(b.dataset.tab, true);
+  history.replaceState(null, '', b.dataset.tab === 'overview' ? location.pathname : '#tab-'+b.dataset.tab);
 });
+// A pane is display:none until its tab is active, so a deep link from the
+// pipeline overview (#tab-wf-C2) would otherwise land on a hidden element.
+function tabFromHash(){
+  const m = /^#tab-(.+)$/.exec(location.hash || '');
+  if(m) showTab(m[1], false);
+}
+tabFromHash();
+window.addEventListener('hashchange', tabFromHash);
 
 // ---- per-step examples ----
 const EXAMPLES=__EXAMPLES__;

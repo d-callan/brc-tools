@@ -1,0 +1,167 @@
+name: udt-drift
+
+# Keep udt/ in sync with the wrappers under tools/. Both checks are STANDARD LIBRARY ONLY -- there
+# is no `pip install` step here, unlike pipeline-dataflow.yml which needs pyyaml -- because a
+# generated file going stale must be noticed by CI even when the generator's own toolchain is not
+# present. Regenerating is a maintainer step; noticing that one is owed is CI's.
+on:
+  push:
+    branches: [main]
+    # ⚠ THE TRIGGER HAS TO NAME EVERY SCRIPT THE JOBS BELOW RUN, or a change that breaks one of
+    # them runs no check at all -- and `workflows/**` matters because the port checker reads those.
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
+            'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
+            'scripts/build_projection_udts.py',
+            'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
+            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
+            'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
+            'scripts/primary_proteome.py',
+            'scripts/verify_inventory_outputs.py',
+            'scripts/check_datatype_satisfaction.py',
+            # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
+            # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
+            # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
+            # stopped, which strict mode refuses. If this path is not listed, a regression there
+            # runs no check at all.
+            'execution/cluster/gen_wfc_config.py']
+  pull_request:
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            # Without it a PR that only touches this file runs nothing, and a typo in a
+            # path or a step lands on main having been verified by nobody -- which is the
+            # same failure as an unlisted script, one level up.
+            '.github/workflows/udt-drift.yml',
+            'tools/**', 'udt/**', 'workflows/**',
+            'scripts/build_softmask_udts.py', 'scripts/build_inventory_udts.py',
+            'scripts/build_projection_udts.py',
+            'scripts/check_udt_provenance.py', 'scripts/check_udt_definitions.py',
+            'scripts/check_workflow_ports.py', 'scripts/check_coordinates.py',
+            'scripts/check_relabel_strict.py', 'scripts/check_bed12.py',
+            'scripts/primary_proteome.py',
+            'scripts/verify_inventory_outputs.py',
+            'scripts/check_datatype_satisfaction.py',
+            # ⚠ NOT UNDER tools/ OR workflows/, AND CHECKED ANYWAY. gen_wfc_config.py is the
+            # SECOND producer of WF-C's relabel_map -- the one the documented one-click recipe
+            # calls -- and it kept emitting the A_A diagonal for two merged PRs after the tool
+            # stopped, which strict mode refuses. If this path is not listed, a regression there
+            # runs no check at all.
+            'execution/cluster/gen_wfc_config.py']
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Generated-side: regenerate every UDT and compare against the committed copy. The same
+      # command reports ORPHANS -- a file in udt/ that build() no longer produces -- which a
+      # generated-side comparison cannot see on its own.
+      - name: UDTs match their generator
+        run: python3 scripts/build_softmask_udts.py --check
+
+      # Source-side: for CONVERTED UDTs, re-hash the source wrapper AND its macros.xml against the
+      # provenance stamp. The macros hash is the load-bearing half -- 36 of the 50 wrappers here
+      # declare their requirements only through <expand macro="requirements"/>, so a version bump
+      # changes the container a UDT pins while leaving the tool XML byte-identical.
+      - name: Converted UDTs match their source wrappers
+        run: python3 scripts/check_udt_provenance.py
+
+      # The WF-A bookkeeping UDTs inline their Python from tools/ verbatim; this is what stops the
+      # inlined copy and the wrapper's own helper from drifting apart.
+      - name: Inventory UDTs match their helpers
+        run: python3 scripts/build_inventory_udts.py --check
+
+      # WF-C2's three tools inline their Python the same way. A generator with no --check step in
+      # CI is a generator whose output goes stale silently -- which is the whole failure this job
+      # exists to prevent, so a new generator has to be added here when it lands.
+      - name: Projection UDTs match their helpers
+        run: python3 scripts/build_projection_udts.py --check
+  # The generator checks above ask "does udt/ match its sources?". This one asks a different
+  # question -- "are these tools CORRECT?" -- against the udt-authoring skill's schema, templating
+  # and common-mistakes references, plus the silent-success cases found by attacking the tools with
+  # adversarial inputs. It is a separate job on purpose: it needs pyyaml and galaxy-tool-util, and
+  # a dependency install that fails must not be able to mask a drift result.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # galaxy-tool-util is the SERVER's own UserToolSource model and lint -- the real authority
+      # for the schema half. check_udt_definitions.py uses it when present and says so when not.
+      - run: pip install --quiet pyyaml galaxy-tool-util
+
+      # A checker nobody has watched go red is not evidence of anything: each of these injects its
+      # own defect classes into this repo's real files and confirms every one is caught.
+      - name: The checkers still bite
+        run: |
+          python3 scripts/check_udt_definitions.py --self-test
+          python3 scripts/softmask_lib.py
+          python3 scripts/check_workflow_ports.py --self-test
+          python3 scripts/check_relabel_strict.py --self-test
+          python3 scripts/check_bed12.py --self-test
+          # ⚠ SELF-TEST ONLY, and it is not listed under a bare run below. This one needs
+          # proteomes and GFF3s that are not in the repository -- gigabytes of them -- so
+          # what CI can gate is that its guards still fire, not that the panel passes.
+          python3 scripts/primary_proteome.py --self-test
+          # ⚠ SELF-TEST ONLY for the same reason, and additionally because its
+          # server imports are lazy so that this line needs no bioblend.
+          python3 scripts/verify_inventory_outputs.py --self-test
+          # ⚠ SELF-TEST ONLY. The subclass relations live on a Galaxy server
+          # (/api/datatypes/mapping) and cannot be inferred locally, so the part CI
+          # can gate is the satisfaction LOGIC, not this pipeline's edges.
+          python3 scripts/check_datatype_satisfaction.py --self-test
+
+      - name: UDT definitions are correct
+        run: python3 scripts/check_udt_definitions.py
+
+      # WF-A publishes anchor_bed12s from `gffread --bed`, TOGA2 takes it as its reference gene
+      # set and phase_c4_merge keys its reference genes off column 4. A malformed block list does
+      # not error -- it projects the wrong exon boundaries and reports success. This found one such
+      # file the day it was written: a committed fixture whose single block was 20 bp short of the
+      # feature it claimed to span.
+      - name: Committed BED12 files are structurally valid
+        run: python3 scripts/check_bed12.py
+
+      # WF-C detects a wrong relabel map only in strict mode, and strict mode only works while
+      # every producer of that map omits the A_A diagonal. Those are one fact, and this is the
+      # only thing holding them together -- the shipped udt/relabel_map.gxtool.yml says so in its
+      # own help, which was an unbacked promise until this line existed.
+      - name: The relabel map and strict mode still agree
+        run: python3 scripts/check_relabel_strict.py
+
+      # Offline half only -- the remote half needs a live Galaxy and prints its own SKIP line.
+      # ⚠ EVERY WORKFLOW, NOT JUST THE `_udt` ONES. The glob was `*_udt.gxwf.yml`, which checked 4
+      # of 15 and left the classic editions unchecked for no stated reason. Widening it costs
+      # nothing today -- measured, all 11 previously-unchecked workflows pass -- and the UNUSED
+      # rule cannot fire on them anyway, since it only inspects steps whose tool is a UDT.
+      - name: Workflow ports resolve
+        run: |
+          for w in workflows/*/*.gxwf.yml; do
+            echo "== $w"
+            python3 scripts/check_workflow_ports.py "$w"
+          done
+
+  # Coordinates are the one thing every other check here is blind to, because a tool whose output
+  # is internally consistent passes them all: right widths, right totals, right coverage
+  # percentages, and a verification script comparing a mask against a FASTA masked FROM that mask.
+  # Three coordinate bugs shipped that way. This asks each coordinate-emitting tool for an
+  # independent answer by a second route and requires the two to agree exactly. Its own job,
+  # because it needs docker and image pulls, and a pull failure must not mask the checks above.
+  coordinates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Coordinates agree with the tools' own output
+        run: python3 scripts/check_coordinates.py

@@ -48,9 +48,10 @@ from collections import Counter, defaultdict
 def load_edges(path):
     """Return undirected gene-gene edges as {frozenset({node_a, node_b})}.
 
-    rbest ships both directions of most pairs. Deduplicating here is what makes
-    the clique ratio a true 0..1 fraction -- counting directed edges against an
-    undirected expectation of k*(k-1)/2 inflates it past 1.0.
+    rbest ships both directions of most pairs, so deduplicating is what makes the
+    edge count comparable with an UNDIRECTED expectation at all -- counting directed
+    edges doubles it. Dedup alone does not bound the ratio: see expected_edges()
+    for the denominator that does.
     """
     edges = set()
     with open(path) as fh:
@@ -81,6 +82,46 @@ class UnionFind:
             self.parent[ra] = rb
 
 
+def expected_edges(counts):
+    """The most mutual support 1:1 evidence can provide: sum over strain pairs of
+    min(copies_a, copies_b).
+
+    ⛔ NOT k*(k-1)/2, WHICH IS NOT A DENOMINATOR FOR THIS NUMERATOR. `k` counts
+    distinct STRAINS while the numerator counts GENE-GENE edges, so the moment a
+    group holds more than one copy per strain the ratio leaves 0..1 entirely:
+    three strains with two 1:1-supported copies each scored 4.000. Every
+    multi-copy group therefore sat far above `--min-clique` and could never be
+    listed as ragged -- the CORE-VAR and FAMILY groups this number exists to
+    audit were exactly the ones it could not flag.
+
+    ⚠ AND IT MADE THE COMPARISON THE SCRIPT ASKS FOR MEANINGLESS. phase_e_consensus.py
+    prints "Compare against scripts/rbest_baseline.py on the same rbest edges" while
+    computing its `clique` this way, with a comment saying k*(k-1)/2 "would flag every
+    multi-copy group as chained". Two numbers offered for comparison have to be on one
+    scale, so this is that same formula. It reduces to k*(k-1)/2 for single-copy groups,
+    which is where the two agreed before.
+
+    ⚠ THIS DENOMINATOR DOES NOT BOUND THE RATIO EITHER, AND THE CALLER'S CLAMP IS
+    WHAT KEEPS IT IN 0..1. Saying otherwise was the original mistake, so state the
+    two blind spots plainly rather than repeat it:
+
+      * an OVER-connected group still exceeds 1. Two strains with three copies each
+        and a full bipartite 9 edges gives expected=3 and a raw 3.0, clamped to
+        1.000 -- so a blob is unflaggable, it merely no longer prints 4.000. Raw
+        density is the number that sees a blob; phase_e_consensus.py prints both for
+        exactly this reason and says only the pair tells the whole story.
+      * a group with FEWER THAN TWO strains has no strain pair, so expected is 0 and
+        the caller awards 1.000 regardless of how its edges look. A long
+        same-strain chain therefore never appears in `ragged`.
+
+    Both behaviours match phase_e_consensus.py, which is what the comparison
+    requires; they are limits of the metric, not of this implementation.
+    """
+    counts = sorted(counts)
+    return sum(min(counts[i], counts[j])
+               for i in range(len(counts)) for j in range(i + 1, len(counts)))
+
+
 def label_of(n_strains, max_copies, n_all):
     """The thresholds phase_e_consensus.py uses, applied unchanged."""
     if n_strains == n_all and max_copies == 1:
@@ -105,6 +146,14 @@ def main():
     a = ap.parse_args()
 
     edges = load_edges(a.edges)
+    # ⛔ AN EMPTY EDGE SET IS A REPORTABLE INPUT, NOT A TRACEBACK. A header-only or
+    # all-self-pair file left `comps` empty, and both `cliques[len(cliques) // 2]`
+    # and `rows[0]` then raised IndexError -- a stack trace where the answer is
+    # "these edges support no orthogroup", which is a finding about the WF-E run.
+    if not edges:
+        sys.exit(f"{a.edges} yielded no gene-gene edges (after dropping self pairs). That is a "
+                 f"statement about the run that produced it, not a usage error: check that "
+                 f"phase_e_rbest_overlap actually intersected the annotations with the chains.")
     uf = UnionFind()
     for e in edges:
         x, y = tuple(e)
@@ -124,7 +173,15 @@ def main():
     print(f"orthogroups: {len(comps):,}\n")
 
     rows, labels, cliques, ragged = [], Counter(), [], []
-    for i, (root, nodes) in enumerate(sorted(comps.items(), key=lambda kv: -len(kv[1])), 1):
+    # ⛔ THE TIE-BREAK IS WHAT MAKES `OG000007` MEAN ANYTHING. `comps` is keyed by
+    # union-find roots and filled by iterating a set of strings, so its order follows
+    # per-process string-hash randomisation; sorting on size alone left every group of
+    # equal size in an arbitrary position. The same --edges file under PYTHONHASHSEED=1
+    # and =42 handed OG000001..OG000012 to different genes, so two --out tables could
+    # not be diffed and an OG id quoted in a report named nothing. phase_e_consensus.py
+    # sorts by this same key for this same reason.
+    for i, (root, nodes) in enumerate(sorted(comps.items(),
+                                             key=lambda kv: (-len(kv[1]), min(kv[1]))), 1):
         per = defaultdict(list)
         for n in nodes:
             s, g = n.split("#", 1)
@@ -132,8 +189,8 @@ def main():
         k, mx = len(per), max(len(v) for v in per.values())
         lab = label_of(k, mx, n_all)
         labels[lab] += 1
-        expected = k * (k - 1) // 2
-        clique = edge_count[root] / expected if expected else 1.0
+        expected = expected_edges(len(v) for v in per.values())
+        clique = min(edge_count[root] / expected, 1.0) if expected else 1.0
         cliques.append(clique)
         if clique < a.min_clique:
             ragged.append((f"OG{i:06d}", k, mx, len(nodes), round(clique, 3)))
@@ -147,7 +204,7 @@ def main():
 
     cliques.sort()
     below = sum(1 for c in cliques if c < a.min_clique)
-    print(f"\nclique completeness (undirected edges / k*(k-1)/2):")
+    print("\nclique completeness (undirected edges / sum of min(copies_a, copies_b)):")
     print(f"   median {cliques[len(cliques) // 2]:.3f}   "
           f"10th pct {cliques[len(cliques) // 10]:.3f}")
     print(f"   below {a.min_clique}: {below:,} groups ({100 * below / len(comps):.1f}%) "
@@ -158,7 +215,7 @@ def main():
     if a.table:
         shipped = Counter(r["label"] for r in csv.DictReader(open(a.table), delimiter="\t"))
         total = sum(shipped.values())
-        print(f"\nshipped WF-E table vs this baseline:")
+        print("\nshipped WF-E table vs this baseline:")
         print(f"   {'label':18} {'shipped':>16} {'baseline':>16}")
         for lab in sorted(set(shipped) | set(labels)):
             print(f"   {lab:18} {shipped[lab]:>7,} {100*shipped[lab]/total:5.1f}% "

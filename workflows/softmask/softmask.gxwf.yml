@@ -68,7 +68,7 @@ steps:
         output_name: output
       TagDatasetActionoutput:
         action_arguments:
-          tags: DustMakser
+          tags: DustMasker
         action_type: TagDatasetAction
         output_name: output
   windowmasker:
