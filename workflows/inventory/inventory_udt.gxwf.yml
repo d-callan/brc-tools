@@ -88,6 +88,19 @@ outputs:
   similarity_matrix:
     outputSource: sourmash_panel/similarity
     doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
+  similarity_newick:
+    outputSource: sourmash_panel/similarity_newick
+    doc: >-
+      The Jaccard tree as Newick, the counterpart to `max_containment_newick`. ⛔ PUBLISHED SO THE
+      TWO CAN BE COMPARED, WHICH IS THE ONLY REASON EITHER IS USEFUL AS DATA: measured on the
+      219-member cannabis panel the two clusterings share just 89 of 217 non-trivial clades
+      (normalised Robinson-Foulds 0.590), so picking one silently would hide a disagreement about
+      most of the structure. ⛔ AND NEITHER IS A PHYLOGENY: of 49 `Xa`/`Xb` haplotype pairs -- two
+      haplotypes of ONE individual, the least ambiguous relationship the panel holds -- only 15 are
+      sister taxa here and 12 in the max-containment tree. Read both as "shares k-mer content
+      with", never as descent. ⚠ Branch lengths are `1 - Jaccard`, a dissimilarity, and the linkage
+      is average (UPGMA) while the PNG dendrogram beside it uses scipy's default single linkage, so
+      the picture and the tree are deliberately not identical.
   containment_matrix:
     outputSource: sourmash_panel/containment_matrix
     doc: >-
