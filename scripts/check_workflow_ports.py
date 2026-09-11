@@ -571,11 +571,26 @@ def main() -> int:
                 for x in sources_of(r)}
     consumed |= {(r.get("outputSource", r) if isinstance(r, dict) else r)
                  for r in wf_out.values()}
+    # ⛔ A PROBLEM, NOT A NOTE, AND IT WAS A NOTE WHILE THREE OUTPUTS WENT MISSING. A tool output
+    # that no step consumes and no workflow output publishes is COMPUTED AND THROWN AWAY -- the job
+    # pays for it and nobody can read it. This check existed and printed the right sentence the
+    # whole time; because it only ever landed in `notes`, the exit code stayed 0 and CI stayed
+    # green. Measured over this repository: `sourmash_panel/max_containment_newick` and
+    # `sourmash_panel/similarity_newick` were each orphaned for a release, and
+    # `p_triage/needs_cesar2_bed` -- the list of genes the CESAR2 fallback rate is ABOUT -- had
+    # never been published at all.
+    #
+    # ⚠ THE SHAPE IS STRUCTURAL: a tool and the workflow consuming it are separate files, and only
+    # the tool edit is needed to make the tool "work", so the workflow edit is the one that gets
+    # forgotten. A reviewer cannot see the omission in either diff alone.
     for name, s in steps.items():
         if s.get("tool_id") in udt:
             for o in udt[s["tool_id"]]["outputs"]:
                 if f"{name}/{o}" not in consumed:
-                    notes.append(f"UNUSED    {name}/{o} — declared, consumed by nothing")
+                    problems.append(("UNUSED-OUTPUT", f"{name}/{o}",
+                                     "declared by the tool, consumed by no step and published by "
+                                     "no workflow output -- computed and discarded. Publish it, "
+                                     "wire it into a step, or remove it from the tool."))
 
     reachable, frontier = set(), {n for n, s in steps.items()
                                   if any("/" not in x
