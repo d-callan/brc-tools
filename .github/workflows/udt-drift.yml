@@ -138,9 +138,13 @@ jobs:
         run: python3 scripts/check_relabel_strict.py
 
       # Offline half only -- the remote half needs a live Galaxy and prints its own SKIP line.
+      # ⚠ EVERY WORKFLOW, NOT JUST THE `_udt` ONES. The glob was `*_udt.gxwf.yml`, which checked 4
+      # of 15 and left the classic editions unchecked for no stated reason. Widening it costs
+      # nothing today -- measured, all 11 previously-unchecked workflows pass -- and the UNUSED
+      # rule cannot fire on them anyway, since it only inspects steps whose tool is a UDT.
       - name: Workflow ports resolve
         run: |
-          for w in workflows/*/*_udt.gxwf.yml; do
+          for w in workflows/*/*.gxwf.yml; do
             echo "== $w"
             python3 scripts/check_workflow_ports.py "$w"
           done
