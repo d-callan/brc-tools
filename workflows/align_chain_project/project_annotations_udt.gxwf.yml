@@ -306,6 +306,14 @@ outputs:
   triage_table:
     outputSource: p_triage/triage_tsv
     doc: Per-gene rule trace -- which rule flagged each gene, and with what identity and coverage.
+  needs_cesar2:
+    outputSource: p_triage/needs_cesar2_bed
+    doc: >-
+      The genes triage sends to CESAR2 -- the ones Liftoff could not project cleanly -- as BED.
+      ⛔ COMPUTED AND DISCARDED UNTIL NOW: the step declared this output and neither published nor
+      consumed it, so the one artefact naming WHICH genes the fallback rate is about existed only
+      inside the job. `triage_summary` gives the rate and `triage_table` the per-gene rule trace;
+      this is the list itself, in the form CESAR2 and a genome browser both read.
   liftoff_unmapped:
     outputSource: p_liftoff/unmapped
     doc: >-

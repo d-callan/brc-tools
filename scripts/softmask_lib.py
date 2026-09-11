@@ -22,9 +22,21 @@ import json
 import pathlib
 import sys
 import time
+from typing import TYPE_CHECKING
 
 import yaml
-from bioblend.galaxy import GalaxyInstance
+
+# ⛔ IMPORTED LAZILY, INSIDE connect(), SO THIS MODULE IS USABLE WITHOUT bioblend. It was a
+# module-level import, which made `import softmask_lib` -- and therefore this file's own self-test
+# -- impossible on a machine without the Galaxy SDK. CI is exactly such a machine: it lints and
+# self-tests without installing bioblend, so wiring the self-test in failed with
+# `ModuleNotFoundError: No module named 'bioblend'` while testing nothing.
+#
+# ⚠ EVERY OTHER USE IS AN ANNOTATION, and `from __future__ import annotations` above makes those
+# strings that are never evaluated. Only connect() actually constructs a client, so only connect()
+# needs the package present.
+if TYPE_CHECKING:
+    from bioblend.galaxy import GalaxyInstance
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 UDT_DIR = ROOT / "udt"
@@ -92,6 +104,8 @@ def connect() -> GalaxyInstance:
     variable. Six scripts call this, so all six were affected; nothing raised, because vgp shares
     main's database and every id resolved on both.
     """
+    from bioblend.galaxy import GalaxyInstance  # lazy: see the TYPE_CHECKING guard above
+
     return GalaxyInstance(*galaxy_server.creds())
 
 
@@ -152,10 +166,15 @@ def _identical_registration(gi: GalaxyInstance, doc: dict) -> str | None:
     behaviour this replaces, every time. A false "identical" would bind a workflow to the wrong
     code, so every uncertainty resolves toward creating.
     """
+    # ⚠ BROAD ON PURPOSE, AND IT FAILS TOWARD CREATING. bioblend raises its own ConnectionError and
+    # the JSON decode raises something else again; enumerating them here would make a NEW failure
+    # mode -- an unlisted exception escaping and aborting a registration that would otherwise have
+    # succeeded. Returning None costs one duplicate registration, which is exactly the behaviour
+    # this function replaces.
     try:
         body = gi.make_get_request(f"{gi.url}/unprivileged_tools").json()
-    except Exception:
-        return None                      # a probe that cannot run must not block a registration
+    except Exception:  # noqa: BLE001 -- see above: a probe that cannot run must not block a create
+        return None
     if not isinstance(body, list):
         return None
     want_in = {str(i.get("name")) for i in (doc.get("inputs") or [])}
