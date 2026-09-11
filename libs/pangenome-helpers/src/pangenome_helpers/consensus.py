@@ -226,7 +226,6 @@ def build_consensus_table(
     liftoff_dir: str | Path,
     anchors: Sequence[str],
     strains: Sequence[str],
-    ref_strain: str,
     *,
     rbest_edges: Iterable[dict] | None = None,
     gene_beds: str | Path | None = None,

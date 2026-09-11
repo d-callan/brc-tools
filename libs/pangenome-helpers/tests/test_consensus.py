@@ -13,7 +13,6 @@ def test_build_consensus_table_core_group(tmp_path):
         liftoff_dir,
         anchors,
         strains,
-        ref_strain="anchorA",
         rbest_edges=[{"strain_a": "anchorA", "gene_a": "anchorGene", "strain_b": "strainB", "gene_b": "queryGene"}],
     )
     assert len(rows) == 1
@@ -35,7 +34,6 @@ def test_build_consensus_table_with_gene_beds_resolves_projected_to_native():
         liftoff_dir,
         anchors,
         strains,
-        ref_strain="anchorA",
         rbest_edges=[{"strain_a": "anchorA", "gene_a": "anchorGene", "strain_b": "strainB", "gene_b": "nativeGeneB"}],
         gene_beds=str(DATA / "gene_beds" / "*.bed"),
     )
@@ -55,7 +53,6 @@ def test_build_consensus_table_clique_and_density_columns():
         liftoff_dir,
         anchors,
         strains,
-        ref_strain="anchorA",
         rbest_edges=[{"strain_a": "anchorA", "gene_a": "anchorGene", "strain_b": "strainB", "gene_b": "queryGene"}],
     )
     assert len(rows) == 1
@@ -78,7 +75,6 @@ def test_build_consensus_table_keep_unresolved_projections():
         liftoff_dir,
         anchors,
         strains,
-        ref_strain="anchorA",
         gene_beds=str(DATA / "gene_beds" / "*.bed"),
         keep_unresolved_projections=True,
     )

@@ -115,7 +115,6 @@ def main(argv: list[str] | None = None) -> int:
     consensus_parser.add_argument("liftoff_dir", help="Liftoff classification directory")
     consensus_parser.add_argument("anchors", nargs="+", help="Anchor strain names")
     consensus_parser.add_argument("--strains", nargs="+", required=True, help="All strain names")
-    consensus_parser.add_argument("--ref-strain", required=True, help="Reference strain name")
     consensus_parser.add_argument(
         "--rbest-edges",
         help="Reciprocal-best edges JSON file",
@@ -348,7 +347,6 @@ def cmd_consensus(args: argparse.Namespace) -> int:
             liftoff_dir=args.liftoff_dir,
             anchors=args.anchors,
             strains=args.strains,
-            ref_strain=args.ref_strain,
             rbest_edges=rbest_edges,
             gene_beds=args.gene_beds,
             alias_overlap=args.alias_overlap,

@@ -258,9 +258,21 @@ def _has_splice_issue(gene: GeneRecord, fasta_sequences: Mapping[str, str]) -> b
             continue
         exons_sorted = sorted(exons, reverse=(gene.strand == "-"))
         for i in range(len(exons_sorted) - 1):
-            donor_site = _slice(fasta_sequences, gene.chrom, exons_sorted[i][1] + 1, exons_sorted[i][1] + 2)
-            acceptor_site = _slice(fasta_sequences, gene.chrom, exons_sorted[i + 1][0] - 1, exons_sorted[i + 1][0])
-            if (donor_site, acceptor_site) not in CANONICAL_SPLICE:
+            if gene.strand == "+":
+                intron_start = exons_sorted[i][1] + 1
+                intron_end = exons_sorted[i + 1][0] - 1
+                if intron_end < intron_start + 3:
+                    continue
+                donor = _slice(fasta_sequences, gene.chrom, intron_start, intron_start + 1)
+                acceptor = _slice(fasta_sequences, gene.chrom, intron_end - 1, intron_end)
+            else:
+                intron_start = exons_sorted[i + 1][1] + 1
+                intron_end = exons_sorted[i][0] - 1
+                if intron_end < intron_start + 3:
+                    continue
+                donor = _revcomp(_slice(fasta_sequences, gene.chrom, intron_end - 1, intron_end))
+                acceptor = _revcomp(_slice(fasta_sequences, gene.chrom, intron_start, intron_start + 1))
+            if (donor, acceptor) not in CANONICAL_SPLICE:
                 return True
     return False
 

@@ -220,11 +220,11 @@ def rgb_to_int(rgb: str) -> int:
 
 
 def is_variant_antigen(_gene_id: str, label: str) -> str:
-    families = {"VIR", "PIR", "PHIST", "DBP", "RBP", "SURFIN", "SERA"}
+    families = ["VIR", "PIR", "PHIST", "DBP", "RBP", "SURFIN", "SERA"]
     lower = label.lower()
     for fam in families:
         if fam.lower() in lower:
-            return fam
+            return label
     return "other"
 
 
