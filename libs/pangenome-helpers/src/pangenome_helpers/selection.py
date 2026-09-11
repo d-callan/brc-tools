@@ -124,7 +124,7 @@ def build_selection_bed_rows(
                 fields[0],
                 fields[1],
                 fields[2],
-                og_id,
+                gene_id,
                 str(score),
                 fields[5],
                 fields[6],
@@ -153,6 +153,7 @@ def build_orthogroup_bed_rows(
     """Return BED12 rows for orthogroup membership."""
 
     sortable_rows: list[tuple[str, int, str]] = []
+    max_strains = max((ns for _, _, ns in og_map.values()), default=1)
     for gene_id, (og_id, _label, n_strains) in og_map.items():
         if gene_id not in bed12:
             continue
@@ -162,14 +163,14 @@ def build_orthogroup_bed_rows(
         end = int(fields[2])
         if chrom not in chrom_sizes or end > chrom_sizes[chrom] or start >= end:
             continue
-        rgb_int = _n_strains_to_rgb_int(n_strains)
+        rgb_int = _n_strains_to_rgb_int(n_strains, max_strains)
         score = int(n_strains * 125)
         row = "\t".join(
             [
                 chrom,
                 str(start),
                 str(end),
-                og_id,
+                gene_id,
                 str(score),
                 fields[5],
                 fields[6],
@@ -228,8 +229,9 @@ def is_variant_antigen(_gene_id: str, label: str) -> str:
     return "other"
 
 
-def _n_strains_to_rgb_int(n_strains: int) -> int:
-    ratio = max(0.0, min(1.0, (n_strains - 1) / 7))
+def _n_strains_to_rgb_int(n_strains: int, max_strains: int = 8) -> int:
+    denom = max(1, max_strains - 1)
+    ratio = max(0.0, min(1.0, (n_strains - 1) / denom))
     r = max(0, int(255 * (1 - ratio)))
     g = max(0, int(255 * ratio))
     return (r << 16) | g

@@ -1,6 +1,7 @@
 from .hub import (
     TrackDbConfig,
     build_genome_records,
+    read_metadata_tsv,
     render_genomes_txt,
     render_trackdb,
 )
@@ -88,6 +89,7 @@ __all__ = [
     "prepare_anchor_inputs",
     "process_maf_file",
     "read_family_list",
+    "read_metadata_tsv",
     "read_reference_bed",
     "render_genomes_txt",
     "render_trackdb",

@@ -192,6 +192,7 @@ def _seed_edges(
                     continue
                 if reciprocal_overlap((si, ei), (sj, ej)) >= 0.9:
                     uf.union(ni, nj)
+                    used_edges.add(frozenset((ni, nj)))
                     aliases += 1
 
     return {

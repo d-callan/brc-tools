@@ -83,3 +83,31 @@ def test_build_consensus_table_keep_unresolved_projections():
     assert len(rows) == 1
     row = rows[0]
     assert "nativeGeneB" in row["strainB"]
+
+
+def test_build_consensus_table_alias_edges_counted_in_density(tmp_path):
+    """Alias edges from interval-based aliasing should be counted in used_edges
+    so they contribute to density.
+
+    Setup: two projections onto strainB at chr1:0-100 and chr1:0-95 (95%
+    reciprocal overlap).  This creates 4 nodes, 3 edges (2 classification + 1
+    alias), 6 pairs -> density = 3/6 = 0.5.  Without the fix the alias edge
+    is not counted and density = 2/6 = 0.333.
+    """
+    liftoff_dir = tmp_path / "liftoff"
+    (liftoff_dir / "anchorA-as-ref").mkdir(parents=True)
+    cls_path = liftoff_dir / "anchorA-as-ref" / "strainB.classification.tsv"
+    cls_path.write_text(
+        "reference_gene_id\tquery_gene_id\tsource\tintactness\tquery_chrom\tquery_start\tquery_end\n"
+        "anchorGene1\tqueryGene1\tcesar2\tI\tchr1\t0\t100\n"
+        "anchorGene2\tqueryGene2\tcesar2\tI\tchr1\t0\t95\n"
+    )
+
+    rows = build_consensus_table(
+        liftoff_dir,
+        anchors=["anchorA"],
+        strains=["anchorA", "strainB"],
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["density"] == 0.5, f"expected 0.5 (3 edges / 6 pairs), got {row['density']}"

@@ -119,3 +119,41 @@ def test_cli_triage_invalid_file(tmp_path, capsys):
     assert result == 1
     captured = capsys.readouterr()
     assert "failed" in captured.err.lower()
+
+
+def test_cli_hub(tmp_path):
+    """Test hub command produces genomes.txt and trackDb.txt."""
+    output_dir = tmp_path / "hub_out"
+    result = main([
+        "hub",
+        str(DATA / "hub" / "metadata.tsv"),
+        str(output_dir),
+        "--assembly", "ACC1",
+        "--strain", "Strain1",
+        "--species-panel", "ACC1=Strain1",
+        "--anchor-strains", "ACC1=Strain1",
+        "--maf-url", "Strain1.multiz.maf.bb",
+        "--include-selection",
+    ])
+    assert result == 0
+    assert (output_dir / "genomes.txt").exists()
+    assert (output_dir / "trackDb.txt").exists()
+    genomes_txt = (output_dir / "genomes.txt").read_text()
+    assert "genome ACC1" in genomes_txt
+    trackdb_txt = (output_dir / "trackDb.txt").read_text()
+    assert "track Strain1_multiz" in trackdb_txt
+    assert "track brc_pangenome_select" in trackdb_txt
+
+
+def test_cli_hub_genomes_only(tmp_path):
+    """Hub command without --assembly should still produce genomes.txt
+    with an empty trackDb.txt."""
+    output_dir = tmp_path / "hub_out"
+    result = main([
+        "hub",
+        str(DATA / "hub" / "metadata.tsv"),
+        str(output_dir),
+    ])
+    assert result == 0
+    assert (output_dir / "genomes.txt").exists()
+    assert (output_dir / "trackDb.txt").exists()

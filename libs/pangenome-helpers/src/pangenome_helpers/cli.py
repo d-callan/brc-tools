@@ -36,9 +36,11 @@ from . import (
     read_reference_bed,
     render_genomes_txt,
     render_trackdb,
+    read_metadata_tsv,
     rename_fasta,
     run_triage,
     summarize_labels,
+    TrackDbConfig,
     write_phase_c2_outputs,
     TriageSettings,
 )
@@ -166,12 +168,33 @@ def main(argv: list[str] | None = None) -> int:
     hub_parser.add_argument("genomes_metadata_tsv", help="Genomes metadata TSV")
     hub_parser.add_argument("output_dir", help="Output directory")
     hub_parser.add_argument(
-        "--hub-name",
-        help="Hub name (default: from metadata)",
+        "--assembly",
+        help="Reference assembly accession (for trackDb)",
     )
     hub_parser.add_argument(
-        "--hub-email",
-        help="Hub contact email (default: from metadata)",
+        "--strain",
+        help="Reference strain name (for trackDb)",
+    )
+    hub_parser.add_argument(
+        "--species-panel",
+        nargs="+",
+        default=[],
+        help="Species panel as accession=label pairs (e.g. ACC1=Strain1 ACC2=Strain2)",
+    )
+    hub_parser.add_argument(
+        "--anchor-strains",
+        nargs="+",
+        default=[],
+        help="Anchor strains as accession=label pairs",
+    )
+    hub_parser.add_argument(
+        "--maf-url",
+        help="URL to the bigMaf file for the reference assembly",
+    )
+    hub_parser.add_argument(
+        "--include-selection",
+        action="store_true",
+        help="Include selection tracks in trackDb",
     )
     hub_parser.set_defaults(func=cmd_hub)
 
@@ -396,15 +419,23 @@ def cmd_hub(args: argparse.Namespace) -> int:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        genomes = build_genome_records(args.genomes_metadata_tsv)
-        hub_name = args.hub_name or "Pangenome Hub"
-        hub_email = args.hub_email or "contact@example.com"
+        genomes = build_genome_records(read_metadata_tsv(args.genomes_metadata_tsv))
 
-        genomes_txt = render_genomes_txt(genomes, hub_name, hub_email)
+        genomes_txt = render_genomes_txt(genomes)
         with open(output_dir / "genomes.txt", "w") as fh:
             fh.write(genomes_txt)
 
-        trackdb_txt = render_trackdb(genomes)
+        trackdb_txt = ""
+        if args.assembly and args.strain and args.maf_url:
+            config = TrackDbConfig(
+                assembly=args.assembly,
+                strain=args.strain,
+                species_panel=args.species_panel,
+                anchor_strains=args.anchor_strains,
+                maf_url=args.maf_url,
+                include_selection=args.include_selection,
+            )
+            trackdb_txt = render_trackdb(config)
         with open(output_dir / "trackDb.txt", "w") as fh:
             fh.write(trackdb_txt)
 

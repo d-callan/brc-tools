@@ -137,7 +137,7 @@ def merge_annotations(
                 "source": "liftoff",
                 "intactness": "I",
                 "query_chrom": fields[0],
-                "query_start": fields[3],
+                "query_start": str(int(fields[3]) - 1),
                 "query_end": fields[4],
                 "query_strand": fields[6],
                 "orthology_class": "liftoff_clean",
