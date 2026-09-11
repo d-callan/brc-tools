@@ -87,8 +87,13 @@ inputs:
 outputs:
   similarity_matrix:
     outputSource: sourmash_panel/similarity
+    doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
   containment_matrix:
     outputSource: sourmash_panel/containment_matrix
+    doc: >-
+      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
+      true, and NOT interchangeable with `similarity_matrix`: containment(A,B) != containment(B,A)
+      whenever the two differ in size, so nothing clusters it and no dendrogram is drawn from it.
   max_containment_matrix:
     outputSource: sourmash_panel/max_containment
     doc: >-
@@ -100,17 +105,21 @@ outputs:
   max_containment_heatmap:
     outputSource: sourmash_panel/max_containment_heatmap
     doc: Clustered heatmap over the symmetric size-robust matrix. Absent unless requested.
+  max_containment_newick:
+    outputSource: sourmash_panel/max_containment_newick
+    doc: >-
+      The max-containment tree as Newick, for iTOL / FigTree / ggtree / ete3. ⛔ NOT A PHYLOGENY:
+      branch lengths are `1 - max_containment`, a content-overlap dissimilarity, so a small genome
+      whose content sits inside a large one pairs with it rather than with its own sibling. ⚠ It is
+      also NOT the same tree as the PNG dendrogram -- this is average linkage (UPGMA), `sourmash
+      plot` uses scipy's default single linkage -- and both are published, so the method is named
+      in the label rather than left to inference. Absent unless `sourmash_containment` is true.
   max_containment_dendrogram:
     outputSource: sourmash_panel/max_containment_dendrogram
     doc: >-
       The tree to read when panel members differ in size, because it never divides by the union.
       Published beside the Jaccard dendrogram, not instead of it -- where the two disagree, the
       Jaccard one is the size-distorted one. Absent unless requested.
-    doc: >-
-      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
-      true, and NOT interchangeable with `similarity_matrix`: containment(A,B) != containment(B,A)
-      whenever the two differ in size, so nothing clusters it and no dendrogram is drawn from it.
-    doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
   sourmash_heatmap:
     outputSource: sourmash_panel/heatmap
     doc: Clustered sourmash similarity heatmap (PNG).
