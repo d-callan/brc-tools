@@ -19,7 +19,6 @@ from .merge import (
 from .anchors import AnchorPrepResult, prepare_anchor_inputs
 from .cds import OrthogroupSequences, iter_orthogroup_sequences
 from .consensus import ConsensusResult, build_consensus_table, summarize_labels
-from .graph_edges import compute_graph_edges
 from .manifest import (
     ManifestError,
     ensure_matching_collections,
@@ -67,7 +66,6 @@ __all__ = [
     "build_genome_records",
     "build_orthogroup_bed_rows",
     "build_selection_bed_rows",
-    "compute_graph_edges",
     "compute_rbest_edges",
     "derive_multiz_order",
     "ensure_matching_collections",

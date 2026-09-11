@@ -13,7 +13,6 @@ from . import (
     build_genome_records,
     build_orthogroup_bed_rows,
     build_selection_bed_rows,
-    compute_graph_edges,
     compute_rbest_edges,
     derive_multiz_order,
     ensure_matching_collections,
@@ -122,8 +121,24 @@ def main(argv: list[str] | None = None) -> int:
         help="Reciprocal-best edges JSON file",
     )
     consensus_parser.add_argument(
-        "--graph-edges",
-        help="Graph edges JSON file",
+        "--gene-beds",
+        help="Glob pattern or directory of per-strain native gene BED files",
+    )
+    consensus_parser.add_argument(
+        "--alias-overlap",
+        type=float,
+        default=0.5,
+        help="Minimum reciprocal overlap for resolving projected genes (default: 0.5)",
+    )
+    consensus_parser.add_argument(
+        "--keep-unresolved-projections",
+        action="store_true",
+        help="Add unresolved projections as their own nodes (old behaviour; inflates max_copies)",
+    )
+    consensus_parser.add_argument(
+        "--split-many2many",
+        action="store_true",
+        help="Skip projections whose orthology_class is many2many",
     )
     consensus_parser.add_argument("output_tsv", help="Output consensus TSV")
     consensus_parser.set_defaults(func=cmd_consensus)
@@ -143,17 +158,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     rbest_parser.add_argument("output_json", help="Output edges JSON")
     rbest_parser.set_defaults(func=cmd_rbest_edges)
-
-    # Phase E: Graph edges
-    graph_parser = subparsers.add_parser(
-        "graph-edges",
-        help="Phase E graph co-membership edges",
-    )
-    graph_parser.add_argument("paths_tsv", help="ODGI paths TSV")
-    graph_parser.add_argument("annotations_pattern", help="Glob pattern for *.bed files")
-    graph_parser.add_argument("--strains", nargs="+", required=True, help="Strain names to include")
-    graph_parser.add_argument("output_json", help="Output edges JSON")
-    graph_parser.set_defaults(func=cmd_graph_edges)
 
     # Hub building
     hub_parser = subparsers.add_parser(
@@ -340,18 +344,16 @@ def cmd_consensus(args: argparse.Namespace) -> int:
             with open(args.rbest_edges) as fh:
                 rbest_edges = json.load(fh)
 
-        graph_edges = None
-        if args.graph_edges:
-            with open(args.graph_edges) as fh:
-                graph_edges = json.load(fh)
-
         rows = build_consensus_table(
             liftoff_dir=args.liftoff_dir,
             anchors=args.anchors,
             strains=args.strains,
             ref_strain=args.ref_strain,
             rbest_edges=rbest_edges,
-            graph_edges=graph_edges,
+            gene_beds=args.gene_beds,
+            alias_overlap=args.alias_overlap,
+            keep_unresolved_projections=args.keep_unresolved_projections,
+            split_many2many=args.split_many2many,
         )
 
         with open(args.output_tsv, "w") as fh:
@@ -387,24 +389,6 @@ def cmd_rbest_edges(args: argparse.Namespace) -> int:
         return 0
     except Exception as e:
         print(f"✗ Reciprocal-best edges failed: {e}", file=sys.stderr)
-        return 1
-
-
-def cmd_graph_edges(args: argparse.Namespace) -> int:
-    """Phase E graph co-membership edges."""
-    try:
-        edges = compute_graph_edges(
-            paths_tsv=args.paths_tsv,
-            annotations_pattern=args.annotations_pattern,
-            strains=args.strains,
-        )
-        with open(args.output_json, "w") as fh:
-            json.dump(edges, fh, indent=2)
-        print(f"✓ Graph edges complete: {len(edges)} edges")
-        print(f"  Output: {args.output_json}")
-        return 0
-    except Exception as e:
-        print(f"✗ Graph edges failed: {e}", file=sys.stderr)
         return 1
 
 
