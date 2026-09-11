@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -254,45 +253,6 @@ def _emit_select(out: list[str], config: TrackDbConfig):
                 "",
             ]
         )
-
-
-# ---------------------------------------------------------------------------
-# Selection helpers shared with build_hub_bb
-# ---------------------------------------------------------------------------
-
-
-def bh_fdr(pvals: dict[str, float]) -> dict[str, float]:
-    ordered = sorted(pvals.items(), key=lambda item: item[1])
-    n = len(ordered)
-    qvals: dict[str, float] = {}
-    prev = 1.0
-    for idx in range(n - 1, -1, -1):
-        gene, pval = ordered[idx]
-        q = min(prev, pval * n / (idx + 1))
-        qvals[gene] = min(1.0, q)
-        prev = q
-    return qvals
-
-
-def qval_to_rgb(q: float) -> str:
-    if q < 0.01:
-        return "255,0,0"
-    if q < 0.05:
-        return "255,128,0"
-    if q < 0.10:
-        return "200,200,0"
-    return "128,128,128"
-
-
-def qval_to_score(q: float) -> int:
-    if q <= 0:
-        return 1000
-    return max(0, min(1000, int(-math.log10(q) * 100)))
-
-
-def rgb_to_int(rgb: str) -> int:
-    r, g, b = map(int, rgb.split(","))
-    return (r << 16) | (g << 8) | b
 
 
 # ---------------------------------------------------------------------------
