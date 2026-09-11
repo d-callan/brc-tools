@@ -67,14 +67,33 @@ Normally these come from `gffread` on each strain's own annotation.
 Reduces each genome to a **signature**: a small, fixed-size sample of the k-mers it contains,
 chosen by hashing. Two genomes that share a lot of sequence share a lot of hashes, so
 signatures can be compared instead of the genomes themselves. A 29 Mb genome collapses to a
-few hundred kB, which is what makes the all-against-all comparison cheap.
+few hundred kB, which is what makes the all-against-all comparison cheap. IUC wrapper with
+`element_identifier` name option so signatures are named after strain, not filename.
 
-### step:sourmash_compare
+### step:sourmash_compare (Jaccard)
 
-Compares every signature against every other and writes the similarity matrix, plus a
-clustered heatmap and a dendrogram. Values are similarity: 1.0 is identical.
-This is where an outlier becomes obvious — on the Pv4 panel PvSY56 sits near 0.24 against
-everything while the rest sit at 0.63 to 0.70.
+Compares every signature against every other and writes the Jaccard similarity matrix
+as CSV. Values are similarity: 1.0 is identical. This is where an outlier becomes
+obvious — on the Pv4 panel PvSY56 sits near 0.24 against everything while the rest
+sit at 0.63 to 0.70.
+
+### step:sourmash_plot
+
+Clustered heatmap and dendrogram from the Jaccard similarity matrix. IUC sourmash_plot
+is a separate step (the IUC sourmash_compare wrapper does not plot internally, unlike
+the previous custom wrapper).
+
+### step:sourmash_compare_containment
+
+Asymmetric containment matrix (|A∩B|/|A|). Size-robust: a 286 Mb perfect subset of an
+800 Mb genome scores 1.00 here vs 0.36 under Jaccard. No plot — the asymmetry means a
+dendrogram would be an artefact of row order.
+
+### step:sourmash_compare_max_containment / sourmash_plot_max_containment
+
+Symmetric max-containment matrix and its clustered heatmap + dendrogram. The tree to
+read when panel members differ in size: never divides by the union, so a small genome
+inside a large one pairs with its real sibling, not with the large one.
 
 ### step:busco
 

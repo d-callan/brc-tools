@@ -36,7 +36,10 @@ inputs:
     type: boolean
     default: false
     doc: >-
-      Also publish a containment matrix. OFF by default -- see `containment_matrix`.
+      Deprecated — containment matrices are always produced now that the IUC
+      sourmash_compare is used (it takes one matrix_type per invocation, so
+      separate steps run Jaccard, containment, and max-containment). Kept
+      for backward compatibility with workflow invocations that pass it.
   busco_lineage:
     type: string
     default: apicomplexa_odb12
@@ -61,29 +64,29 @@ inputs:
     position: {top: 620, left: 300}
 outputs:
   similarity_matrix:
-    outputSource: sourmash_compare/output
-  containment_matrix:
-    outputSource: sourmash_compare/containment_matrix
-  max_containment_matrix:
-    outputSource: sourmash_compare/max_containment_matrix
-    doc: >-
-      Symmetric max-containment matrix. ⚠ ABSENT unless `sourmash_containment` is true, and it
-      ERASES a size difference: a perfect subset scores 1.00. Read alongside
-      `similarity_matrix` -- the gap between them is what identifies a contained member.
-  max_containment_heatmap:
-    outputSource: sourmash_compare/max_containment_heatmap
-    doc: Clustered heatmap over the symmetric size-robust matrix. Absent unless requested.
-  max_containment_dendrogram:
-    outputSource: sourmash_compare/max_containment_dendrogram
-    doc: The size-robust tree. Absent unless requested.
-    doc: >-
-      Asymmetric containment matrix, |A n B| / |A|. ⚠ ABSENT unless `sourmash_containment` is
-      true. Not interchangeable with `similarity_matrix`: Jaccard divides by the union and so
-      scores a size difference as distance, which on a mixed-size panel is the wrong ordering
-      for WF-I to fold on.
+    outputSource: sourmash_compare/matrix_csv
     doc: N x N sourmash similarity matrix (compare.csv); feeds WF-I fold order.
+  containment_matrix:
+    outputSource: sourmash_compare_containment/matrix_csv
+    doc: >-
+      Asymmetric containment matrix, |A n B| / |A|. Not interchangeable with
+      `similarity_matrix`: Jaccard divides by the union and so scores a size
+      difference as distance, which on a mixed-size panel is the wrong ordering
+      for WF-I to fold on.
+  max_containment_matrix:
+    outputSource: sourmash_compare_max_containment/matrix_csv
+    doc: >-
+      Symmetric max-containment matrix. ERASES a size difference: a perfect
+      subset scores 1.00. Read alongside `similarity_matrix` -- the gap
+      between them is what identifies a contained member.
+  max_containment_heatmap:
+    outputSource: sourmash_plot_max_containment/matrix
+    doc: Clustered heatmap over the symmetric size-robust matrix.
+  max_containment_dendrogram:
+    outputSource: sourmash_plot_max_containment/dendrogram
+    doc: The size-robust tree.
   signatures:
-    outputSource: sourmash_sketch/output
+    outputSource: sourmash_sketch/out_file1
     doc: Per-strain sourmash signatures (.sig), BRC-reusable.
   busco_summaries:
     outputSource: busco/busco_sum
@@ -92,10 +95,10 @@ outputs:
       partial run. It measures ANNOTATION completeness, so a genome with no annotation has no
       entry.
   sourmash_heatmap:
-    outputSource: sourmash_compare/heatmap
+    outputSource: sourmash_plot/matrix
     doc: Clustered sourmash similarity heatmap (PNG; hierarchical clustering).
   sourmash_dendrogram:
-    outputSource: sourmash_compare/dendrogram
+    outputSource: sourmash_plot/dendrogram
     doc: sourmash dendrogram (PNG).
   qc_report:
     outputSource: multiqc_report/html_report
@@ -130,31 +133,113 @@ steps:
     tool_id: sourmash_sketch
     label: sourmash_sketch
     doc: >-
-      sketch dna -p k=31,scaled=1000 (fixed in wrapper). Maps over the
-      assemblies list collection; one signature per assembly, named after the
-      element identifier (strain). Validated e2e 2026-06-07 against the
-      locally-authored wrapper (tools/sourmash_sketch). The wrapper exposes a
-      single data input `input` and a single output `output`; k/scaled are not
-      exposed.
+      sketch dna -p k=31,scaled=1000. Maps over the assemblies list
+      collection; one signature per assembly, named after the element
+      identifier (strain) via the IUC wrapper's element_identifier name
+      option. IUC wrapper (pending PR to add --name); previously the
+      custom tools/sourmash_sketch wrapper hardcoded --name.
     in:
       input: assemblies
-    # No state: the only input is the mapped-over `input`; k=31/scaled=1000 are
-    # hardcoded in the wrapper command.
+    state:
+      input_type_cond:
+        input_type_param: dna
+      advanced_settings:
+        resolution_cond:
+          resolution_param: scaled
+          scaled: 1000
+        k_size_repeat_0|k_size: 31
+        name_cond:
+          name_param: element_identifier
     position: {top: 810, left: 300}
   sourmash_compare:
     tool_id: sourmash_compare
     label: sourmash_compare
     doc: >-
-      N x N similarity matrix (1.0 = identical) -> compare.csv. WF-I sorts
-      descending (closest = highest similarity). Locally-authored wrapper
-      (tools/sourmash_compare): takes a `list` collection `signatures` and an
-      integer `ksize`; emits CSV via `--csv`. Validated e2e 2026-06-07.
+      N x N Jaccard similarity matrix (1.0 = identical) -> CSV. WF-I sorts
+      descending (closest = highest similarity). IUC wrapper: takes multiple
+      signature files and a matrix_type select. This step runs Jaccard (the
+      default). Containment and max-containment are separate steps below.
+      ⚠ The custom sourmash_compare wrapper ran `sourmash plot` internally;
+      the IUC wrapper does not, so a separate `sourmash_plot` step produces
+      the heatmap and dendrogram.
     in:
-      signatures: sourmash_sketch/output
-      containment: sourmash_containment
+      signatures: sourmash_sketch/out_file1
     state:
-      ksize: 31
+      matrix_type: ""
+      output_options:
+        - "--csv cmp.csv"
+      sig_select:
+        ksize: 31
+        mol_type: --dna
     position: {top: 690, left: 600}
+  sourmash_plot:
+    tool_id: sourmash_plot
+    label: sourmash_plot
+    doc: >-
+      Clustered heatmap and dendrogram from the Jaccard similarity matrix.
+      IUC sourmash_plot takes the npy matrix from compare and the labels txt
+      file for strain-name labels.
+    in:
+      input: sourmash_compare/matrix
+      labels_cond|labels_file: sourmash_compare/labels_txt
+    state:
+      labels_cond:
+        labels_param: --labels
+      advanced_settings:
+        vmax: 1.0
+        vmin: 0.0
+        subsample_seed: 1
+    position: {top: 690, left: 900}
+  sourmash_compare_containment:
+    tool_id: sourmash_compare
+    label: sourmash_compare_containment
+    doc: >-
+      Asymmetric containment matrix (|A n B| / |A|). IUC sourmash_compare
+      with --containment. No plot: containment is asymmetric, so a dendrogram
+      would be an artefact of row order.
+    in:
+      signatures: sourmash_sketch/out_file1
+    state:
+      matrix_type: --containment
+      output_options:
+        - "--csv cmp.csv"
+      sig_select:
+        ksize: 31
+        mol_type: --dna
+    position: {top: 560, left: 900}
+  sourmash_compare_max_containment:
+    tool_id: sourmash_compare
+    label: sourmash_compare_max_containment
+    doc: >-
+      Symmetric max-containment matrix (max of both directions). Size-robust:
+      never divides by the union, so a small genome inside a large one scores
+      high. This is the tree to read when panel members differ in size.
+    in:
+      signatures: sourmash_sketch/out_file1
+    state:
+      matrix_type: --max-containment
+      output_options:
+        - "--csv cmp.csv"
+      sig_select:
+        ksize: 31
+        mol_type: --dna
+    position: {top: 430, left: 900}
+  sourmash_plot_max_containment:
+    tool_id: sourmash_plot
+    label: sourmash_plot_max_containment
+    doc: >-
+      Clustered heatmap and dendrogram from the max-containment matrix.
+    in:
+      input: sourmash_compare_max_containment/matrix
+      labels_cond|labels_file: sourmash_compare_max_containment/labels_txt
+    state:
+      labels_cond:
+        labels_param: --labels
+      advanced_settings:
+        vmax: 1.0
+        vmin: 0.0
+        subsample_seed: 1
+    position: {top: 430, left: 1200}
   busco:
     tool_id: busco
     label: busco
@@ -209,8 +294,8 @@ steps:
       # option. Connecting it under results_1|software_cond|... yields a broken,
       # unresolvable connection in the editor.
       image_content_input:
-        - sourmash_compare/heatmap
-        - sourmash_compare/dendrogram
+        - sourmash_plot/matrix
+        - sourmash_plot/dendrogram
     state:
       results:
         - software_cond:

@@ -19,23 +19,33 @@ Inventory / QC for the panel: sourmash similarity matrix + per-strain BUSCO.
 
 | Step | tool_id | Source | Action |
 |---|---|---|---|
-| `sourmash_sketch` | `sourmash_sketch` | **IUC** | `sketch dna -p k=31,scaled=1000`, map-over `assemblies` → one `.sig` each. |
-| `sourmash_compare` | `sourmash_compare` | **IUC** | N×N **similarity** matrix (1.0 = identical) → `compare.csv`. |
+| `sourmash_sketch` | `sourmash_sketch` | **IUC** | `sketch dna -p k=31,scaled=1000 --name <strain>`, map-over `assemblies` → one `.sig` each. IUC wrapper with `element_identifier` name option (pending PR merge). |
+| `sourmash_compare` | `sourmash_compare` | **IUC** | N×N **Jaccard** similarity matrix (1.0 = identical) → `cmp.csv`. |
+| `sourmash_plot` | `sourmash_plot` | **IUC** | Clustered heatmap + dendrogram from Jaccard matrix. |
+| `sourmash_compare_containment` | `sourmash_compare` | **IUC** | Asymmetric **containment** matrix (`--containment`). No plot (asymmetric). |
+| `sourmash_compare_max_containment` | `sourmash_compare` | **IUC** | Symmetric **max-containment** matrix (`--max-containment`). |
+| `sourmash_plot_max_containment` | `sourmash_plot` | **IUC** | Clustered heatmap + dendrogram from max-containment matrix. |
 | `busco` | `busco` | **IUC** | `-m prot -l <lineage>`, map-over `proteomes` (per strain). |
 
-No OUR wrappers in this workflow — all three are IUC.
+All sourmash tools are IUC. The `sourmash_sketch` wrapper's `element_identifier`
+name option (pending IUC PR) sets the signature name to the strain identifier so
+the similarity matrix labels are strain names, not filenames.
 
 ## Outputs
 
-- `similarity_matrix` — `compare.csv` (similarity). Feeds **WF-I fold order**, sorted **descending** (closest = highest similarity).
+- `similarity_matrix` — Jaccard similarity matrix (`cmp.csv`). Feeds **WF-I fold order**, sorted **descending** (closest = highest similarity).
+- `containment_matrix` — asymmetric containment matrix (|A∩B|/|A|).
+- `max_containment_matrix` — symmetric max-containment matrix (size-robust).
+- `max_containment_heatmap` / `max_containment_dendrogram` — clustered plots from max-containment.
 - `signatures` — per-strain `.sig` (BRC-reusable).
 - `busco_summaries` — per-strain BUSCO short summaries.
+- `sourmash_heatmap` / `sourmash_dendrogram` — clustered Jaccard plots.
 
 ## RUNNABILITY
 
-- **IUC deps pending install** — `sourmash_sketch`, `sourmash_compare`, `busco`
+- **IUC deps pending install** — `sourmash_sketch`, `sourmash_compare`, `sourmash_plot`, `busco`
   must be installed in this Galaxy before the workflow runs. Short toolshed ids
-  used per house style; `planemo workflow_lint` resolves all three.
+  used per house style; `planemo workflow_lint` resolves all four.
 - **Phase A is not byte-diffable** vs the validated local run (which emitted
   mash `dist.tsv`, no `compare.csv`). Validate by **structural assertion**:
   N labels in header, similarities ∈ [0,1], descending fold-order sanity —

@@ -319,7 +319,6 @@ DUPLICATED_HELPERS = (
 #: same file"; it does not say they are allowed to DIVERGE, which is a question for whoever owns
 #: the Cyclospora tools.
 DUPLICATE_ALLOWLIST = {
-    ("tools/sourmash_compare/macros.xml", "tools/sourmash_sketch/macros.xml"),
     # The Cyclospora tools each keep the caller beside its wrapper AND under scripts/. All three
     # pairs are byte-identical today and none is inlined into a UDT (`grep -rl <name> udt/` finds
     # nothing for any of them), so they are declared rather than added to DUPLICATED_HELPERS.
