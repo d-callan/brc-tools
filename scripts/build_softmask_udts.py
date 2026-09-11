@@ -92,11 +92,40 @@ SPLIT_NOTE = """#
 #: ⛔ NOT `gzip -cdf`. GNU gzip passes unrecognised input through with --stdout; the gzip inside the
 #: blast biocontainer does not -- it fails `gzip: invalid magic` on a plain FASTA. Test and branch.
 #: ⚠ NOT wrapped in `$(...)`: that is Galaxy's templating delimiter, not a shell substitution.
-DECOMPRESS = (
+#:
+#: ⛔ THE UTF-8 BOM IS STRIPPED BEFORE THE HEADER TEST, AND WITHOUT THIS THE tantan ROUTE FAILED
+#: GREEN. `/^>/` does not match a BOM-prefixed first header, so that line fell through to
+#: `print toupper($0)` -- which uppercases the SEQUENCE NAME, the one thing this preprocessing must
+#: never touch (`chr1` becomes `CHR1` and every downstream join by name then finds nothing). tantan
+#: read the malformed upper.fa, wrote ZERO BYTES, printed nothing to stderr and exited 0, so
+#: neither `set -o pipefail` nor the `&&` chain noticed, and lc_classify then produced an empty
+#: BED6 at exit 0 as well. Measured in quay.io/biocontainers/tantan:51--h5ca1c30_1 on a BOM'd FASTA
+#: whose LF-only twin yields three intervals. dustmasker and windowmasker are accidentally
+#: protected -- NCBI's reader refuses the file outright ("Input doesn't start with a defline",
+#: exit 3) -- so tantan was the only route that went green with no output.
+#:
+#: ⚠ OCTAL STRING ESCAPES, NOT `\x` OR A REGEX. The biocontainers ship a non-gawk awk; `"\357\273\277"`
+#: as a STRING constant compared with substr() is POSIX and was verified inside the tantan
+#: container itself, where a `\x`-escaped regex is not portable.
+#: The decompress half on its own, so a consumer that must NOT uppercase can compose it directly.
+#: ⛔ THIS SPLIT REPLACED A `.replace()` THAT DELETED THE awk BY MATCHING ITS EXACT TEXT, and the
+#: BOM fix above broke that match instantly: `samtools_faidx` silently GAINED the uppercasing it
+#: had deliberately stripped, so it would have indexed an uppercased copy and published a `sizes`
+#: table for sequence it never saw. Caught by reading the regenerated diff, not by any check.
+#: Composing from parts cannot fail that way -- there is no string to keep in step.
+DECOMPRESS_ONLY = (
     "  { if gzip -t '$(inputs.input.path)' 2>/dev/null; "
     "then gzip -cd '$(inputs.input.path)'; else cat '$(inputs.input.path)'; fi; } \\\n"
-    "    | awk '/^>/{print;next}{print toupper($0)}' > upper.fa &&"
 )
+
+#: Uppercase every residue line, leaving headers alone, with the BOM stripped first. See above.
+UPPERCASE_AWK = (
+    "    | awk 'BEGIN { bom = \"\\357\\273\\277\" } "
+    "NR == 1 && substr($0, 1, 3) == bom { $0 = substr($0, 4) } "
+    "/^>/{print;next}{print toupper($0)}' "
+)
+
+DECOMPRESS = DECOMPRESS_ONLY + UPPERCASE_AWK + "> upper.fa &&"
 
 
 def indent(body: str, pad: str = "  ") -> str:
@@ -434,7 +463,7 @@ def build() -> dict[str, str]:
         "NCBI symmetric-DUST low-complexity intervals, stage 1 of 2",
         "  dustmasker -in upper.fa -outfmt interval | awk -f interval2bed.awk > intervals.bed3",
         "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
-        ram_min=8, version="0.2.0")            # peaked 59% of 3788 MB on 23 cannabis genomes
+        ram_min=8, version="0.3.0")            # peaked 59% of 3788 MB on 23 cannabis genomes
 
     out["windowmasker_bed3.gxtool.yml"] = masker(
         "brc-windowmasker-bed3", "windowmasker -> BED3 (BRC UDT)",
@@ -444,7 +473,7 @@ def build() -> dict[str, str]:
         "  windowmasker -ustat counts -in upper.fa -outfmt interval"
         " | awk -f interval2bed.awk > intervals.bed3",
         "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
-        ram_min=16, version="0.2.0")           # peaked 89%, projects >100% on 11 panel members
+        ram_min=16, version="0.3.0")           # peaked 89%, projects >100% on 11 panel members
 
     out["tantan_bed3.gxtool.yml"] = masker(
         "brc-tantan-bed3", "tantan -> BED3 (BRC UDT)",
@@ -460,7 +489,7 @@ def build() -> dict[str, str]:
         "tantan gentle low-complexity intervals, stage 1 of 2",
         "  tantan upper.fa | awk -f lc2bed.awk > intervals.bed3",
         "tools/tantan/lc2bed.awk", "lc2bed.awk",
-        ram_min=8, version="0.2.0")            # peaked 66% of 3788 MB on 23 cannabis genomes
+        ram_min=8, version="0.3.0")            # peaked 66% of 3788 MB on 23 cannabis genomes
 
     out["fasta_uppercase.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-fasta-uppercase
@@ -608,8 +637,7 @@ description: Index a FASTA (.fai) and emit the chrom/length table bedtools wants
 container: quay.io/biocontainers/samtools:1.24--h9dcdb79_1
 shell_command: |
   set -o pipefail
-""" + DECOMPRESS.replace("upper.fa", "seq.fa").replace(
-    "| awk '/^>/{print;next}{print toupper($0)}' ", "") + """
+""" + DECOMPRESS_ONLY + "    > seq.fa &&" + """
   samtools faidx seq.fa &&
   cut -f1,2 seq.fa.fai > chrom.sizes &&
   awk '{ line = $0; sub(/\\r$/, "", line) } line ~ /\\r/ {
