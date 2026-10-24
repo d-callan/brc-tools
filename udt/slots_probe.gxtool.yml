@@ -22,9 +22,13 @@
 #
 #   python3 scripts/udt_deploy.py udt/slots_probe.gxtool.yml --instance vgp --smoke-fasta <small file>
 #
-# ⛔ MEASURED 2026-09-10 ON vgp: RESOURCE REQUIREMENTS WORK, AND `ram_min` IS CONSUMED ON THE
-# WRONG SCALE. `cores_min: 4, ram_min: 8` yielded GALAXY_SLOTS=4, nproc=4, GALAXY_MEMORY_MB=8192 --
-# so `ram_min: 8` bought 8 GiB. The schema documents ram_min in MEBIBYTES; this deployment reads it
+# ⛔ SINCE TPV#205 (2026-09-12) `ram_min` IS MEBIBYTES, AS THE SCHEMA DOCUMENTS. Everything from
+# here to the ▶ below is the PRE-#205 record, kept because it explains the 1024x flip that #88
+# corrected (dustmasker's `ram_min: 8` was then granted 8 MB and every job was SIGKILLed).
+#
+# ⛔ MEASURED 2026-09-10 ON vgp, BEFORE TPV#205: RESOURCE REQUIREMENTS WORK, AND `ram_min` WAS
+# CONSUMED ON THE WRONG SCALE. `cores_min: 4, ram_min: 8` yielded GALAXY_SLOTS=4, nproc=4, GALAXY_MEMORY_MB=8192 --
+# so `ram_min: 8` bought 8 GiB. The schema documents ram_min in MEBIBYTES; this deployment read it
 # as GIBIBYTES.
 #
 # ⛔ THAT UNIT MISMATCH MAKES A SCHEMA-CONFORMANT REQUEST UNROUTABLE, SILENTLY. The destination
@@ -48,27 +52,25 @@
 # cores is already over the 120 limit. That is why every early variant failed and why the failure
 # looked like "resource requirements are unsupported here" rather than a units problem.
 #
-# ▶ SO WRITE `ram_min` ON THE GB SCALE ON THESE INSTANCES, and always set it explicitly -- never
-# rely on the default. Keep it <= 120. Galaxy's own docs example (`ram_min: 8192` for 8 GiB) does
-# not work here.
+# ▶ NOW: WRITE `ram_min` IN MEBIBYTES (`8192` for 8 GiB, Galaxy's own docs example) and still set
+# it explicitly. The GB-scale advice this file used to give is what made dustmasker's `8` mean 8 MB.
+# This probe has not been re-run since the flip; its next run should report GALAXY_MEMORY_MB=8192.
 #
 # ⚠ CHECK nproc AGAINST GALAXY_SLOTS on every future run. Here they agreed (both 4) while
 # `cpuset.cpus.effective` showed 0-15, so the cgroup is not the limiter -- Galaxy's number is the
 # real allocation. If they ever diverge, `--threads $GALAXY_SLOTS` would oversubscribe.
 class: GalaxyUserTool
 id: brc-udt-slots-probe
-version: "0.1.0"
+version: "0.2.0"
 name: UDT slot allocation probe (BRC)
 description: Ask for cores with a resource requirement and report what the job actually received
 container: quay.io/biocontainers/python:3.12
 requirements:
-  # ⛔ ram_min IS WRITTEN ON THE GB SCALE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
-  # EXPLICITLY rather than left to default. Both are load-bearing: the default of 256 is read as
-  # 256 GB here, exceeds the destination's `max_accepted_mem: 120`, and makes the job unroutable
-  # with no error message at all. See the measurement table above.
+  # ⛔ ram_min IS MEBIBYTES since TPV#205: 8192 is the 8 GiB the 2026-09-10 run was granted. Written
+  # as `8` it would now be 8 MB. Set explicitly rather than left to the 256 MiB default.
   - type: resource
     cores_min: 4
-    ram_min: 8
+    ram_min: 8192
 shell_command: |
   {
     echo "=== CONTROL: templating is live if this is a real path ==="
@@ -117,8 +119,8 @@ help:
     count from the tool's request, and wiring `--threads $GALAXY_SLOTS` into a UDT is worth doing.
     `GALAXY_SLOTS=1` means the request was accepted and ignored -- a site configuration matter, not
     something a tool definition can fix. A job that ERRORS with empty streams and no command line
-    means no destination matched: on these instances that is almost always `ram_min` written in
-    mebibytes, exceeding `max_accepted_mem: 120`.
+    means no destination matched, so check `ram_min` against the destination's memory limit.
+    `ram_min` is in mebibytes (8192 for 8 GiB).
 
     **Check `nproc` against `GALAXY_SLOTS`.** GALAXY_SLOTS is what Galaxy says it gave; nproc is
     what the container sees. Passing more threads than the cgroup allows is worse than asking for
