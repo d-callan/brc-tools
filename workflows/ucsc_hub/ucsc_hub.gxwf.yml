@@ -59,7 +59,10 @@ inputs:
     type: data
     doc: >
       Strict BUSTED archive (Phase H, core_v3): tar.gz of <gene_id>.json at the
-      tar root (one per element_identifier). selection_strict source.
+      tar root (one per element_identifier), OR <GENE_ID>/busted.json. build_hub_bb
+      reads both and refuses an archive it can read no gene from -- it used to accept
+      only the second and publish an empty selection track from the first.
+      selection_strict source.
   busted_relaxed:
     type: data
     doc: Relaxed BUSTED archive (Phase H, core_relaxed). selection_relaxed source.
@@ -72,8 +75,12 @@ inputs:
   ref_sizes:
     type: data
     doc: >
-      Reference {ACC}.fa.fai / chrom sizes (accession space). Used by bigMaf
-      bedToBigBed, build_hub_bb, and mafIndex.
+      Reference {ACC}.fa.fai / chrom sizes (accession space). Used by the bigMaf and
+      annotation bedToBigBed steps and by build_hub_bb, all of which are on the
+      reference assembly. NOT by the bigChain/bigLink steps: those map over a directed
+      chain collection whose elements target different assemblies, and they take
+      chain_to_bigchain/target_sizes instead. The mafIndex step this doc used to name
+      was removed from the workflow.
   hub_metadata:
     type: data
     doc: >
@@ -164,13 +171,24 @@ steps:
   chain_to_bigchain:
     tool_id: chain_to_bigChain
     doc: >
-      Convert each cleaned chain to bigChain.bed (bed6+6) + bigLink.bed (bed4+1).
+      Convert each cleaned chain to bigChain.bed (bed6+6) + bigLink.bed (bed4+1), plus
+      the TARGET assembly's chrom.sizes derived from the chain headers.
       OUR wrapper. Map-over cleaned_chains (per directed pair).
+      target_sizes is what the two bedToBigBed steps consume, NOT ref_sizes: this
+      collection is the full N(N-1) DIRECTED set, so each element targets a different
+      assembly and one ref_sizes dataset is right only for the pairs that happen to
+      target it. Cannabis assemblies share chr1-style names, and bedToBigBed does NOT
+      cross-check: measured with kent v482, sizes declaring chr1 at 900 and at 5000
+      were BOTH accepted (exit 0) against a BED whose chain header says 1000. It
+      rejects only coordinates exceeding the declared length, so nothing catches a
+      wrong sizes file and the browser draws the track against wrong lengths. Every chain header carries tName and tSize, so the
+      sizes come from the same element as the BED and cannot disagree with it.
     in:
       chain: cleaned_chains
     out:
       - bigchain_bed
       - biglink_bed
+      - target_sizes
 
   sort_bigchain_bed:
     tool_id: sort1
@@ -195,7 +213,7 @@ steps:
     doc: bigChain BigBed. -as=bigChain.as. ucsc_kent suite.
     in:
       bed: sort_bigchain_bed/out_file1
-      chrom_sizes: ref_sizes
+      chrom_sizes: chain_to_bigchain/target_sizes
       as_file: bigchain_as
     state:
       type: bed6+6
@@ -225,7 +243,7 @@ steps:
     doc: bigLink BigBed. -as=bigLink.as. ucsc_kent suite.
     in:
       bed: sort_biglink_bed/out_file1
-      chrom_sizes: ref_sizes
+      chrom_sizes: chain_to_bigchain/target_sizes
       as_file: biglink_as
     state:
       type: bed4+1

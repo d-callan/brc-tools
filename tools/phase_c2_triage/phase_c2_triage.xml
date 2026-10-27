@@ -28,36 +28,23 @@ python '$__tool_directory__/phase_c2_triage.py'
     --log-level INFO
     ]]></command>
     <inputs>
-        <param argument="--liftoff-gff" type="data" format="gff3,gff" label="Liftoff GFF3"
-               help="Projected gene annotation from Liftoff. Genes must carry the attributes the triage rules read (sequence_ID, coverage, extra_copy_number, valid_ORFs, partial_mapping)."/>
-        <param argument="--query-fasta" type="data" format="fasta" label="Query genome FASTA"
-               help="The query assembly the GFF coordinates refer to. Seqids must match the GFF chrom column."/>
-        <param argument="--reference-bed" type="data" format="bed" label="Reference BED12"
-               help="Reference gene models in BED format. Column 4 (name) must match the (normalized) gene IDs so flagged genes can be emitted into needs_cesar2.bed."/>
-        <param argument="--query-name" type="text" value="query" label="Query name"
-               help="Label recorded in summary.json.">
+        <param argument="--liftoff-gff" type="data" format="gff3,gff" label="Liftoff GFF3" help="Projected gene annotation from Liftoff. Genes must carry the attributes the triage rules read (sequence_ID, coverage, extra_copy_number, valid_ORFs, partial_mapping)."/>
+        <param argument="--query-fasta" type="data" format="fasta" label="Query genome FASTA" help="The query assembly the GFF coordinates refer to. Seqids must match the GFF chrom column."/>
+        <param argument="--reference-bed" type="data" format="bed" label="Reference BED12" help="Reference gene models in BED format. Column 4 (name) must match the (normalized) gene IDs so flagged genes can be emitted into needs_cesar2.bed."/>
+        <param argument="--query-name" type="text" value="query" label="Query name" help="Label recorded in summary.json.">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
         </param>
-        <param argument="--family-list" type="data" format="tabular" optional="true" label="Gene family list (optional)"
-               help="Optional TSV (gene_id, family) of known variant-gene families (SICAvar, PIR, ...). When supplied, rule R8 forces those genes to CESAR2 fallback and relaxes the identity threshold."/>
-        <param argument="--core-identity-min" type="float" value="0.95" min="0" max="1"
-               label="Core gene minimum identity" help="Rule R2 threshold for non-family genes."/>
-        <param argument="--core-coverage-min" type="float" value="0.90" min="0" max="1"
-               label="Minimum reference CDS coverage" help="Rule R3 threshold."/>
-        <param argument="--family-identity-min" type="float" value="0.85" min="0" max="1"
-               label="Family gene minimum identity" help="Rule R2 threshold for genes on the family list."/>
-        <param argument="--subtelomere-bp" type="integer" value="100000" min="0"
-               label="Subtelomere flank (bp)" help="Rule R7: genes within this distance of a chromosome end are flagged."/>
+        <param argument="--family-list" type="data" format="tabular" optional="true" label="Gene family list (optional)" help="Optional TSV (gene_id, family) of known variant-gene families (SICAvar, PIR, ...). When supplied, rule R8 forces those genes to CESAR2 fallback and relaxes the identity threshold."/>
+        <param argument="--core-identity-min" type="float" min="0" max="1" value="0.95" label="Core gene minimum identity" help="Rule R2 threshold for non-family genes."/>
+        <param argument="--core-coverage-min" type="float" min="0" max="1" value="0.90" label="Minimum reference CDS coverage" help="Rule R3 threshold."/>
+        <param argument="--family-identity-min" type="float" min="0" max="1" value="0.85" label="Family gene minimum identity" help="Rule R2 threshold for genes on the family list."/>
+        <param argument="--subtelomere-bp" type="integer" min="0" value="100000" label="Subtelomere flank (bp)" help="Rule R7: genes within this distance of a chromosome end are flagged."/>
     </inputs>
     <outputs>
-        <data name="triage_tsv" format="tabular" from_work_dir="outdir/triage.tsv"
-              label="${tool.name} on ${on_string}: triage.tsv"/>
-        <data name="needs_cesar2_bed" format="bed" from_work_dir="outdir/needs_cesar2.bed"
-              label="${tool.name} on ${on_string}: needs_cesar2.bed"/>
-        <data name="liftoff_clean_gff3" format="gff3" from_work_dir="outdir/liftoff_clean.gff3"
-              label="${tool.name} on ${on_string}: liftoff_clean.gff3"/>
-        <data name="summary_json" format="json" from_work_dir="outdir/summary.json"
-              label="${tool.name} on ${on_string}: summary.json"/>
+        <data name="triage_tsv" format="tabular" from_work_dir="outdir/triage.tsv" label="${tool.name} on ${on_string}: triage.tsv"/>
+        <data name="needs_cesar2_bed" format="bed" from_work_dir="outdir/needs_cesar2.bed" label="${tool.name} on ${on_string}: needs_cesar2.bed"/>
+        <data name="liftoff_clean_gff3" format="gff3" from_work_dir="outdir/liftoff_clean.gff3" label="${tool.name} on ${on_string}: liftoff_clean.gff3"/>
+        <data name="summary_json" format="json" from_work_dir="outdir/summary.json" label="${tool.name} on ${on_string}: summary.json"/>
     </outputs>
     <tests>
         <test expect_num_outputs="4">

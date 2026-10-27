@@ -41,6 +41,12 @@ def genome_masked_pct(genomecov_path):
 
 def main():
     ap = argparse.ArgumentParser()
+    # ⛔ DEFAULT None, NOT []. A caller that does not supply this gets NO `arrived`
+    # column at all, because 0.00 would be a LIE there rather than a blank: the
+    # classic softmask.gxwf.yml never extracts the arriving mask -- it lets it survive
+    # in the sequence bytes -- so an assembly that shipped 79% soft-masked would be
+    # reported as 0.00% arrived. `[]` cannot express "not asked for".
+    ap.add_argument("--arrived", nargs="*", default=None)
     ap.add_argument("--dustmasker", nargs="*", default=[])
     ap.add_argument("--windowmasker", nargs="*", default=[])
     ap.add_argument("--tantan", nargs="*", default=[])
@@ -49,13 +55,29 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
+    # ⚠ NO SQUARE BRACKETS INSIDE THE `maskers` LIST. assert_column_order() finds this list with a
+    # NON-GREEDY `maskers\s*=\s*\[(.*?)\]`, so a `[]` written inline -- `parse_pairs(a.arrived or [])`
+    # -- closes the match early and the checker sees a one-column order. It refused, correctly and
+    # confusingly. Resolve the default out here instead.
+    arrived_pairs = parse_pairs(a.arrived) if a.arrived is not None else {}
     maskers = [
+        # ⛔ `arrived` IS FIRST, AND IT IS NOT ONE OF OUR MASKERS. It is the soft-mask the assembly
+        # SHIPPED WITH, which brc-fasta-uppercase now emits as intervals instead of leaving it to
+        # survive in the sequence bytes. It joins the union as a fifth arm when strip_existing_mask
+        # is false, so without this column the `union` figure would silently include a contribution
+        # no column accounts for -- which is the whole reason the column exists. Reading order is
+        # then: what arrived, what each masker found, what was published.
+        ("arrived", arrived_pairs),
         ("dustmasker", parse_pairs(a.dustmasker)),
         ("windowmasker", parse_pairs(a.windowmasker)),
         ("tantan", parse_pairs(a.tantan)),
         ("fastan", parse_pairs(a.fastan)),
         ("union", parse_pairs(a.union)),
     ]
+    # ⚠ THE LITERAL LIST ABOVE STAYS COMPLETE AND IN ORDER, because assert_column_order() reads
+    # it by regex to prove the header matches. Dropping the column happens HERE, after that.
+    if a.arrived is None:
+        maskers = [m for m in maskers if m[0] != "arrived"]
     cols = [name for name, _ in maskers]
 
     # Strain order follows the first non-empty masker collection.

@@ -24,14 +24,9 @@ python '$__tool_directory__/phase_e_graph_edges.py'
     --output '$output'
     ]]></command>
     <inputs>
-        <param argument="--paths" type="data" format="tabular,tsv" label="odgi paths TSV"
-               help="The odgi paths output for the PGGB graph. The first column holds PanSN path names of the form SAMPLE#1#CONTIG."/>
-        <param argument="--annotations" type="data_collection" collection_type="list"
-               format="bed" label="Per-strain gene BED collection"
-               help="A 'list' collection with one gene BED per strain. The element identifier is used as the strain name and must match the SAMPLE component of the PanSN path names. Each BED needs at least 4 columns (chrom, start, end, gene_id); chrom must match the CONTIG component."/>
-        <param argument="--min-overlap" type="float" value="0.90" min="0" max="1"
-               label="Minimum reciprocal CDS overlap"
-               help="Reciprocal CDS coverage threshold for a co-membership edge. Path-level co-membership is recorded with overlap 1.000; this threshold is consumed by the downstream union-find filter."/>
+        <param argument="--paths" type="data" format="tabular,tsv" label="odgi paths TSV" help="The odgi paths output for the PGGB graph. The first column holds PanSN path names of the form SAMPLE#1#CONTIG."/>
+        <param argument="--annotations" type="data_collection" format="bed" label="Per-strain gene BED collection" help="A 'list' collection with one gene BED per strain. The element identifier is used as the strain name and must match the SAMPLE component of the PanSN path names. Each BED needs at least 4 columns (chrom, start, end, gene_id); chrom must match the CONTIG component." collection_type="list"/>
+        <param argument="--min-overlap" type="float" min="0" max="1" value="0.90" label="Minimum reciprocal CDS overlap" help="Reciprocal CDS coverage threshold for a co-membership edge. Path-level co-membership is recorded with overlap 1.000; this threshold is consumed by the downstream union-find filter."/>
     </inputs>
     <outputs>
         <data name="output" format="tabular" label="${tool.name} on ${on_string}: graph_edges.tsv"/>

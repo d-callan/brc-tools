@@ -246,7 +246,15 @@ def main() -> int:
             failures += 1
             continue
 
-        # ⛔ THE INVARIANT DEPENDS ON WHICH MODE RAN, AND THE MODE IS INFERRABLE FROM THIS OUTPUT.
+        # ⛔ SINCE THE ALWAYS-UPPERCASE REFACTOR THE INVARIANT IS UNCONDITIONAL, AND `ulow > 0`
+        # NOW MEANS A PRE-REFACTOR RUN. `brc-fasta-uppercase` >= 0.4.0 uppercases in BOTH arms
+        # and emits the arriving mask as `arrived_mask.bed3`, which joins the union as a fifth
+        # arm -- so `mask_union` and the published lower-case must agree EXACTLY either way,
+        # which is the `ulow == 0` branch below. The weaker containment-only branch is kept
+        # solely so this script still reads histories produced before that change; it is not
+        # reachable for anything the current workflow emits.
+        #
+        # WHAT IT USED TO BE, AND WHY THE WEAK FORM EXISTED:
         # WF-B's `strip_arrived_mask` defaults to FALSE -- the classic behaviour -- so `uppercase`
         # passes the assembly through and its output legitimately still carries the submitter's
         # lower case. Checking `ulow == 0` unconditionally therefore prints `⛔ NOT UPPERCASE /
@@ -282,7 +290,7 @@ def main() -> int:
         print(f"      uppercased input : {ures:,} nt, {ulow} lowercase"
               f"        {'ok' if ok_upper else '⛔ LENGTH CHANGED'}"
               f"  [{'nothing lowercase arrived -- stripped, or the assembly ships unmasked'
-                     if no_arriving_mask else 'arriving mask KEPT (classic default)'}]")
+                     if no_arriving_mask else 'PRE-REFACTOR RUN: uppercase passed the arriving mask through'}]")
         print(f"      merged union BED : {span(union):,} nt in {len(union):,} intervals "
               f"({span(union) / res:.2%})")
         print(f"      masked FASTA     : {low:,} lowercase in {len(applied):,} runs "

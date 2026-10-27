@@ -7,7 +7,7 @@
         <xref type="bio.tools">odgi</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>odgi version 2>&amp;1 | head -1</version_command>
+    <version_command>odgi version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 odgi viz
     --idx '$idx'
@@ -21,22 +21,18 @@ odgi viz
     ]]></command>
     <inputs>
         <param argument="--idx" type="data" format="odgi" label="Input .og graph"/>
-        <param argument="--width" type="integer" min="100" max="20000" value="1500"
-               label="PNG width (px)"/>
-        <param argument="--height" type="integer" min="100" max="20000" value="500"
-               label="PNG height (px)"/>
-        <param argument="--path-height" type="integer" min="1" max="200" value="8"
-               label="Path row height (px)"/>
-        <param argument="--color-by-mean-depth" type="boolean" truevalue="--color-by-mean-depth" falsevalue=""
-               checked="false" label="Color by mean coverage depth"/>
-        <param argument="--path-per-row" type="boolean" truevalue="--path-per-row" falsevalue=""
-               checked="false" label="One path per row" help="Rather than packed."/>
+        <param argument="--width" type="integer" min="100" max="20000" value="1500" label="PNG width (px)"/>
+        <param argument="--height" type="integer" min="100" max="20000" value="500" label="PNG height (px)"/>
+        <param argument="--path-height" type="integer" min="1" max="200" value="8" label="Path row height (px)"/>
+        <param argument="--color-by-mean-depth" type="boolean" truevalue="--color-by-mean-depth" falsevalue="" checked="false" label="Color by mean coverage depth"/>
+        <param argument="--path-per-row" type="boolean" truevalue="--path-per-row" falsevalue="" checked="false" label="One path per row" help="Rather than packed."/>
     </inputs>
     <outputs>
         <data name="out_png" format="png" label="${tool.name} on ${on_string}: viz PNG"/>
     </outputs>
     <tests>
         <test expect_num_outputs="1">
+            <param name="color_by_mean_depth" value="false"/>
             <param name="idx" value="toy.og" ftype="odgi"/>
             <param name="width" value="1500"/>
             <param name="height" value="500"/>
@@ -46,6 +42,9 @@ odgi viz
                     <has_image_height height="30" delta="20"/>
                 </assert_contents>
             </output>
+            <assert_command>
+                <not_has_text text="--color-by-mean-depth"/>
+            </assert_command>
         </test>
         <test expect_num_outputs="1">
             <param name="idx" value="toy.og" ftype="odgi"/>

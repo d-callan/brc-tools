@@ -2,23 +2,31 @@
 # Edit the wrapper under tools/ (the awk/Python helpers are read from there) and regenerate.
 class: GalaxyUserTool
 id: brc-samtools-faidx
-version: "0.2.0"
+version: "0.3.0"
 name: samtools faidx (BRC UDT)
 description: Index a FASTA (.fai) and emit the chrom/length table bedtools wants as its genome file
 container: quay.io/biocontainers/samtools:1.24--h9dcdb79_1
 shell_command: |
   set -o pipefail
-  { if gzip -t '$(inputs.input.path)' 2>/dev/null; then gzip -cd '$(inputs.input.path)'; else cat '$(inputs.input.path)'; fi; } \
-    > seq.fa &&
-  samtools faidx seq.fa &&
+  # ⛔ `set -e`: SOURCE_SELECT assigns SRC as a separate statement and an assignment always
+  # succeeds, so without errexit a truncated `gzip -cd` would leave SRC pointing at a short file
+  # and this would publish a chrom.sizes that looks complete. See SOURCE_SELECT.
+  set -e
+  if gzip -t '$(inputs.input.path)' 2>/dev/null; then
+    gzip -cd '$(inputs.input.path)' > seq.fa
+    SRC=seq.fa
+  else
+    SRC='$(inputs.input.path)'
+  fi
+  samtools faidx $SRC --fai-idx seq.fa.fai &&
   cut -f1,2 seq.fa.fai > chrom.sizes &&
   awk '{ line = $0; sub(/\r$/, "", line) } line ~ /\r/ {
       print "⛔ brc-samtools-faidx: a carriage return appears MID-LINE, so this FASTA has lone-CR (classic Mac) or mixed line endings." > "/dev/stderr"
       print "   samtools splits records on a newline exactly as this awk does, so a > that follows a bare CR is invisible to BOTH: the record is swallowed into its predecessor, whose length then covers it, and the record-count guard below sees MATCHING counts and passes." > "/dev/stderr"
       print "   Measured: a 3-record FASTA came out as a 2-row index with the second contig reported 18 bp long when it is 8, and the third absent entirely, exit 0." > "/dev/stderr"
       print "   chrom.sizes is the bedtools genome file WF-C runs on -- an over-long contig lets intervals past its real end survive, and a missing one makes every interval on it vanish. REFUSING; convert the line endings first." > "/dev/stderr"
-      exit 1 }' seq.fa &&
-  awk '/^>/ {n++} END {print n+0}' seq.fa > n_seq.txt &&
+      exit 1 }' $SRC &&
+  awk '/^>/ {n++} END {print n+0}' $SRC > n_seq.txt &&
   awk 'END {print NR+0}' seq.fa.fai > n_fai.txt &&
   awk 'NR == FNR {a = $1; next} {b = $1} END {
       if (a+0 == 0) {

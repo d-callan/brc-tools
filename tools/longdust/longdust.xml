@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>longdust -v 2>&amp;1 | head -1</version_command>
+    <version_command>longdust -v 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $in_ext = 'fa.gz' if str($input.ext) == 'fasta.gz' else 'fa'
 ln -sf '$input' 'input.${in_ext}' &&
@@ -23,35 +23,25 @@ longdust
 > '$output'
     ]]></command>
     <inputs>
-        <param name="input" type="data" format="fasta,fasta.gz" label="Input FASTA"
-               help="Nucleotide FASTA, plain or gzipped."/>
-        <param argument="-k" type="integer" value="7" min="1" max="15" label="k-mer length"
-               help="Length of k-mers used to model complexity (default 7)."/>
-        <param argument="-w" type="integer" value="5000" min="1" label="Window size"
-               help="Context window size. Recommend w &lt; 4^k for performance (default 5000)."/>
-        <param argument="-t" type="float" value="0.6" min="0" label="Score threshold"
-               help="Complexity score threshold (default 0.6)."/>
-        <param argument="-g" type="float" value="0.5" min="0" max="1" label="Genome-wide GC content"
-               help="Assumed genome-wide GC fraction (default 0.5)."/>
-        <param argument="-e" type="integer" value="50" min="0" label="Extension X-drop length"
-               help="Extension X-drop length; set 0 to disable (default 50)."/>
-        <param argument="-s" type="select" label="Min start k-mer count"
-               help="Minimum start k-mer count (default 3).">
+        <param name="input" type="data" format="fasta,fasta.gz" label="Input FASTA" help="Nucleotide FASTA, plain or gzipped."/>
+        <param argument="-k" type="integer" min="1" max="15" value="7" label="k-mer length" help="Length of k-mers used to model complexity (default 7)."/>
+        <param argument="-w" type="integer" min="1" value="5000" label="Window size" help="Context window size. Recommend w &lt; 4^k for performance (default 5000)."/>
+        <param argument="-t" type="float" min="0" value="0.6" label="Score threshold" help="Complexity score threshold (default 0.6)."/>
+        <param argument="-g" type="float" min="0" max="1" value="0.5" label="Genome-wide GC content" help="Assumed genome-wide GC fraction (default 0.5)."/>
+        <param argument="-e" type="integer" min="0" value="50" label="Extension X-drop length" help="Extension X-drop length; set 0 to disable (default 50)."/>
+        <param argument="-s" type="select" label="Min start k-mer count" help="Minimum start k-mer count (default 3).">
             <option value="2">2</option>
             <option value="3" selected="true">3</option>
         </param>
-        <param argument="-f" type="boolean" truevalue="-f" falsevalue="" checked="false"
-               label="Forward strand only"
-               help="Scan the forward strand only."/>
-        <param argument="-a" type="boolean" truevalue="-a" falsevalue="" checked="false"
-               label="Guaranteed O(Lw) algorithm"
-               help="Use the guaranteed O(Lw) algorithm with more approximation."/>
+        <param argument="-f" type="boolean" truevalue="-f" falsevalue="" checked="false" label="Forward strand only" help="Scan the forward strand only."/>
+        <param argument="-a" type="boolean" truevalue="-a" falsevalue="" checked="false" label="Guaranteed O(Lw) algorithm" help="Use the guaranteed O(Lw) algorithm with more approximation."/>
     </inputs>
     <outputs>
         <data name="output" format="bed" label="${tool.name} on ${on_string}: low-complexity intervals"/>
     </outputs>
     <tests>
         <test expect_num_outputs="1">
+            <param name="f" value="false"/>
             <param name="input" value="lowcomplex.fasta" ftype="fasta"/>
             <output name="output">
                 <assert_contents>

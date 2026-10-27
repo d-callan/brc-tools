@@ -28,26 +28,26 @@ python '$__tool_directory__/pansn_rename.py'
     #else
         --output '$output'
     #end if
+## ⛔ VERIFY THE GZIP TRAILER -- see fasta_concat. CRC32 and the uncompressed length are in the
+## last 8 bytes, so this catches a write that stopped early, which nothing else here would:
+## a truncated .gz still sniffs as fasta.gz and the job still reports ok.
+#if str($gzip_output) == "--gzip-output"
+    && gzip -t '$output_gz'
+#end if
     ]]></command>
     <inputs>
-        <param argument="--input" type="data" format="fasta,fasta.gz" label="Input FASTA"
-               help="One assembly, contig-per-record. Plain FASTA or gzipped."/>
-        <param argument="--sample" type="text" value="" optional="true" label="Sample name (blank = use input element identifier)"
-               help="Strain / sample identifier. Letters, digits, underscore, hyphen, dot. Leave blank to auto-derive from the input dataset's element identifier (useful when mapping over a collection in a workflow).">
+        <param argument="--input" type="data" format="fasta,fasta.gz" label="Input FASTA" help="One assembly, contig-per-record. Plain FASTA or gzipped."/>
+        <param argument="--sample" type="text" value="" optional="true" label="Sample name (blank = use input element identifier)" help="Strain / sample identifier. Letters, digits, underscore, hyphen, dot. Leave blank to auto-derive from the input dataset's element identifier (useful when mapping over a collection in a workflow).">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]*</validator>
         </param>
-        <param argument="--haplotype" type="integer" value="1" min="1" max="99"
-               label="Haplotype number"
-               help="Per PanSN spec: use 1 for haploid / single-haplotype assemblies; use 1,2 for diploid; etc."/>
-        <param argument="--delimiter" type="select" label="PanSN delimiter"
-               help="Single character separating sample / haplotype / contig in the new header. Match the value passed to pggb's -Y flag.">
+        <param argument="--haplotype" type="integer" min="1" max="99" value="1" label="Haplotype number" help="Per PanSN spec: use 1 for haploid / single-haplotype assemblies; use 1,2 for diploid; etc."/>
+        <param argument="--delimiter" type="select" label="PanSN delimiter" help="Single character separating sample / haplotype / contig in the new header. Match the value passed to pggb's -Y flag.">
             <option value="hash" selected="true">#  (hash, PanSN default)</option>
             <option value="pipe">|  (pipe)</option>
             <option value="underscore">_  (underscore)</option>
             <option value="dot">.  (dot)</option>
         </param>
-        <param name="gzip_output" type="boolean" truevalue="--gzip-output" falsevalue=""
-               checked="false" label="Compress output (bgzip-compatible gzip)"/>
+        <param name="gzip_output" type="boolean" truevalue="--gzip-output" falsevalue="" checked="false" label="Compress output (bgzip-compatible gzip)"/>
     </inputs>
     <outputs>
         <data name="output" format="fasta" label="${tool.name} on ${on_string}">
@@ -66,10 +66,10 @@ python '$__tool_directory__/pansn_rename.py'
             <param name="gzip_output" value="false"/>
             <output name="output">
                 <assert_contents>
-                    <has_text text=">PvP01#1#chr1"/>
-                    <has_text text=">PvP01#1#chr2"/>
+                    <has_text text="&gt;PvP01#1#chr1"/>
+                    <has_text text="&gt;PvP01#1#chr2"/>
                     <has_text text="ACGTACGT"/>
-                    <not_has_text text=">chr1 "/>
+                    <not_has_text text="&gt;chr1 "/>
                 </assert_contents>
             </output>
         </test>
@@ -81,8 +81,8 @@ python '$__tool_directory__/pansn_rename.py'
             <param name="gzip_output" value="true"/>
             <output name="output_gz" decompress="true">
                 <assert_contents>
-                    <has_text text=">Sal-I#2#chr1"/>
-                    <has_text text=">Sal-I#2#chr2"/>
+                    <has_text text="&gt;Sal-I#2#chr1"/>
+                    <has_text text="&gt;Sal-I#2#chr2"/>
                 </assert_contents>
             </output>
         </test>
@@ -94,8 +94,8 @@ python '$__tool_directory__/pansn_rename.py'
             <param name="gzip_output" value="false"/>
             <output name="output">
                 <assert_contents>
-                    <has_text text=">PvW1|1|chr1"/>
-                    <has_text text=">PvW1|1|chr2"/>
+                    <has_text text="&gt;PvW1|1|chr1"/>
+                    <has_text text="&gt;PvW1|1|chr2"/>
                 </assert_contents>
             </output>
         </test>

@@ -28,19 +28,12 @@ python '$__tool_directory__/phase_e_rbest_overlap.py'
     --output '$rbest_edges'
     ]]></command>
     <inputs>
-        <param name="chains" type="data_collection" collection_type="list" format="txt,tabular"
-               label="Reciprocal-best chain list collection"
-               help="A 'list' collection of UCSC chain files, one per strain pair. The element identifier must be the pair name '{a}.{b}' (strain_a.strain_b); it is restaged as '{a}.{b}.rbest.chain' so the strain pair can be recovered from the file name."/>
-        <param name="annotations" type="data_collection" collection_type="list" format="bed,bed6,bed12"
-               label="Gene BED list collection"
-               help="A 'list' collection of gene BED files, one per strain. The element identifier must be the strain name (matching the '{a}.{b}' pair names); it is restaged as '{strain}.bed'. Column 4 is the gene id."/>
-        <param argument="--strains" type="text" value="" label="Strains"
-               help="Comma-separated list of strain names (e.g. strainA,strainB). Recorded for provenance; edges are derived from the chain pair names and BED element identifiers.">
+        <param name="chains" type="data_collection" format="txt,tabular" label="Reciprocal-best chain list collection" help="A 'list' collection of UCSC chain files, one per strain pair. The element identifier must be the pair name '{a}.{b}' (strain_a.strain_b); it is restaged as '{a}.{b}.rbest.chain' so the strain pair can be recovered from the file name." collection_type="list"/>
+        <param name="annotations" type="data_collection" format="bed,bed6,bed12" label="Gene BED list collection" help="A 'list' collection of gene BED files, one per strain. The element identifier must be the strain name (matching the '{a}.{b}' pair names); it is restaged as '{strain}.bed'. Column 4 is the gene id." collection_type="list"/>
+        <param argument="--strains" type="text" value="" label="Strains" help="Comma-separated list of strain names (e.g. strainA,strainB). Recorded for provenance; edges are derived from the chain pair names and BED element identifiers.">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot and comma only">[A-Za-z0-9_.,\-]+</validator>
         </param>
-        <param argument="--min_overlap" type="float" value="0.90" min="0.0" max="1.0"
-               label="Minimum reciprocal overlap fraction"
-               help="An edge is emitted only when the target gene is covered by aligned chain blocks at least this fraction (overlap_a) AND its best query gene reciprocally overlaps the projection at least this fraction (overlap_b). Default 0.90."/>
+        <param argument="--min_overlap" type="float" min="0.0" max="1.0" value="0.90" label="Minimum reciprocal overlap fraction" help="An edge is emitted only when the target gene is covered by aligned chain blocks at least this fraction (overlap_a) AND its best query gene reciprocally overlaps the projection at least this fraction (overlap_b). Default 0.90."/>
     </inputs>
     <outputs>
         <data name="rbest_edges" format="tabular" label="${tool.name} on ${on_string}: rbest_edges.tsv"/>

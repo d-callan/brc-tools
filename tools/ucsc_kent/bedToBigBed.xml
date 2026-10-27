@@ -5,6 +5,12 @@
     </macros>
     <requirements>
         <requirement type="package" version="@BEDTOBIGBED_VERSION@">ucsc-bedtobigbed</requirement>
+        <!-- ⛔ READ-BACK VERIFIER. A bigBed writes its R-tree index and total-summary
+             block LAST, and the header at the front points at them by offset. Truncate the
+             file and the header still reads, the datatype still sniffs, the job still
+             reports ok, and every consumer fails later on an index that is not there.
+             bigBedInfo resolves those offsets, so it either loads or it does not. -->
+        <requirement type="package" version="@BIGBEDINFO_VERSION@">ucsc-bigbedinfo</requirement>
     </requirements>
     <version_command><![CDATA[bedToBigBed 2>&1 | head -1]]></version_command>
     <command detect_errors="aggressive"><![CDATA[
@@ -22,21 +28,17 @@ bedToBigBed
     'input.bed'
     'chrom.sizes'
     '$output'
+## Resolve the index the header points at. A truncated bigBed fails here, not downstream.
+&& bigBedInfo '$output' > /dev/null
     ]]></command>
     <inputs>
-        <param argument="bed" type="data" format="bed,tabular" label="Sorted BED"
-               help="BED file sorted by chrom then chromStart (sort -k1,1 -k2,2n). May carry extra typed columns."/>
-        <param argument="chrom_sizes" type="data" format="tabular" label="Chromosome sizes"
-               help="Two-column file: chrom name and size in bases."/>
-        <param argument="-type" type="text" value="bed3+1" label="BED type"
-               help="bedN[+[P]] declaring the number of standard BED columns and any extra fields, e.g. bed3+1, bed6+, bed12+8.">
+        <param argument="bed" type="data" format="bed,tabular" label="Sorted BED" help="BED file sorted by chrom then chromStart (sort -k1,1 -k2,2n). May carry extra typed columns."/>
+        <param argument="chrom_sizes" type="data" format="tabular" label="Chromosome sizes" help="Two-column file: chrom name and size in bases."/>
+        <param argument="-type" type="text" value="bed3+1" label="BED type" help="bedN[+[P]] declaring the number of standard BED columns and any extra fields, e.g. bed3+1, bed6+, bed12+8.">
             <validator type="regex" message="Expected a bedN, bedN+ or bedN+P type string">^bed([0-9]+)(\+([0-9]*)?)?$</validator>
         </param>
-        <param argument="-as" name="as_file" type="data" format="txt" optional="true" label="AutoSql (.as) definition"
-               help="AutoSql file describing the extra fields. Required when the BED carries non-standard columns (the '+' part of -type)."/>
-        <param argument="-tab" type="boolean" truevalue="-tab" falsevalue="" checked="true"
-               label="Tab-separated input"
-               help="Parse input as strictly tab-separated, allowing spaces inside fields (recommended for MAF/lstring columns)."/>
+        <param name="as_file" argument="-as" type="data" format="txt" optional="true" label="AutoSql (.as) definition" help="AutoSql file describing the extra fields. Required when the BED carries non-standard columns (the '+' part of -type)."/>
+        <param argument="-tab" type="boolean" truevalue="-tab" falsevalue="" checked="true" label="Tab-separated input" help="Parse input as strictly tab-separated, allowing spaces inside fields (recommended for MAF/lstring columns)."/>
     </inputs>
     <outputs>
         <data name="output" format="bigbed" label="${tool.name} on ${on_string}: bigBed"/>
@@ -47,6 +49,7 @@ bedToBigBed
             <param name="chrom_sizes" value="chrom.sizes" ftype="tabular"/>
             <param name="type" value="bed3+1"/>
             <param name="as_file" value="bigMaf.as" ftype="txt"/>
+            <param name="tab" value="true"/>
             <output name="output">
                 <assert_contents>
                     <!-- bigBed magic 0x8789F2EB, little-endian on disk -->
@@ -59,6 +62,20 @@ bedToBigBed
             <assert_command>
                 <has_text text="-type='bed3+1'"/>
                 <has_text text="-tab"/>
+            </assert_command>
+        </test>
+        <!-- ⛔ BOTH SIDES OF EVERY BOOLEAN, SET EXPLICITLY. check_tool_defects' rule reads the
+             booleans a <test> SETS, so leaving one at its default is not the false side: it is
+             no side at all, and the rule used to stay silent for exactly that case. Asserted on
+             the COMMAND, which needs no new fixture and is what the flag affects. -->
+        <test expect_num_outputs="1">
+            <param name="bed" value="test.bed" ftype="bed"/>
+            <param name="chrom_sizes" value="chrom.sizes" ftype="tabular"/>
+            <param name="type" value="bed3+1"/>
+            <param name="as_file" value="bigMaf.as" ftype="txt"/>
+            <param name="tab" value="false"/>
+            <assert_command>
+                <not_has_text text="-tab"/>
             </assert_command>
         </test>
     </tests>

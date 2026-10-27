@@ -7,7 +7,7 @@
         <xref type="bio.tools">odgi</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>odgi version 2>&amp;1 | head -1</version_command>
+    <version_command>odgi version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 odgi paths
     -i '$idx'

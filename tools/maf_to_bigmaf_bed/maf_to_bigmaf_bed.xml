@@ -15,30 +15,32 @@ python '$__tool_directory__/maf_to_bigmaf_bed.py'
     '$output_bed'
     ]]></command>
     <inputs>
-        <param argument="ref_acc" type="text" value="" label="Reference accession"
-               help="Species/assembly accession of the reference row in each MAF block (e.g. GCA_000001.1). The block is anchored on this row; its sequence-name prefix is stripped so the BED chrom matches the chrom-sizes naming.">
+        <param argument="ref_acc" type="text" value="" label="Reference accession" help="Species/assembly accession of the reference row in each MAF block (e.g. GCA_000001.1). The block is anchored on this row; its sequence-name prefix is stripped so the BED chrom matches the chrom-sizes naming.">
             <validator type="empty_field"/>
-            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
+            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">^[A-Za-z0-9_.\-]+$</validator>
         </param>
-        <param name="input_maf" argument="input.maf" type="data" format="maf" label="Input MAF"
-               help="A (preprocessed) multiple alignment file. Must carry a '##maf' header line; only blocks after it are read."/>
+        <param name="input_maf" argument="input.maf" type="data" format="maf" label="Input MAF" help="A (preprocessed) multiple alignment file. Must carry a '##maf' header line; only blocks after it are read."/>
     </inputs>
     <outputs>
         <data name="output_bed" format="bed" label="${tool.name} on ${on_string}: bigMaf BED3+1"/>
     </outputs>
     <tests>
+        <!-- ⛔ AN ORACLE. test.bigMaf.expected is the output of the REAL kent mafToBigMaf v482
+             on this same test.maf, not output this script produced. The fixture's reference rows
+             do NOT overlap, which is the case mafToBigMaf accepts, so the two MUST agree byte for
+             byte — and when this was first compared they did not: the score was passed through as
+             "0.0" where kent writes "0.000000", and the block text was missing its trailing ';'.
+             The previous assertions were derived from this script's own output, so they locked
+             both defects in. -->
         <test expect_num_outputs="1">
             <param name="ref_acc" value="GCA_000001.1"/>
             <param name="input_maf" value="test.maf"/>
-            <output name="output_bed">
-                <assert_contents>
-                    <has_n_lines n="2"/>
-                    <has_n_columns n="4"/>
-                    <has_line_matching expression="chr1&#9;100&#9;150&#9;a score=0.0;s GCA_000001.1.chr1 100 50 .*"/>
-                    <has_line_matching expression="chr1&#9;200&#9;230&#9;.*"/>
-                    <has_text text="GCA_000002.1.chr2 500 30"/>
-                </assert_contents>
-            </output>
+            <output name="output_bed" file="test.bigMaf.expected"/>
+        </test>
+        <!-- A misspelt accession must FAIL, not write an empty track and print a count. -->
+        <test expect_failure="true">
+            <param name="ref_acc" value="GCA_999999.9"/>
+            <param name="input_maf" value="test.maf"/>
         </test>
     </tests>
     <help format="markdown"><![CDATA[

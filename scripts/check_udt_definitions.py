@@ -375,7 +375,7 @@ UDT_RATIONALE = {
                           "do not have it installed", "tools/dustmasker/interval2bed.awk"),
     "windowmasker_bed3": ("CONVERTED", "ports tools/windowmasker/windowmasker.xml",
                           "tools/windowmasker/interval2bed.awk"),
-    "tantan_bed3":       ("CONVERTED", "ports tools/tantan/tantan.xml", "tools/tantan/lc2bed.awk"),
+    "tantan_bed3":       ("CONVERTED", "ports tools/tantan/tantan.xml", "tools/tantan/tantan.xml"),
     "lc_classify":       ("CONVERTED", "stage 2 of the masker ports",
                           "tools/dustmasker/lc_classify.py"),
     "fastan_gdb":        ("CONVERTED", "ports the FAtoGDB stage of tools/fastan/fastan.xml",
@@ -1048,7 +1048,8 @@ DEFECTS = [
     # is not an asymmetry and correctly did not fire. (anchor_prep itself trips this check for
     # real; that is a finding, not a fixture.)
     ("udt/samtools_faidx.gxtool.yml", "one output pre-created, the other not",
-     "  samtools faidx seq.fa", "  touch seq.fa.fai\n  samtools faidx seq.fa",
+     "  samtools faidx $SRC --fai-idx seq.fa.fai",
+     "  touch seq.fa.fai\n  samtools faidx $SRC --fai-idx seq.fa.fai",
      "OUTPUT-CREATE-ASYMMETRY"),
     ("udt/phase_c2_triage.gxtool.yml", "a regex validator anchored at one end only",
      'expression: "[A-Za-z0-9_.-]+$"', 'expression: "[A-Za-z0-9_.-]+"', "UNANCHORED-VALIDATOR"),

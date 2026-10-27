@@ -24,7 +24,7 @@ alone produce (scripts/rbest_baseline.py: 68.6%). The projections now add real
 linkage on top of the chains instead of inflating copy number: CORE-1:1 goes
 slightly UP versus rbest alone and PARTIAL goes down.
 
-Two columns warn about over-merging, and they catch different failures.
+Three columns warn about over-merging, and they catch different failures.
 
 `clique` scores a group against the mutual support 1:1 evidence can actually
 provide: sum over strain pairs of min(copies_a, copies_b). Scoring against every
@@ -33,6 +33,18 @@ gene per other strain, so a group with m copies in each of k strains tops out at
 (k-1)/(m*k-1) -- 0.462 for m=2, k=7, which is exactly where the multi-copy median
 sat before this was corrected. Low `clique` means chained: the component hangs
 together through a few links rather than mutual agreement.
+
+`clique_ceiling` is the largest `clique` a group COULD reach on the alignment grid
+that was actually run, and it exists because the denominator above runs over EVERY
+pair of strains in the group -- which silently assumes every pair was aligned. Run a
+hinge grid instead (every strain against a few references rather than against each
+other) and two non-hinge strains have no direct chain: they enter the denominator and
+cannot enter the numerator. `clique` is then capped by the TOPOLOGY, and "chained
+rather than mutually supported" describes the grid rather than the genomes. The grid
+is measured from the edges themselves, so it cannot disagree with the run, and under
+all-against-all the ceiling is 1.0 and nothing changes. ⛔ READ THE SHORTFALL AS
+`clique_ceiling - clique`, NOT as `1.0 - clique`, and do not compare `clique` across
+runs whose grids differ.
 
 `density` is the raw edge fraction over all member pairs. It is not comparable
 across copy numbers, which is why it is not the threshold, but it is what exposes
@@ -45,7 +57,8 @@ wrong edge is permanent and an automatic response would compound it. Treat
 FAMILY and CORE-VAR labels on low-scoring groups with suspicion.
 
 Output: work/03_consensus/ortholog_table.tsv
-  orthogroup_id, label, n_strains, max_copies, clique, {strain columns...}
+  orthogroup_id, label, n_strains, max_copies, clique, clique_ceiling, density,
+  {strain columns...}
 
 Ported and parameterized from
   /media/anton/data/sandbox/Pv4/v3/scripts/phase_e_consensus.py
@@ -439,6 +452,27 @@ def main():
     for e in used_edges:
         comp_edges[uf.find(next(iter(e)))] += 1
 
+    # WHICH STRAIN PAIRS CAN CARRY AN EDGE AT ALL -- measured from the edges, not
+    # declared. `clique`'s denominator runs over EVERY pair of strains in a group,
+    # so it silently assumes the alignment grid was all-against-all. Run a HINGE
+    # grid instead -- every strain aligned to a few references rather than to each
+    # other -- and two non-hinge strains have no direct chain, so the numerator can
+    # only ever cover hinge-incident pairs. `clique` is then capped below 1.0 by
+    # the GRID, and the tool's own words for a low value ("chained: the component
+    # hangs together through a few links rather than mutual agreement") describe
+    # the topology rather than the data.
+    #
+    # Deriving this from `used_edges` rather than from a flag means it cannot
+    # disagree with the run: a pair is covered iff some edge actually joined those
+    # two strains. An all-against-all run covers every pair and the ceiling is 1.0,
+    # so nothing changes for the case this tool was written against.
+    covered_pairs: set = set()
+    for e in used_edges:
+        a, b = tuple(e)
+        sa, sb = a.split('#', 1)[0], b.split('#', 1)[0]
+        if sa != sb:
+            covered_pairs.add(frozenset((sa, sb)))
+
     # Connected components
     comps: dict = defaultdict(set)
     for node in uf.parent:
@@ -475,6 +509,17 @@ def main():
                              for i in range(len(counts)) for j in range(i + 1, len(counts)))
         observed = comp_edges.get(cid, 0)
         clique = round(min(observed / expected_edges, 1.0), 3) if expected_edges else 1.0
+        # The largest `clique` THIS group could reach on the grid that was actually
+        # run: the same denominator, but the numerator restricted to strain pairs an
+        # edge could exist for. Equals 1.0 under all-against-all, so a table from a
+        # complete grid reads exactly as before.
+        copies = {s: len(c) for s, c in strain_clusters.items()}
+        reachable = sum(min(copies[a], copies[b])
+                        for i, a in enumerate(present_strains)
+                        for b in present_strains[i + 1:]
+                        if frozenset((a, b)) in covered_pairs)
+        clique_ceiling = (round(min(reachable / expected_edges, 1.0), 3)
+                          if expected_edges else 1.0)
         # Raw density too: the normalised score is comparable across groups, which
         # is what makes a threshold usable, but it flatters a blob. OG000001 --
         # 3,110 genes, 625 copies in one strain -- scores 0.525 normalised and
@@ -498,6 +543,7 @@ def main():
             'n_strains': n_strains,
             'max_copies': max_copies,
             'clique': clique,
+            'clique_ceiling': clique_ceiling,
             'density': density,
         }
         for s in all_strains:
@@ -525,9 +571,42 @@ def main():
         print('  Compare against scripts/rbest_baseline.py on the same rbest edges: '
               'a healthy run should land near it, not far above on CORE-VAR.')
 
+    # THE GRID THE NUMBERS ABOVE WERE MEASURED ON. Printed unconditionally, because
+    # "every pair aligned" is an assumption `clique` makes silently and a reader has
+    # no way to check it from the table alone.
+    all_pairs = N_ALL * (N_ALL - 1) // 2
+    covered = len(covered_pairs)
+    if all_pairs:
+        print(f'  alignment grid: {covered:,} of {all_pairs:,} strain pairs carry an edge '
+              f'({100.0 * covered / all_pairs:.1f}%)')
+    if all_pairs and covered < all_pairs:
+        ceil = sorted(r['clique_ceiling'] for r in rows_out)
+        med = ceil[len(ceil) // 2] if ceil else 1.0
+        capped = sum(1 for c in ceil if c < 1.0)
+        print('    ⚠ THIS GRID IS NOT ALL-AGAINST-ALL, SO `clique` CANNOT REACH 1.0.')
+        print(f'      Median achievable ceiling {med:.3f}; {capped:,} of {len(ceil):,} groups '
+              f'({100.0 * capped / max(1, len(ceil)):.1f}%) are capped below 1.0.')
+        print('      Two strains with no direct chain contribute to the denominator and '
+              'cannot contribute to the numerator, so a low `clique` here describes the '
+              'GRID, not the genomes. Read each row against its `clique_ceiling` column, '
+              'and do NOT compare `clique` across runs whose grids differ.')
+        print('      ⛔ `--min-clique` in scripts/rbest_baseline.py is scored against 1.0 '
+              'and is therefore NOT meaningful on a partial grid.')
+        # ▶ THE NUMBER THAT ACTUALLY ANSWERS THE QUESTION. "N% below 0.9" reads as a
+        # data-quality problem; on a hinge grid most of those groups are simply AT
+        # their maximum. A group whose clique equals its ceiling is as mutually
+        # supported as this grid permits, and nothing about it is ragged.
+        at_ceiling = sum(1 for r in rows_out
+                         if r['clique'] >= r['clique_ceiling'] - 1e-9)
+        print(f'      ▶ {at_ceiling:,} of {len(rows_out):,} groups '
+              f'({100.0 * at_ceiling / max(1, len(rows_out)):.1f}%) are AT their ceiling '
+              f'-- as complete as this grid allows. Read the shortfall as '
+              f'`clique_ceiling - clique`, not as `1.0 - clique`.')
+
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    fields = ['orthogroup_id', 'label', 'n_strains', 'max_copies', 'clique', 'density'] \
+    fields = ['orthogroup_id', 'label', 'n_strains', 'max_copies', 'clique',
+              'clique_ceiling', 'density'] \
         + all_strains
     with open(out, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields, delimiter='\t')

@@ -1,2 +1,2 @@
 strain_a	gene_a	strain_b	gene_b	overlap_a	overlap_b
-B	geneA	C	geneA	0.99	0.99
+B	B_gene1	C	C_gene1	0.99	0.99

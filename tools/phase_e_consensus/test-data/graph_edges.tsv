@@ -1,2 +1,2 @@
 strain_a	gene_a	strain_b	gene_b	path_id	overlap
-B	geneX	C	geneX	p1	0.95
+B	B_gene2	C	C_gene2	p1	0.95

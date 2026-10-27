@@ -7,7 +7,7 @@
         <xref type="bio.tools">vg</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>vg version 2>&amp;1 | head -1</version_command>
+    <version_command>vg version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $ext_map = {'gfa1': 'gfa', 'gfa1.gz': 'gfa.gz'}
 #set $in_ext = $ext_map.get(str($infile.ext), str($infile.ext))
@@ -23,8 +23,7 @@ vg convert
     > '$output'
     ]]></command>
     <inputs>
-        <param argument="--infile" type="data" format="vg,xg,gfa1,gfa1.gz" label="Input graph"
-               help="Accepts vg, xg, GFA1 (plain or gzipped). GBZ inputs via uploaded vg-format file."/>
+        <param argument="--infile" type="data" format="vg,xg,gfa1,gfa1.gz" label="Input graph" help="Accepts vg, xg, GFA1 (plain or gzipped). GBZ inputs via uploaded vg-format file."/>
         <param name="output_format" type="select" label="Output format">
             <option value="--packed-out" selected="true">PackedGraph (--packed-out, default)</option>
             <option value="--hash-out">HashGraph (--hash-out)</option>

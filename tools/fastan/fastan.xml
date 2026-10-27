@@ -1,5 +1,9 @@
-<tool id="fastan" name="fastan" version="0.8+galaxy1" profile="23.0">
+<tool id="fastan" name="fastan" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="23.0">
     <description>FASTAN tandem-repeat arrays as content-annotated BED6</description>
+    <macros>
+        <token name="@TOOL_VERSION@">0.8</token>
+        <token name="@VERSION_SUFFIX@">2</token>
+    </macros>
     <!--
       Dependencies come from bioconda. Both of the blockers this wrapper was written
       around have since been resolved upstream:
@@ -18,7 +22,7 @@
       pinning rather than documenting. bioconda-recipes#68612 added 1.5.20260729.
     -->
     <requirements>
-        <requirement type="package" version="0.8">fastan</requirement>
+        <requirement type="package" version="@TOOL_VERSION@">fastan</requirement>
         <requirement type="package" version="1.5.20260729">fastga</requirement>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
@@ -48,6 +52,22 @@ score = unit identity (0-1000 grayscale), strand = real orientation. Complementa
 the DUST/low-complexity tracks. Pipeline: ``FAtoGDB`` -> ``FasTAN -m -p`` (.1ano) -> ``ONEview`` +
 awk. NOT ``ANOtoBED``, which reports contig-relative coordinates under the scaffold name (see
 check_coordinates.py). Input is upper-cased first.
+
+⛔ **COLUMNS 4 AND 5 DO NOT MEAN THE SAME THING AS IN THE dustmasker, windowmasker AND tantan
+TRACKS.** Those three pipe through ``lc_classify.py``, which names a SEQUENCE SIGNATURE
+(``polyA``, ``(AT)n``, ``lc``) and scores PURITY x 1000. This tool names the repeat UNIT LENGTH
+(``u65``, ``u8``) and scores 1000 - 10 x divergence. Both are 0-1000 and higher-is-better, so a
+UCSC hub renders all four happily -- but grouping by name, or comparing scores, ACROSS tracks is
+mixing two vocabularies and nothing errors.
+
+⛔ **``lc_classify.py`` IS ABSENT ON PURPOSE.** It brute-forces periods 1-6 only and returns
+``lc`` for anything longer. Measured on 103,341 real intervals (ASM1303036v1), **75.9% have a
+unit longer than 6** -- 65,084 of them 20 bp or more, median interval 62 bp, longest 22,755.
+FASTAN measures the unit from its own tandem-array model (the ``L`` record) and reports
+divergence (``X``); classifying that would fail on three quarters of the intervals and replace a
+measured value with a guess. The UDT port omits it for the same reason, so the two stay in step.
     ]]></help>
-    <citations><citation type="doi">10.1101/2023.04.01.535214</citation></citations>
+    <citations>
+        <citation type="doi">10.1101/2023.04.01.535214</citation>
+    </citations>
 </tool>

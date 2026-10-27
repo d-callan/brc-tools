@@ -80,7 +80,8 @@ def render(gi: GalaxyInstance, doc: dict, uuids: dict[str, str]) -> str:
     return gi.workflows.import_workflow_dict(native)["id"]
 
 
-def run_tier(gi: GalaxyInstance, wf_id: str, hdca: str, history: str) -> tuple[bool, str]:
+def run_tier(gi: GalaxyInstance, wf_id: str, hdca: str, history: str,
+             strip: bool = False) -> tuple[bool, str]:
     """Invoke one tier and wait it out. True only if every job it created succeeded.
 
     ⛔ A TIMEOUT IS A FAILURE AND SO IS AN EMPTY JOB SET. The previous version polled to a deadline,
@@ -106,6 +107,20 @@ def run_tier(gi: GalaxyInstance, wf_id: str, hdca: str, history: str) -> tuple[b
     handles = _wf["inputs"]
     inputs = {sid: {"src": "hdca", "id": hdca} for sid in handles
               if (_steps.get(str(sid)) or {}).get("type") != "parameter_input"}
+    # ⛔ AND BIND THE PARAMETER, OR THIS TOOL CANNOT REACH HALF THE WIRING IT EXISTS TO CHECK.
+    # `strip_arrived_mask` gates a conditional: under `true` the mask is recomputed from stripped
+    # sequence, under `false` the FASTA passes through. Those are DIFFERENT PATHS through the
+    # graph, and a build-up that always took the default validated only one of them -- while
+    # reporting "tier N sound" about the workflow as a whole. Same omission as
+    # run_softmask_udt.py's, in the tool whose entire purpose is finding wiring bugs.
+    _params = {sid: h for sid, h in handles.items()
+               if (_steps.get(str(sid)) or {}).get("type") == "parameter_input"
+               and (h.get("label") or "") == "strip_arrived_mask"}
+    if _params:
+        inputs.update({sid: strip for sid in _params})
+    elif strip:
+        return False, ("--strip-arrived-mask given, but this tier has no `strip_arrived_mask` "
+                       "parameter_input; refusing rather than tiering the other arm")
     try:
         inv = invoke(gi, wf_id, inputs, history)
     except Exception as e:  # noqa: BLE001 - a tier reports whatever refused it, not one class
@@ -139,6 +154,11 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fasta", type=pathlib.Path, required=True)
     ap.add_argument("--from-tier", type=int, default=1)
+    # ⚠ THE ARM IS PART OF THE WIRING, so a build-up that cannot choose it cannot clear the graph.
+    ap.add_argument("--strip-arrived-mask", dest="strip", action="store_true",
+                    help="tier the strip_arrived_mask=true path instead of the default false one. "
+                         "The two take different branches, so a clean build-up under one says "
+                         "nothing about the other.")
     args = ap.parse_args()
 
     gi = connect()
@@ -164,7 +184,7 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001 - same: surface the refusal, do not classify it
             print(f"  ⛔ RENDER FAILED: {str(e)[:240]}")
             return 1
-        ok, detail = run_tier(gi, wf_id, hdca, h["id"])
+        ok, detail = run_tier(gi, wf_id, hdca, h["id"], args.strip)
         print(f"  {'✅' if ok else '⛔'} {detail}")
         if not ok:
             print(f"\n  Stopped at tier {n}. Everything below it is sound; this tier's wiring is not.")

@@ -30,7 +30,13 @@ def parse_pairs(items):
             acc, label = item.split("=", 1)
         else:
             acc, label = item, item
-        out.append((acc.strip(), label.strip()))
+        acc, label = acc.strip(), label.strip()
+        # ⛔ A BLANK TOKEN IS NOT AN ASSEMBLY. `--strain-label ""` is one argv entry, so the
+        # list was non-empty and the emptiness check downstream passed, while this appended
+        # ('', '') -- an accession-less pair that produced a subtrack named after nothing.
+        if not acc:
+            continue
+        out.append((acc, label))
     return out
 
 
@@ -151,6 +157,17 @@ def select_stanza(out, *, group, html):
 
 def build(args):
     pairs = parse_pairs(args.strain_label)
+    # ⛔ AN EMPTY PANEL IS NOT A TRACKDB. --strain-label is optional and its validator
+    # accepts the empty string, so with it unset `pairs` is [] -> species_order [] and
+    # targets [], and this wrote a STRUCTURALLY VALID trackDb.txt whose chains composite
+    # had no subtracks and whose bigMaf had no speciesOrder, from a job that exited 0. The
+    # longLabel even said so -- "Pairwise chain alignments (0 targets)" -- and nothing read
+    # it. build_genomes_txt already refuses the equivalent ("no assembly rows found").
+    if not pairs:
+        raise SystemExit(
+            "error: --strain-label is empty, so the panel has no assemblies. The chains "
+            "composite would have no subtracks and the bigMaf no speciesOrder, in an "
+            "otherwise valid trackDb.txt. Pass ACC=LABEL tokens for the panel.")
     # species order / labels for the bigMaf: all strains in the panel.
     species_order = [s for s, _ in pairs] if pairs else []
     labels = pairs

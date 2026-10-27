@@ -7,7 +7,7 @@
         <xref type="bio.tools">odgi</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>odgi version 2>&amp;1 | head -1</version_command>
+    <version_command>odgi version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #if not any([str($summarize), str($weak_connected_components), str($self_loops), str($nondeterministic_edges), str($base_content), str($file_size)])
     #set $summarize = '--summarize'
@@ -25,21 +25,12 @@ odgi stats
     ]]></command>
     <inputs>
         <param argument="--idx" type="data" format="odgi" label="Input .og graph"/>
-        <param argument="--summarize" type="boolean" truevalue="--summarize" falsevalue=""
-               checked="true" label="Summarize (-S)"
-               help="Print #nucleotides, #nodes, #edges, #paths, #steps as TSV. Default on."/>
-        <param argument="--weak-connected-components" type="boolean"
-               truevalue="--weak-connected-components" falsevalue="" checked="false"
-               label="Weakly-connected components"/>
-        <param argument="--self-loops" type="boolean" truevalue="--self-loops" falsevalue=""
-               checked="false" label="Count self-loop nodes"/>
-        <param argument="--nondeterministic-edges" type="boolean"
-               truevalue="--nondeterministic-edges" falsevalue="" checked="false"
-               label="Show nondeterministic edges"/>
-        <param argument="--base-content" type="boolean" truevalue="--base-content" falsevalue=""
-               checked="false" label="Base content (A/C/G/T)"/>
-        <param argument="--file-size" type="boolean" truevalue="--file-size" falsevalue=""
-               checked="false" label="File size (bytes)"/>
+        <param argument="--summarize" type="boolean" truevalue="--summarize" falsevalue="" checked="true" label="Summarize (-S)" help="Print #nucleotides, #nodes, #edges, #paths, #steps as TSV. Default on."/>
+        <param argument="--weak-connected-components" type="boolean" truevalue="--weak-connected-components" falsevalue="" checked="false" label="Weakly-connected components"/>
+        <param argument="--self-loops" type="boolean" truevalue="--self-loops" falsevalue="" checked="false" label="Count self-loop nodes"/>
+        <param argument="--nondeterministic-edges" type="boolean" truevalue="--nondeterministic-edges" falsevalue="" checked="false" label="Show nondeterministic edges"/>
+        <param argument="--base-content" type="boolean" truevalue="--base-content" falsevalue="" checked="false" label="Base content (A/C/G/T)"/>
+        <param argument="--file-size" type="boolean" truevalue="--file-size" falsevalue="" checked="false" label="File size (bytes)"/>
     </inputs>
     <outputs>
         <data name="stats_tsv" format="tabular" label="${tool.name} on ${on_string}: stats"/>
@@ -48,9 +39,29 @@ odgi stats
         <test expect_num_outputs="1">
             <param name="idx" value="toy.og" ftype="odgi"/>
             <param name="summarize" value="true"/>
+            <param name="base_content" value="false"/>
             <output name="stats_tsv">
                 <assert_contents>
                     <has_text text="length"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Summarize OFF. It cannot be tested on its own: the command forces it back on when
+             every flag is off, so another metric has to be requested for the off-state to be
+             reachable at all. That fallback is exercised here too. The command assertion is the
+             load-bearing one: what this pins is which flags were templated, not what odgi
+             then printed. -->
+        <test expect_num_outputs="1">
+            <param name="idx" value="toy.og" ftype="odgi"/>
+            <param name="summarize" value="false"/>
+            <param name="base_content" value="true"/>
+            <assert_command>
+                <has_text text="--base-content"/>
+                <not_has_text text="--summarize"/>
+            </assert_command>
+            <output name="stats_tsv">
+                <assert_contents>
+                    <has_size min="1"/>
                 </assert_contents>
             </output>
         </test>

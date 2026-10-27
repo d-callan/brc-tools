@@ -1,0 +1,66 @@
+name: tool-lint
+
+# Lint the 55 wrappers under tools/. Until this existed NO job read them at all -- docs, pages,
+# pipeline-dataflow and udt-drift between them cover the docs, the UDTs and the workflows, and the
+# wrappers had nothing. Four of them shipped a boolean flag that was always on.
+#
+# BOTH JOBS RUN AGAINST A CHECKED-IN BASELINE, because 26 defects and 259 lint findings were
+# already here on the day this landed. A gate that is red from its first run gets ignored, and
+# then switched off. These are ratchets instead: green at today's numbers, red the moment one
+# rises. Both also go red when a number FALLS without the baseline being lowered, so the files
+# cannot quietly drift into a permanent amnesty.
+on:
+  push:
+    branches: [main]
+    # ⚠ THE TRIGGER HAS TO NAME EVERY SCRIPT AND BASELINE THE JOBS BELOW READ, or a change that
+    # breaks one of them runs no check at all -- the same trap udt-drift.yml documents.
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            '.github/workflows/tool-lint.yml',
+            'tools/**',
+            'scripts/check_tool_defects.py', 'scripts/check_tool_lint.py']
+  pull_request:
+    paths: [# ⚠ THE WORKFLOW FILE ITSELF, so that editing this list is itself checked.
+            '.github/workflows/tool-lint.yml',
+            'tools/**',
+            'scripts/check_tool_defects.py', 'scripts/check_tool_lint.py']
+
+jobs:
+  # The defects that make a GREEN job compute the wrong thing. Standard library only, like
+  # udt-drift, so it runs whether or not anyone's planemo environment is present.
+  defects:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ⚠ THE SELF-TEST RUNS FIRST AND IS NOT OPTIONAL. Each rule has a fixture that must trip it
+      # and a clean fixture that must stay silent; disabling any rule makes this step fail. A
+      # checker whose own rules have rotted reports "0 findings" and looks exactly like success.
+      - name: The checker still detects what it claims to
+        run: python3 scripts/check_tool_defects.py --self-test
+
+      # A Galaxy boolean reaches Cheetah as the STRING truevalue/falsevalue, never a Python bool,
+      # so falsevalue="no" makes `#if $flag` true whether the box is ticked or not. Neither
+      # planemo nor galaxy-tool-refactor detects this.
+      - name: No new tool-XML defects
+        run: python3 scripts/check_tool_defects.py tools
+
+  # The IUC house-style half. Needs the toolkit from PyPI, so it is a separate job -- a pip
+  # failure must not take the stdlib-only check down with it.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ⚠ PINNED. An unpinned install turns this job red on a day nobody touched the repo, the
+      # first time a release adds a rule -- and a gate that goes red on its own gets switched off.
+      # Raising the pin is a maintainer step that comes with re-baselining.
+      - run: pip install --quiet galaxy-tool-refactor-registry==0.3.10
+
+      - name: No new galaxy-tool-refactor findings
+        run: python3 scripts/check_tool_lint.py tools

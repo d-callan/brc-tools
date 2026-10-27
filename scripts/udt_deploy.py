@@ -24,10 +24,12 @@ small differences that make one attempt not comparable with the last.
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import sys
 import time
 
+import requests
 import yaml
 from bioblend.galaxy import GalaxyInstance
 
@@ -38,15 +40,54 @@ import galaxy_server                             # noqa: I001 -- must follow the
 from check_udt_definitions import pep440_ok      # must follow the path insert above
 
 
+#: `--instance` name -> the suffix its `$GALAXY_URL`/`$GALAXY_API_KEY` pair carries. "main" is
+#: usegalaxy.org and takes no suffix. A TABLE rather than a conditional, because the conditional
+#: mapped ANYTHING that was not "main" onto `_2`: `--instance lalia` deployed to vgp and said so
+#: in a log line naming the server the user did not ask for.
+INSTANCES = {"main": "", "vgp": "_2", "laila": "_3"}
+
+
 def creds(instance: str) -> tuple[str, str]:
-    """`--instance main|vgp` mapped onto the shared selector.
+    """`--instance` mapped onto the shared selector.
 
     ⚠ THIS TOOK ITS INSTANCE FROM A FLAG WHILE THE REST OF THE SUITE TOOK IT FROM `$WFA_SERVER`,
     so registering a UDT and invoking it could target different servers with nothing to say so.
     The flag still wins here (it is this script's interface), but the lookup is the shared one, so
     there is one definition of what `_2` means. See galaxy_server.
+
+    ⚠ THE SERVER IS NOT INTERCHANGEABLE, AND SLOTS ARE THE REASON TO SAY SO HERE. A UDT gets
+    `GALAXY_SLOTS=1` on usegalaxy.org (measured, job 79420986) but whatever `local_slots` the
+    local job_conf declares on laila -- 16 today. So a wrapper reading `$GALAXY_SLOTS` runs
+    single-threaded on the server we ship to and multi-threaded on the one we test on.
+    Correctness transfers between them; runtimes and thread-related behaviour do not.
     """
-    return galaxy_server.creds("" if instance == "main" else "_2")
+    return galaxy_server.creds(INSTANCES[instance])
+
+
+def fetch_one(url: str, key: str, history_id: str, path: pathlib.Path) -> str:
+    """Upload one file and return its dataset id.
+
+    ⛔ NOT `gi.tools.paste_content`, AND NOT /api/tools. `paste_content` posts to the classic
+    `upload1` tool, which a 26.1 server does not carry -- laila's panel has no `upload1` at all --
+    and the failure arrives as `{"err_msg": "Tool not found.", "err_code": 400014}` on the line
+    after one reporting the UDT registered. That reads like the registration failed when it
+    registered perfectly well. Posting `__DATA_FETCH__` to /api/tools is refused too ("must use
+    alternative endpoint"). /api/tools/fetch is the endpoint that works, and it is what
+    usegalaxy.org uses as well, so this is not a laila special case: the old path was the older one.
+    """
+    with path.open("rb") as fh:
+        r = requests.post(
+            url.rstrip("/") + "/api/tools/fetch",
+            headers={"x-api-key": key},
+            data={"history_id": history_id,
+                  "targets": json.dumps([{"destination": {"type": "hdas"},
+                                          "elements": [{"src": "files", "name": path.name,
+                                                        "ext": "fasta"}]}])},
+            files={"files_0|file_data": (path.name, fh)},
+            timeout=600,
+        )
+    r.raise_for_status()
+    return r.json()["outputs"][0]["id"]
 
 
 def wait(gi: GalaxyInstance, job_id: str, timeout: int = 1800) -> dict:
@@ -63,7 +104,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("definition", type=pathlib.Path)
-    ap.add_argument("--instance", default="main")
+    # ⛔ `choices`, so a name this script does not know is refused rather than silently
+    # resolved to vgp. argparse names the valid set in the error.
+    ap.add_argument("--instance", default="main", choices=sorted(INSTANCES))
     ap.add_argument("--register-only", action="store_true")
     ap.add_argument("--smoke-fasta", type=pathlib.Path,
                     help="a small FASTA to run the tool on. ⚠ Without an input the job dies before "
@@ -99,8 +142,7 @@ def main() -> int:
         return 0
 
     h = gi.histories.create_history(name=f"UDT smoke: {doc['id']} {doc['version']}")
-    up = gi.tools.paste_content(args.smoke_fasta.read_text(), h["id"], file_type="fasta")
-    ds = up["outputs"][0]["id"]
+    ds = fetch_one(url, key, h["id"], args.smoke_fasta)
     for _ in range(60):
         if gi.datasets.show_dataset(ds)["state"] == "ok":
             break

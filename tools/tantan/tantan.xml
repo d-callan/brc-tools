@@ -1,13 +1,20 @@
-<tool id="tantan" name="tantan" version="51+galaxy0" profile="23.0">
+<tool id="tantan" name="tantan" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="23.0">
     <description>tantan gentle low-complexity intervals as content-annotated BED6</description>
+    <macros>
+        <token name="@TOOL_VERSION@">51</token>
+        <token name="@VERSION_SUFFIX@">1</token>
+    </macros>
     <requirements>
-        <requirement type="package" version="51">tantan</requirement>
+        <requirement type="package" version="@TOOL_VERSION@">tantan</requirement>
         <!-- python3 runs lc_classify.py in <command>; without this the tool dies at
              exit 127 under biocontainer/singularity resolution, where the blast and
              tantan images carry no interpreter (measured, see build_softmask_udts.py).
              A conda-only Galaxy hid it by falling back to the system python. -->
         <requirement type="package" version="3.12">python</requirement>
     </requirements>
+    <!-- tantan writes BED itself: -f is 0=masked sequence, 1=repeat probabilities,
+         2=repeat counts, 3=BED, 4=tandem repeats. That replaced lc2bed.awk, which this
+         tool used to carry. Measured byte identical on 288 real records / 37 MB. -->
     <command detect_errors="exit_code"><![CDATA[
 set -o pipefail &&
 #if str($input.ext) == 'fasta.gz'
@@ -16,8 +23,7 @@ set -o pipefail &&
     cat '$input'
 #end if
 | awk '/^>/{print;next}{print toupper(\$0)}' > in.fa &&
-tantan in.fa
-| awk -f '$__tool_directory__/lc2bed.awk'
+tantan -f3 in.fa
 | python3 '$__tool_directory__/lc_classify.py' in.fa -
 | LC_ALL=C sort -k1,1 -k2,2n > '$output'
     ]]></command>
@@ -33,5 +39,7 @@ to AT-rich genomes. Emitted as **BED6** with per-interval content: name = repeat
 signature, score = purity x1000, strand = ``.``. Input is upper-cased first so masking
 is computed de novo.
     ]]></help>
-    <citations><citation type="doi">10.1093/nar/gk010</citation></citations>
+    <citations>
+        <citation type="doi">10.1093/nar/gk010</citation>
+    </citations>
 </tool>

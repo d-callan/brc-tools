@@ -43,9 +43,10 @@ import argparse
 import csv
 import sys
 from collections import Counter, defaultdict
+from pathlib import Path
 
 
-def load_edges(path):
+def load_edges(path: Path):
     """Return undirected gene-gene edges as {frozenset({node_a, node_b})}.
 
     rbest ships both directions of most pairs, so deduplicating is what makes the
@@ -54,7 +55,7 @@ def load_edges(path):
     for the denominator that does.
     """
     edges = set()
-    with open(path) as fh:
+    with path.open() as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             a = f'{row["strain_a"]}#{row["gene_a"]}'
             b = f'{row["strain_b"]}#{row["gene_b"]}'
@@ -138,9 +139,11 @@ def label_of(n_strains, max_copies, n_all):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--edges", required=True, help="rbest_edges.tsv from WF-E")
-    ap.add_argument("--table", help="WF-E ortholog_table.tsv, to compare against")
-    ap.add_argument("--out", help="write the reconstructed table here")
+    # ⚠ type=Path, and it is load-bearing: the bodies below call `.open()` on all three. A bare
+    # string here is an AttributeError on every invocation, not a style preference.
+    ap.add_argument("--edges", required=True, type=Path, help="rbest_edges.tsv from WF-E")
+    ap.add_argument("--table", type=Path, help="WF-E ortholog_table.tsv, to compare against")
+    ap.add_argument("--out", type=Path, help="write the reconstructed table here")
     ap.add_argument("--min-clique", type=float, default=0.9,
                     help="report groups below this clique completeness (default 0.9)")
     a = ap.parse_args()
@@ -213,7 +216,9 @@ def main():
         print(f"      {og}  {k} strains, {mx} max copies, {n} genes, clique {c}")
 
     if a.table:
-        shipped = Counter(r["label"] for r in csv.DictReader(open(a.table), delimiter="\t"))
+        # SIM115/PTH123: the reader was built over a bare open() whose handle was never closed.
+        with a.table.open(newline="") as fh:
+            shipped = Counter(r["label"] for r in csv.DictReader(fh, delimiter="\t"))
         total = sum(shipped.values())
         print("\nshipped WF-E table vs this baseline:")
         print(f"   {'label':18} {'shipped':>16} {'baseline':>16}")
@@ -222,7 +227,7 @@ def main():
                   f"{labels[lab]:>8,} {100*labels[lab]/len(comps):5.1f}%")
 
     if a.out:
-        with open(a.out, "w", newline="") as fh:
+        with a.out.open("w", newline="") as fh:
             w = csv.DictWriter(fh, delimiter="\t", fieldnames=list(rows[0]))
             w.writeheader()
             w.writerows(rows)

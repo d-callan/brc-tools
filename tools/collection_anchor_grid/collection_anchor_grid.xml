@@ -30,12 +30,8 @@ python '$__tool_directory__/anchor_grid.py'
 #end for#</configfile>
     </configfiles>
     <inputs>
-        <param name="anchors" type="data_collection" collection_type="list"
-               label="Anchor collection"
-               help="Genomes that donate annotation. Their element identifiers form the target side of the wanted chains."/>
-        <param name="strains" type="data_collection" collection_type="list"
-               label="Strain (query) collection"
-               help="The full panel. Anchors must also appear here, since WF-C only produced chains for panel members."/>
+        <param name="anchors" type="data_collection" label="Anchor collection" help="Genomes that donate annotation. Their element identifiers form the target side of the wanted chains." collection_type="list"/>
+        <param name="strains" type="data_collection" label="Strain (query) collection" help="The full panel. Anchors must also appear here, since WF-C only produced chains for panel members." collection_type="list"/>
     </inputs>
     <outputs>
         <data name="keep" format="txt" label="${tool.name} on ${on_string}: chain ids to keep"/>

@@ -260,7 +260,7 @@ def sourmash_udt() -> str:
     # future reader "fixing" the warning by doubling it would change the regex.
     return HEADER + rf"""class: GalaxyUserTool
 id: brc-sourmash-panel
-version: "0.10.0"
+version: "0.12.0"
 name: sourmash sketch + compare over a panel (BRC UDT)
 description: MinHash signatures for every assembly in a collection and the similarity matrix over them
 container: quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0
@@ -270,11 +270,12 @@ requirements:
   # assemblies sketched one at a time is where six hours went. `cores_min` defaults to 1, so a tool
   # that does not ask is not merely unoptimised -- it has declared one core.
   #
-  # ⛔ `ram_min` IS ON THE GB SCALE HERE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS, and it is set
-  # EXPLICITLY. Both matter: the destination's `max_accepted_mem` is 120, so a schema-conformant
-  # `ram_min: 32768` exceeds it, matches NO destination, and the job dies with `state=error`,
-  # `exit_code=None`, empty streams and no command line. The default of 256 does the same thing.
-  # See udt/slots_probe.gxtool.yml for the measurement table.
+  # ⛔ `ram_min` IS IN MEBIBYTES. THIS COMMENT USED TO SAY THE OPPOSITE AND WAS RIGHT AT THE TIME;
+  # total-perspective-vortex#205 merged 2026-09-12 and now divides MiB by 1024 to get TPV's GiB.
+  # Before it, `ram_min: 32768` really was read as 32768 GiB, exceeded the destination's
+  # `max_accepted_mem` of 120 and left the job unroutable with `state=error`, `exit_code=None` and
+  # empty streams. After it, 32768 is the correct way to ask for 32 GiB.
+  # See udt/slots_probe.gxtool.yml, and scripts/build_softmask_udts.py for what the flip cost.
   #
   # ⚠ 16 CORES FROM A MEASUREMENT: the same 23-assembly collection took 26 min at 1 core and 224 s
   # at 8 (~7x, all outputs correct). 16 rather than 8 because the 219-member panel is the target and
@@ -287,9 +288,24 @@ requirements:
   # worker at scaled=1000 (confirmed: the signatures come out 6.6-8.4 MB); `sourmash compare` loads
   # EVERY signature -- ~197 M hashes over this panel, order 2-4 GB -- and `--processes` multiplies
   # what its workers touch. The old 3788 MB default sat inside that range.
+  #
+  # ⛔ 64 GiB BECAUSE THE 32 GiB MEASUREMENT WAS CENSORED, NOT BECAUSE 64 IS MEASURED. The
+  # 219-assembly run reported `memory.peak` of 32.00 GiB against a 32 GiB grant -- exactly the
+  # ceiling -- and a peak that lands on its own limit does not say what the job wanted, only that
+  # the limit truncated the observation. The run before it peaked 27.81 GiB, so the true figure is
+  # somewhere at or above 32 and unknown.
+  #
+  # ▶ RAISING IT IS WHAT PRODUCES THE MEASUREMENT. With room above the requirement the next run
+  # reports an UNCENSORED peak, and this value can then be set from evidence. Leaving it at 32 and
+  # waiting means learning the number from an OOM on a ~28-minute job over the whole panel.
+  # `max_accepted_mem` is 120 GiB, so 64 is inside the destination; the cost is queue time, which
+  # is cheap for a tool that runs once per panel rather than once per genome.
+  #
+  # ⚠ SET THIS FROM THE NEXT RUN'S `memory.peak`, and if that peak again equals the grant, raise
+  # again rather than believing it.
   - type: resource
     cores_min: 16
-    ram_min: 32
+    ram_min: 65536
 shell_command: |
   cat > rendered.txt <<'BRC_RENDERED'
   $(inputs.assemblies)

@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>sourmash --version 2>&amp;1 | head -1</version_command>
+    <version_command>sourmash --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $in_ext = 'fasta.gz' if str($input.ext) == 'fasta.gz' else 'fasta'
 ln -sf '$input' 'input.${in_ext}' &&
@@ -16,8 +16,7 @@ sourmash sketch dna
     'input.${in_ext}'
     ]]></command>
     <inputs>
-        <param name="input" type="data" format="fasta,fasta.gz" label="Input assembly (FASTA)"
-               help="Nucleotide FASTA for one assembly, plain or gzipped. One DNA signature is produced."/>
+        <param name="input" type="data" format="fasta,fasta.gz" label="Input assembly (FASTA)" help="Nucleotide FASTA for one assembly, plain or gzipped. One DNA signature is produced."/>
     </inputs>
     <outputs>
         <!-- ⛔ `sourmash.sig`, NOT `json`, AND THE DIFFERENCE IS ONE-DIRECTIONAL.

@@ -18,12 +18,19 @@ python '$__tool_directory__/fasta_concat.py'
     #for $f in $inputs#
         '$f'
     #end for#
+## ⛔ VERIFY THE GZIP TRAILER. gzip stores CRC32 and the uncompressed length in the last 8
+## bytes, so `gzip -t` is a complete integrity test, not a header sniff: a write that stopped
+## early fails it. Galaxy cannot do this declaratively -- <assert_contents> exists only inside
+## <tests>, so it never runs on a production job -- and a truncated .gz still sniffs as
+## fasta.gz and still reports ok. detect_errors="aggressive" turns the non-zero exit into a
+## failed job.
+#if $compressed
+    && gzip -t '$output_gz'
+#end if
     ]]></command>
     <inputs>
-        <param name="inputs" type="data" format="fasta,fasta.gz" multiple="true"
-               label="FASTAs to concatenate" help="Order is preserved from collection order."/>
-        <param name="compressed" type="boolean" truevalue="--gzip" falsevalue=""
-               checked="false" label="Gzip-compress output"/>
+        <param name="inputs" type="data" format="fasta,fasta.gz" label="FASTAs to concatenate" help="Order is preserved from collection order." multiple="true"/>
+        <param name="compressed" type="boolean" truevalue="--gzip" falsevalue="" checked="false" label="Gzip-compress output"/>
     </inputs>
     <outputs>
         <data name="output" format="fasta" label="${tool.name} on ${on_string}">
@@ -39,8 +46,8 @@ python '$__tool_directory__/fasta_concat.py'
             <param name="compressed" value="false"/>
             <output name="output">
                 <assert_contents>
-                    <has_text text=">A_chr1"/>
-                    <has_text text=">B_chr1"/>
+                    <has_text text="&gt;A_chr1"/>
+                    <has_text text="&gt;B_chr1"/>
                 </assert_contents>
             </output>
         </test>
@@ -49,8 +56,8 @@ python '$__tool_directory__/fasta_concat.py'
             <param name="compressed" value="true"/>
             <output name="output_gz" decompress="true">
                 <assert_contents>
-                    <has_text text=">A_chr1"/>
-                    <has_text text=">B_chr1"/>
+                    <has_text text="&gt;A_chr1"/>
+                    <has_text text="&gt;B_chr1"/>
                 </assert_contents>
             </output>
         </test>
@@ -59,8 +66,8 @@ python '$__tool_directory__/fasta_concat.py'
             <param name="compressed" value="false"/>
             <output name="output">
                 <assert_contents>
-                    <has_text text=">A_chr1"/>
-                    <has_text text=">B_chr1"/>
+                    <has_text text="&gt;A_chr1"/>
+                    <has_text text="&gt;B_chr1"/>
                 </assert_contents>
             </output>
         </test>

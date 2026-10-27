@@ -28,6 +28,7 @@ and registering too many leaves unused tools on the account.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import pathlib
 import sys
@@ -149,9 +150,108 @@ def fill_step_defaults(gi: GalaxyInstance, native: dict) -> None:
             print(f"    defaults filled for {label}: {', '.join(filled)}")
 
 
+#: The tag a rendered workflow carries, so the next run can find its own previous output.
+_RENDER_TAG = "brc-render-"
+
+#: Assigned by the SERVER at import, so two renders of identical content differ here and nowhere
+#: else. Stripped before hashing, recursively -- both the workflow and every step carry one.
+_VOLATILE_KEYS = frozenset({"uuid"})
+
+
+def render_digest(native: dict) -> str:
+    """A content hash of a rendered workflow, stable across runs of identical content.
+
+    ⛔ `tool_uuid` IS PART OF THE HASH, DELIBERATELY. It names the exact UDT registration the step
+    will run, so re-registering a tool MUST produce a different digest and a fresh import. Hashing
+    only the shape would reuse a workflow still bound to the previous registration -- which is the
+    one failure here that would silently run old code.
+
+    ⚠ `uuid` is stripped everywhere because the server assigns it: `native` is exported from a
+    scaffold imported moments earlier, so the workflow uuid and all 27 step uuids are new on every
+    run. Hashing them means the digest never matches and the fix does nothing. `tags` and `version`
+    are excluded at the top level because this function sets the first and the server owns the
+    second.
+    """
+    def strip(o):
+        if isinstance(o, dict):
+            return {k: strip(v) for k, v in o.items() if k not in _VOLATILE_KEYS}
+        if isinstance(o, list):
+            return [strip(x) for x in o]
+        return o
+
+    # ⚠ THE TOP LEVEL NEEDS THE SAME FILTER AS THE NESTED DICTS. A first version applied
+    # `strip()` only to the VALUES here, so the workflow's own `uuid` survived while all 27 step
+    # uuids were removed -- and since the server reassigns it on every import, the digest never
+    # matched and the reuse silently did nothing. Caught by the round-trip test below, not by
+    # reading the code.
+    body = {k: strip(v) for k, v in native.items()
+            if k not in ("tags", "version") and k not in _VOLATILE_KEYS}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _self_test_digest() -> None:
+    """The four properties render_digest() must have, and one of them failed on the first draft."""
+    import copy
+    base = {"uuid": "w-1", "version": 3, "tags": [], "name": "resolved",
+            "steps": {"0": {"uuid": "s-1", "id": 0, "tool_id": "t", "tool_uuid": "u-1",
+                            "tool_state": "{}"},
+                      "1": {"uuid": "s-2", "id": 1, "tool_id": "q", "tool_state": "{}"}}}
+    d0 = render_digest(base)
+
+    # ⛔ THE ONE THAT FAILED. The first draft filtered only nested dicts, so the workflow's own
+    # `uuid` survived while every step uuid was stripped -- and since the server reassigns it on
+    # each import the digest never matched and the reuse did nothing at all.
+    reimported = copy.deepcopy(base)
+    reimported["uuid"] = "w-2"
+    reimported["version"] = 9
+    reimported["tags"] = ["stale"]
+    for st in reimported["steps"].values():
+        st["uuid"] = st["uuid"] + "-new"
+    assert render_digest(reimported) == d0, "server-assigned uuids must not change the digest"
+
+    changed_reg = copy.deepcopy(base)
+    changed_reg["steps"]["0"]["tool_uuid"] = "u-2"
+    assert render_digest(changed_reg) != d0, "a re-registered tool MUST force a fresh import"
+
+    changed_state = copy.deepcopy(base)
+    changed_state["steps"]["0"]["tool_state"] = '{"x": 1}'
+    assert render_digest(changed_state) != d0, "a parameter change must force a fresh import"
+
+    renamed = copy.deepcopy(base)
+    renamed["name"] = "other"
+    assert render_digest(renamed) != d0, "a different name is a different workflow"
+
+    assert render_digest(base) == d0, "the digest must be deterministic"
+    print("ok - uuids ignored; tool_uuid, tool_state and name all force a fresh import")
+
+
+def _existing_render(gi: GalaxyInstance, digest: str) -> str | None:
+    """The id of an undeleted stored workflow already carrying this digest, or None."""
+    tag = _RENDER_TAG + digest[:32]
+    for w in gi.workflows.get_workflows():
+        if not w.get("deleted") and tag in (w.get("tags") or []):
+            return w["id"]
+    return None
+
+
 def render_and_import(gi: GalaxyInstance, workflow: pathlib.Path, uuids: dict[str, str],
                       work: pathlib.Path, name: str) -> str:
-    """Portable gxformat2 -> native -> identities resolved -> re-imported. Returns workflow id."""
+    """Portable gxformat2 -> native -> identities resolved -> re-imported. Returns workflow id.
+
+    ⛔ REUSE AN IDENTICAL RENDER INSTEAD OF IMPORTING A NEW ONE. This ran on EVERY invocation and
+    imported unconditionally, so each run left one more stored workflow behind -- 809 of them
+    against 68 undeleted, measured on vgp 2026-09-21. That is not only clutter: each copy BINDS the
+    UDT uuids it resolved, and `udt_registry.py` correctly refuses to deactivate a registration a
+    stored workflow references. So the workflow pile-up made the registration pile-up permanent,
+    and 163 of 181 active registrations were held alive by nothing but these copies. Deleting 23 of
+    them released 32 registrations immediately.
+
+    ⚠ IT FAILS SAFE IN THE SAME DIRECTION AS `register_one`. A false "different" costs one extra
+    stored workflow -- exactly today's behaviour, and harmless. A false "same" would run a workflow
+    that is not the one just rendered, so the digest covers everything that determines behaviour
+    and is computed from OUR dict rather than from a server export.
+    """
     portable = gi.workflows.import_workflow_dict(yaml.safe_load(workflow.read_text(encoding="utf-8")))
     native = gi.workflows.export_workflow_dict(portable["id"])
     gi.workflows.delete_workflow(portable["id"])  # a scaffold, not an artifact
@@ -182,8 +282,18 @@ def render_and_import(gi: GalaxyInstance, workflow: pathlib.Path, uuids: dict[st
     out.write_text(json.dumps(native, indent=2) + "\n", encoding="utf-8")
     print(f"  rendered {resolved} step(s) -> {out}")
 
+    digest = render_digest(native)
+    existing = _existing_render(gi, digest)
+    if existing:
+        print(f"  reusing {existing} -- an identical render is already stored "
+              f"(digest {digest[:12]})")
+        return existing
+
+    native.setdefault("tags", [])
+    if (_RENDER_TAG + digest[:32]) not in native["tags"]:
+        native["tags"].append(_RENDER_TAG + digest[:32])
     imported = gi.workflows.import_workflow_dict(native)
-    print(f"  imported {imported['id']}")
+    print(f"  imported {imported['id']} (digest {digest[:12]})")
     return imported["id"]
 
 
@@ -258,7 +368,12 @@ def main() -> int:
                          "output of any job being redone first -- all of them, not just the "
                          "ones wired into collections.")
     ap.add_argument("--work", type=pathlib.Path, default=ROOT / "build/udt_runs")
+    ap.add_argument("--self-test", action="store_true",
+                    help="check render_digest()'s properties and exit; needs no server")
     args = ap.parse_args()
+    if args.self_test:
+        _self_test_digest()
+        return 0
 
     gi = connect()
     stems = needed_udts(args.workflow)

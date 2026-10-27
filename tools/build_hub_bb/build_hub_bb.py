@@ -33,7 +33,6 @@ import math
 import os
 import sys
 import tarfile
-from collections import defaultdict
 
 
 # ---------------------------------------------------------------------------
@@ -113,11 +112,55 @@ def load_ortholog_table(tsvpath, ref_column, gene_prefix):
     return og_map, og_info
 
 
+def _gene_id_from_member(name):
+    """Gene ID for an archive member, for either accepted layout, or None.
+
+    Two layouts are accepted deliberately. ``<GENE_ID>/busted.json`` is what the fixture
+    and Phase H's directory form use. ``<gene_id>.json`` at the tar ROOT is what
+    ``workflows/ucsc_hub/ucsc_hub.gxwf.yml`` documents for ``busted_strict``.
+
+    ⛔ THE TWO DISAGREED AND NOTHING NOTICED. Only the first was recognised, so the
+    documented archive yielded an empty result dict, an empty selection BED, and a job
+    that exited 0 -- a published track with no selection in it. Which form Phase H
+    actually emits is not determinable from this repository, so both are read and
+    ``extract_busted_jsons`` refuses an archive that yields nothing.
+    """
+    base = name.rsplit('/', 1)[-1]
+    if base == 'busted.json':
+        parts = [q for q in name.split('/') if q]
+        return parts[-2] if len(parts) >= 2 else None
+    if base.endswith('.json') and '/' not in name.strip('./'):
+        return base[:-len('.json')] or None
+    return None
+
+
 def extract_busted_jsons(source):
+    """``_extract_busted_jsons`` plus the one assertion that makes a miss visible.
+
+    ⛔ ZERO GENES IS NOT A RESULT, IT IS A FAILURE TO READ THE INPUT. An unrecognised
+    archive layout, a wrong tarball, or JSONs with no ``test results.p-value`` all land
+    here identically, and the caller printed "Found 0 gene BUSTED results", wrote an empty
+    selection BED and exited 0 -- publishing a track with nothing in it. Nothing
+    downstream checks the count, so this is the only place it can be caught.
+    """
+    results = _extract_busted_jsons(source)
+    if not results:
+        raise SystemExit(
+            f"error: no gene BUSTED results read from {source!r}. Accepted layouts are "
+            f"'<GENE_ID>/busted.json' and '<gene_id>.json' at the archive root, and each "
+            f"JSON must carry 'test results' -> 'p-value'. An empty result would otherwise "
+            f"produce an empty selection track from a job that exited 0.")
+    return results
+
+
+def _extract_busted_jsons(source):
     """Return dict: gene_id -> p-value from busted.json.
 
-    ``source`` is either a ``.tar.gz`` archive or a directory; in both cases
-    the gene ID is the name of the directory that holds ``busted.json``.
+    ``source`` is either a ``.tar.gz`` archive or a directory. See
+    ``_gene_id_from_member`` for the two archive layouts accepted and why.
+
+    ⛔ Refuses an input that yields no gene at all: that is indistinguishable from a
+    successful run with nothing significant, and it published an empty track once.
     """
     results = {}
     if os.path.isdir(source):
@@ -136,14 +179,15 @@ def extract_busted_jsons(source):
                 results[gene_id] = float(pval)
         return results
 
+    seen_json = 0
     with tarfile.open(source, 'r:gz') as tf:
         for member in tf.getmembers():
-            if not member.name.endswith('busted.json'):
+            if not member.isfile() or not member.name.endswith('.json'):
                 continue
-            parts = member.name.split('/')
-            if len(parts) < 2:
+            seen_json += 1
+            gene_id = _gene_id_from_member(member.name)
+            if gene_id is None:
                 continue
-            gene_id = parts[-2]
             fh = tf.extractfile(member)
             if fh is None:
                 continue

@@ -76,30 +76,23 @@ python3 '$__tool_directory__/junction_caller.py'
     ]]></command>
     <inputs>
         <conditional name="reads">
-            <param name="reads_source" type="select" label="Reads to scan"
-                   help="READS, not the marker-aligned BAM. The junction locus is not a contig in markers.fa, so a filtered marker BAM contains no junction reads at all and yields NO_CALL / marker_absent with flank_reads=0 for every specimen. That failure looks exactly like a clean negative.">
+            <param name="reads_source" type="select" label="Reads to scan" help="READS, not the marker-aligned BAM. The junction locus is not a contig in markers.fa, so a filtered marker BAM contains no junction reads at all and yields NO_CALL / marker_absent with flank_reads=0 for every specimen. That failure looks exactly like a clean negative.">
                 <option value="fastq_pair" selected="true">Paired FASTQ, two datasets</option>
                 <option value="fastq_collection">Paired FASTQ, one paired collection</option>
                 <option value="bam">BAM of unaligned reads (uBAM, or the unmapped fraction)</option>
             </param>
             <when value="fastq_pair">
-                <param argument="--fastq" name="fastq1" type="data" format="fastqsanger,fastqsanger.gz"
-                       label="Forward reads (R1)" help="Adapter/quality-trimmed reads, e.g. fastp output."/>
-                <param name="fastq2" type="data" format="fastqsanger,fastqsanger.gz"
-                       label="Reverse reads (R2)"/>
+                <param name="fastq1" argument="--fastq" type="data" format="fastqsanger,fastqsanger.gz" label="Forward reads (R1)" help="Adapter/quality-trimmed reads, e.g. fastp output."/>
+                <param name="fastq2" type="data" format="fastqsanger,fastqsanger.gz" label="Reverse reads (R2)"/>
             </when>
             <when value="fastq_collection">
-                <param name="fastq_collection" type="data_collection" collection_type="paired"
-                       format="fastqsanger,fastqsanger.gz" label="Paired collection of trimmed reads"/>
+                <param name="fastq_collection" type="data_collection" format="fastqsanger,fastqsanger.gz" label="Paired collection of trimmed reads" collection_type="paired"/>
             </when>
             <when value="bam">
-                <param argument="--bam" name="bam_input" type="data" format="unsorted.bam,qname_sorted.bam,bam"
-                       label="BAM of reads"
-                       help="An unaligned BAM, or the unmapped fraction of a mapping run. Alignment information is never used; every primary record's sequence is scanned in both orientations. Do NOT pass the marker-aligned, MAPQ-filtered BAM."/>
+                <param name="bam_input" argument="--bam" type="data" format="unsorted.bam,qname_sorted.bam,bam" label="BAM of reads" help="An unaligned BAM, or the unmapped fraction of a mapping run. Alignment information is never used; every primary record's sequence is scanned in both orientations. Do NOT pass the marker-aligned, MAPQ-filtered BAM."/>
             </when>
         </conditional>
-        <param argument="--specimen" name="specimen_name" type="text" optional="true" value=""
-               label="Specimen id" help="Leave blank to use the element identifier of the reads. Characters outside A-Z a-z 0-9 . _ - are dropped.">
+        <param name="specimen_name" argument="--specimen" type="text" value="" optional="true" label="Specimen id" help="Leave blank to use the element identifier of the reads. Characters outside A-Z a-z 0-9 . _ - are dropped.">
             <sanitizer invalid_char="">
                 <valid initial="string.ascii_letters,string.digits">
                     <add value="."/>
@@ -109,31 +102,19 @@ python3 '$__tool_directory__/junction_caller.py'
             </sanitizer>
         </param>
         <conditional name="reference">
-            <param name="ref_source" type="select" label="Junction reference set"
-                   help="The bundled file is CDC's MAPPING_JUNCTION_WITH_PRIMERS_FEB_2020 set, 20 records, shipped with the tool. Override only to track a newer CDC release.">
+            <param name="ref_source" type="select" label="Junction reference set" help="The bundled file is CDC's MAPPING_JUNCTION_WITH_PRIMERS_FEB_2020 set, 20 records, shipped with the tool. Override only to track a newer CDC release.">
                 <option value="bundled" selected="true">Bundled with the tool (recommended)</option>
                 <option value="history">From my history</option>
             </param>
             <when value="bundled"/>
             <when value="history">
-                <param argument="--junction-ref" name="junction_ref" type="data" format="fasta"
-                       label="Junction reference FASTA"
-                       help="Records must share one constant LEFT flank; the shortest record is taken as the zero-repeat class, i.e. LEFT+RIGHT."/>
+                <param argument="--junction-ref" type="data" format="fasta" label="Junction reference FASTA" help="Records must share one constant LEFT flank; the shortest record is taken as the zero-repeat class, i.e. LEFT+RIGHT."/>
             </when>
         </conditional>
-        <param argument="--min-reads" name="min_reads" type="integer" value="3" min="1"
-               label="Minimum spanning fragments for a call"
-               help="PRE-REGISTERED at 3. Not a relaxed gate: Tn5 cuts inside the AT-rich repeat array, so typical spanning depth is 2 to 15 fragments even at ~900k reads while thousands of reads carry only one flank."/>
-        <param argument="--min-freq" name="min_freq" type="float" value="0.05" min="0.0" max="1.0"
-               label="Minimum fraction of spanning fragments"
-               help="PRE-REGISTERED at 0.05. Mixed infections are real: every array passing both gates is emitted."/>
-        <param argument="--emit-specimen-column" name="emit_specimen_column" type="boolean"
-               truevalue="--emit-specimen-column" falsevalue="" checked="true"
-               label="Prepend a specimen column"
-               help="Keep this ON for Galaxy. A Galaxy dataset is called dataset_N.dat, so the sheet builder cannot recover the specimen id from the file name. Turn it OFF only to reproduce the reference implementation's output byte for byte."/>
-        <param name="emit_diag" type="boolean" truevalue="yes" falsevalue="" checked="false"
-               label="Also write the diagnostics JSON"
-               help="Read counters: reads_scanned, left_anchored, left_anchor_only, right_anchor_only, spanning_reads, spanning_fragments, discordant_fragments, flank_reads. This is how a true negative is told apart from the wrong input file."/>
+        <param argument="--min-reads" type="integer" min="1" value="3" label="Minimum spanning fragments for a call" help="PRE-REGISTERED at 3. Not a relaxed gate: Tn5 cuts inside the AT-rich repeat array, so typical spanning depth is 2 to 15 fragments even at ~900k reads while thousands of reads carry only one flank."/>
+        <param argument="--min-freq" type="float" min="0.0" max="1.0" value="0.05" label="Minimum fraction of spanning fragments" help="PRE-REGISTERED at 0.05. Mixed infections are real: every array passing both gates is emitted."/>
+        <param argument="--emit-specimen-column" type="boolean" truevalue="--emit-specimen-column" falsevalue="" checked="true" label="Prepend a specimen column" help="Keep this ON for Galaxy. A Galaxy dataset is called dataset_N.dat, so the sheet builder cannot recover the specimen id from the file name. Turn it OFF only to reproduce the reference implementation's output byte for byte."/>
+        <param name="emit_diag" type="boolean" truevalue="yes" falsevalue="" checked="false" label="Also write the diagnostics JSON" help="Read counters: reads_scanned, left_anchored, left_anchor_only, right_anchor_only, spanning_reads, spanning_fragments, discordant_fragments, flank_reads. This is how a true negative is told apart from the wrong input file."/>
     </inputs>
     <outputs>
         <data name="junction" format="tabular" label="${tool.name} on ${on_string}: junction calls"/>
@@ -169,6 +150,7 @@ python3 '$__tool_directory__/junction_caller.py'
             <!-- The marker-aligned BAM is the WRONG input, and it must stay
                  visibly wrong: flank_reads=0 plus the marker_absent flag,
                  never an empty file that reads like a real negative. -->
+            <param name="emit_diag" value="false"/>
             <conditional name="reads">
                 <param name="reads_source" value="bam"/>
                 <param name="bam_input" value="parts_reads.bam" ftype="bam"/>
@@ -183,6 +165,9 @@ python3 '$__tool_directory__/junction_caller.py'
                     <has_line line="WRONGINPUT&#9;NA&#9;NO_CALL&#9;0&#9;0.0&#9;NA&#9;NA&#9;NA&#9;NA&#9;NA&#9;marker_absent&#9;0&#9;0&#9;NA"/>
                 </assert_contents>
             </output>
+            <assert_command>
+                <not_has_text text="--diag"/>
+            </assert_command>
         </test>
     </tests>
     <help format="markdown"><![CDATA[

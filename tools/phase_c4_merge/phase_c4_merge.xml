@@ -33,30 +33,22 @@ cp 'out_dir/${query}.annotation.gff3' '$annotation_gff3'
 cp 'out_dir/${query}.classification.tsv' '$classification_tsv'
     ]]></command>
     <inputs>
-        <param argument="--query" type="text" value="" label="Query strain name"
-               help="Query strain identifier (e.g. Pk_ANKA). Used only to name the output files; not written into them.">
+        <param argument="--query" type="text" value="" label="Query strain name" help="Query strain identifier (e.g. Pk_ANKA). Used only to name the output files; not written into them.">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
         </param>
-        <param name="liftoff_clean" argument="--triage-dir" type="data" format="gff3,gff" label="Liftoff-clean GFF3"
-               help="Triage-accepted Liftoff projection (liftoff_clean.gff3 from Phase C.2). Genes here are tagged source=liftoff, intactness=I."/>
-        <param argument="--ref-bed" type="data" format="bed,bed12" label="Reference gene BED"
-               help="Reference annotation in BED (BED12) format; column 4 is the reference gene id. Genes present here but absent from both projections are reported as source=none, intactness=M (missing)."/>
+        <param name="liftoff_clean" argument="--triage-dir" type="data" format="gff3,gff" label="Liftoff-clean GFF3" help="Triage-accepted Liftoff projection (liftoff_clean.gff3 from Phase C.2). Genes here are tagged source=liftoff, intactness=I."/>
+        <param argument="--ref-bed" type="data" format="bed,bed12" label="Reference gene BED" help="Reference annotation in BED (BED12) format; column 4 is the reference gene id. Genes present here but absent from both projections are reported as source=none, intactness=M (missing)."/>
         <conditional name="toga">
-            <param name="use_toga" type="select" label="Include TOGA2/CESAR2 fallback projections"
-                   help="Decision 12: leave at 'No' for a Liftoff-only pass 1. With 'No' an empty TOGA staging directory is used, so every projected gene is tagged source=liftoff.">
+            <param name="use_toga" type="select" label="Include TOGA2/CESAR2 fallback projections" help="Decision 12: leave at 'No' for a Liftoff-only pass 1. With 'No' an empty TOGA staging directory is used, so every projected gene is tagged source=liftoff.">
                 <option value="no" selected="true">No - Liftoff-only</option>
                 <option value="yes">Yes - merge TOGA2/CESAR2</option>
             </param>
             <when value="no"/>
             <when value="yes">
-                <param name="loss_summary" type="data" format="tabular,tsv" label="TOGA2 loss_summary.tsv"
-                       help="TOGA2 loss_summary.tsv (intactness status per projection)."/>
-                <param name="orthology" type="data" format="tabular,tsv" label="TOGA2 orthology_classification.tsv"
-                       help="TOGA2 orthology_classification.tsv."/>
-                <param name="query_annotation" type="data" format="bed" optional="true" label="TOGA2 query_annotation.bed"
-                       help="Optional TOGA2 query_annotation.bed (transcript-level query coordinates)."/>
-                <param name="query_genes" type="data" format="bed" optional="true" label="TOGA2 query_genes.bed"
-                       help="Optional TOGA2 query_genes.bed (gene-level query coordinates; used to emit CESAR2 GFF lines)."/>
+                <param name="loss_summary" type="data" format="tabular,tsv" label="TOGA2 loss_summary.tsv" help="TOGA2 loss_summary.tsv (intactness status per projection)."/>
+                <param name="orthology" type="data" format="tabular,tsv" label="TOGA2 orthology_classification.tsv" help="TOGA2 orthology_classification.tsv."/>
+                <param name="query_annotation" type="data" format="bed" optional="true" label="TOGA2 query_annotation.bed" help="Optional TOGA2 query_annotation.bed (transcript-level query coordinates)."/>
+                <param name="query_genes" type="data" format="bed" optional="true" label="TOGA2 query_genes.bed" help="Optional TOGA2 query_genes.bed (gene-level query coordinates; used to emit CESAR2 GFF lines)."/>
             </when>
         </conditional>
     </inputs>

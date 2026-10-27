@@ -1,8 +1,7 @@
 <!-- 1.1: relabel_map.py stopped emitting the A_A diagonal, so the same input now yields
      n**2-n rows where it produced n**2. The output LENGTH changed, so the version had to:
      a run recorded against 1.0+galaxy0 cannot say which behaviour produced it. The UDT
-     edition was bumped 0.1.0 -> 0.2.0 for the same reason. -->
-<tool id="collection_relabel_map" name="Collection relabel map" version="1.1+galaxy0" profile="23.0">
+     edition was bumped 0.1.0 -> 0.2.0 for the same reason. --><tool id="collection_relabel_map" name="Collection relabel map" version="1.1+galaxy0" profile="23.0">
     <description>{a}_{b} TAB {a}.{b} for every ordered pair of distinct element identifiers</description>
     <requirements>
         <requirement type="package" version="3.12">python</requirement>
@@ -13,9 +12,7 @@ python '$__tool_directory__/relabel_map.py'
     --out '$output'
     ]]></command>
     <inputs>
-        <param name="input" type="data_collection" collection_type="list"
-               label="List collection"
-               help="The ordered-pair relabel map is derived from this collection's element identifiers."/>
+        <param name="input" type="data_collection" label="List collection" help="The ordered-pair relabel map is derived from this collection's element identifiers." collection_type="list"/>
     </inputs>
     <outputs>
         <data name="output" format="tabular" label="${tool.name} on ${on_string}: relabel map"/>

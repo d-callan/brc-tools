@@ -77,26 +77,17 @@ toga2.py run
     --output toga_out
     ]]></command>
     <inputs>
-        <param name="ref_bed12" argument="--ref_annotation" type="data" format="bed,bed12" label="Reference annotation (BED12)"
-               help="Reference gene models in BED12, one transcript per line (--ref_annotation). Column 4 transcript ids must match the --isoform_file table."/>
-        <param name="chain" argument="--chain_file" type="data" format="chain,tabular,txt" label="Reference-to-query chain"
-               help="Cleaned UCSC chain alignment of reference onto query (--chain_file), e.g. {A}.{Q}.cleaned.chain from Phase C. TOGA2 derives projection loci from these chains."/>
-        <param name="ref_fasta" argument="--ref_2bit" type="data" format="fasta" label="Reference genome (soft-masked)"
-               help="Soft-masked reference assembly FASTA. Converted to 2bit (--ref_2bit) with the bundled faToTwoBit. Seqids must match the BED/chain reference names."/>
-        <param name="query_fasta" argument="--query_2bit" type="data" format="fasta" label="Query genome (soft-masked)"
-               help="Soft-masked query assembly FASTA. Converted to 2bit (--query_2bit). CESAR2 re-aligns flagged exons against this."/>
-        <param name="isoforms" argument="--isoform_file" type="data" format="tabular,tsv" label="Isoforms table"
-               help="Two-column tab-separated gene/transcript table (--isoform_file): gene_id &lt;tab&gt; transcript_id, grouping the BED12 transcripts into genes."/>
+        <param name="ref_bed12" argument="--ref_annotation" type="data" format="bed,bed12" label="Reference annotation (BED12)" help="Reference gene models in BED12, one transcript per line (--ref_annotation). Column 4 transcript ids must match the --isoform_file table."/>
+        <param name="chain" argument="--chain_file" type="data" format="chain,tabular,txt" label="Reference-to-query chain" help="Cleaned UCSC chain alignment of reference onto query (--chain_file), e.g. {A}.{Q}.cleaned.chain from Phase C. TOGA2 derives projection loci from these chains."/>
+        <param name="ref_fasta" argument="--ref_2bit" type="data" format="fasta" label="Reference genome (soft-masked)" help="Soft-masked reference assembly FASTA. Converted to 2bit (--ref_2bit) with the bundled faToTwoBit. Seqids must match the BED/chain reference names."/>
+        <param name="query_fasta" argument="--query_2bit" type="data" format="fasta" label="Query genome (soft-masked)" help="Soft-masked query assembly FASTA. Converted to 2bit (--query_2bit). CESAR2 re-aligns flagged exons against this."/>
+        <param name="isoforms" argument="--isoform_file" type="data" format="tabular,tsv" label="Isoforms table" help="Two-column tab-separated gene/transcript table (--isoform_file): gene_id &lt;tab&gt; transcript_id, grouping the BED12 transcripts into genes."/>
     </inputs>
     <outputs>
-        <data name="query_annotation" format="bed" from_work_dir="toga_out/query_annotation.bed"
-              label="${tool.name} on ${on_string}: query_annotation.bed"/>
-        <data name="query_genes" format="bed" from_work_dir="toga_out/query_genes.bed"
-              label="${tool.name} on ${on_string}: query_genes.bed"/>
-        <data name="orthology_classification" format="tabular" from_work_dir="toga_out/orthology_classification.tsv"
-              label="${tool.name} on ${on_string}: orthology_classification.tsv"/>
-        <data name="loss_summary" format="tabular" from_work_dir="toga_out/loss_summary.tsv"
-              label="${tool.name} on ${on_string}: loss_summary.tsv"/>
+        <data name="query_annotation" format="bed" from_work_dir="toga_out/query_annotation.bed" label="${tool.name} on ${on_string}: query_annotation.bed"/>
+        <data name="query_genes" format="bed" from_work_dir="toga_out/query_genes.bed" label="${tool.name} on ${on_string}: query_genes.bed"/>
+        <data name="orthology_classification" format="tabular" from_work_dir="toga_out/orthology_classification.tsv" label="${tool.name} on ${on_string}: orthology_classification.tsv"/>
+        <data name="loss_summary" format="tabular" from_work_dir="toga_out/loss_summary.tsv" label="${tool.name} on ${on_string}: loss_summary.tsv"/>
     </outputs>
     <tests>
         <!--

@@ -15,18 +15,11 @@ python '$__tool_directory__/masking_table.py'
     --out '$output'
     ]]></command>
     <inputs>
-        <param name="dustmasker" type="data_collection" collection_type="list" format="tabular,txt"
-               label="dustmasker genomecov (per strain)"
-               help="bedtools genomecov (hist, -max 1) output for dustmasker intervals; element identifier = strain."/>
-        <param name="windowmasker" type="data_collection" collection_type="list" format="tabular,txt"
-               label="windowmasker genomecov (per strain)"/>
-        <param name="tantan" type="data_collection" collection_type="list" format="tabular,txt"
-               label="tantan genomecov (per strain)"/>
-        <param name="fastan" type="data_collection" collection_type="list" format="tabular,txt"
-               label="fastan genomecov (per strain)"/>
-        <param name="union" type="data_collection" collection_type="list" format="tabular,txt" optional="true"
-               label="union genomecov (per strain, optional)"
-               help="bedtools genomecov for the merged union of all maskers. Adds a 'union' column."/>
+        <param name="dustmasker" type="data_collection" format="tabular,txt" label="dustmasker genomecov (per strain)" help="bedtools genomecov (hist, -max 1) output for dustmasker intervals; element identifier = strain." collection_type="list"/>
+        <param name="windowmasker" type="data_collection" format="tabular,txt" label="windowmasker genomecov (per strain)" collection_type="list"/>
+        <param name="tantan" type="data_collection" format="tabular,txt" label="tantan genomecov (per strain)" collection_type="list"/>
+        <param name="fastan" type="data_collection" format="tabular,txt" label="fastan genomecov (per strain)" collection_type="list"/>
+        <param name="union" type="data_collection" format="tabular,txt" optional="true" label="union genomecov (per strain, optional)" help="bedtools genomecov for the merged union of all maskers. Adds a 'union' column." collection_type="list"/>
     </inputs>
     <outputs>
         <data name="output" format="tabular" label="${tool.name}: % genome masked per strain"/>

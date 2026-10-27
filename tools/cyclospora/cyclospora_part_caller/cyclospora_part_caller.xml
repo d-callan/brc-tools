@@ -59,12 +59,8 @@ python '$__tool_directory__/part_haplotype_caller.py'
 #end if
     ]]></command>
     <inputs>
-        <param argument="--bam" name="input" type="data" format="bam"
-               label="Marker-aligned BAM"
-               help="Coordinate-sorted BAM of one specimen aligned to the marker FASTA, already filtered to MAPQ &gt;= 20 proper pairs. This tool does NOT re-apply those filters. Map it over a collection to type a whole run."/>
-        <param argument="--specimen" name="specimen" type="text" value="" optional="true"
-               label="Specimen id (leave empty to use the collection element identifier)"
-               help="Written to column 1 of the calls table and used as the row id of the HDS sheet later. Empty means: take the element identifier of the BAM, minus a trailing '.bam'.">
+        <param name="input" argument="--bam" type="data" format="bam" label="Marker-aligned BAM" help="Coordinate-sorted BAM of one specimen aligned to the marker FASTA, already filtered to MAPQ &gt;= 20 proper pairs. This tool does NOT re-apply those filters. Map it over a collection to type a whole run."/>
+        <param argument="--specimen" type="text" value="" optional="true" label="Specimen id (leave empty to use the collection element identifier)" help="Written to column 1 of the calls table and used as the row id of the HDS sheet later. Empty means: take the element identifier of the BAM, minus a trailing '.bam'.">
             <validator type="regex" message="Only letters, digits, underscore, dot and hyphen are allowed">^[A-Za-z0-9_.-]*$</validator>
             <sanitizer invalid_char="">
                 <valid initial="string.ascii_letters,string.digits">
@@ -75,38 +71,23 @@ python '$__tool_directory__/part_haplotype_caller.py'
             </sanitizer>
         </param>
         <conditional name="reference">
-            <param name="source" type="select" label="Marker reference set"
-                   help="The bundled set is the one every published number in this port was measured against; supply your own only if you are typing a different panel.">
+            <param name="source" type="select" label="Marker reference set" help="The bundled set is the one every published number in this port was measured against; supply your own only if you are typing a different panel.">
                 <option value="bundled" selected="true">Bundled CDC Cyclospora set (7 amplicons, 24 PARTs, 78 known haplotypes)</option>
                 <option value="history">From history</option>
             </param>
             <when value="bundled"/>
             <when value="history">
-                <param argument="--markers" name="markers" type="data" format="fasta"
-                       label="Marker (amplicon) FASTA"
-                       help="The reference the BAM was aligned to. Used only to validate that every BED interval exists in it and lies inside it; no called base is ever taken from it."/>
-                <param argument="--parts" name="parts" type="data" format="bed,interval,tabular"
-                       label="PART interval BED4"
-                       help="chrom, start, end, PART name. Column 4 is the PART name."/>
-                <param argument="--known-haplotypes" name="known" type="data" format="fasta"
-                       label="Known haplotype FASTA"
-                       help="Records named &lt;PART&gt;_Hap_&lt;k&gt;. An exact sequence match takes that name; anything else becomes &lt;PART&gt;_NOV_&lt;md5[:6]&gt;."/>
+                <param argument="--markers" type="data" format="fasta" label="Marker (amplicon) FASTA" help="The reference the BAM was aligned to. Used only to validate that every BED interval exists in it and lies inside it; no called base is ever taken from it."/>
+                <param argument="--parts" type="data" format="bed,interval,tabular" label="PART interval BED4" help="chrom, start, end, PART name. Column 4 is the PART name."/>
+                <param name="known" argument="--known-haplotypes" type="data" format="fasta" label="Known haplotype FASTA" help="Records named &lt;PART&gt;_Hap_&lt;k&gt;. An exact sequence match takes that name; anything else becomes &lt;PART&gt;_NOV_&lt;md5[:6]&gt;."/>
             </when>
         </conditional>
         <section name="gates" title="Calling gates (pre-registered)" expanded="false">
-            <param argument="--min-span" name="min_span" type="integer" value="50" min="1"
-                   label="Spanning reads required to CALL a PART"
-                   help="Pre-registered value: 50. Below this the PART emits no rows at all, which downstream is read as NOT CALLED (an entirely empty locus block), not as absent. Changing it invalidates the measured concordance."/>
-            <param argument="--min-freq" name="min_freq" type="float" value="0.05" min="0.0" max="1.0"
-                   label="Minimum haplotype frequency"
-                   help="Pre-registered value: 0.05. The denominator is the spanning-read count of the PART, not the sum of the surviving haplotypes."/>
-            <param argument="--min-reads" name="min_reads" type="integer" value="10" min="1"
-                   label="Minimum supporting reads per haplotype"
-                   help="Pre-registered value: 10. Both this and the frequency floor must hold."/>
+            <param argument="--min-span" type="integer" min="1" value="50" label="Spanning reads required to CALL a PART" help="Pre-registered value: 50. Below this the PART emits no rows at all, which downstream is read as NOT CALLED (an entirely empty locus block), not as absent. Changing it invalidates the measured concordance."/>
+            <param argument="--min-freq" type="float" min="0.0" max="1.0" value="0.05" label="Minimum haplotype frequency" help="Pre-registered value: 0.05. The denominator is the spanning-read count of the PART, not the sum of the surviving haplotypes."/>
+            <param argument="--min-reads" type="integer" min="1" value="10" label="Minimum supporting reads per haplotype" help="Pre-registered value: 10. Both this and the frequency floor must hold."/>
         </section>
-        <param name="emit_summary" type="boolean" checked="false" truevalue="yes" falsevalue=""
-               label="Also emit the per-PART depth summary"
-               help="One row per PART with the spanning depth and whether the PART was called. This is what tells an empty locus block in the sheet apart: dropout (span below the floor) versus called-but-all-haplotypes-gated-out."/>
+        <param name="emit_summary" type="boolean" truevalue="yes" falsevalue="" checked="false" label="Also emit the per-PART depth summary" help="One row per PART with the spanning depth and whether the PART was called. This is what tells an empty locus block in the sheet apart: dropout (span below the floor) versus called-but-all-haplotypes-gated-out."/>
     </inputs>
     <outputs>
         <data name="calls" format="tabular" label="${tool.name} on ${on_string}: PART haplotype calls">
@@ -126,6 +107,7 @@ python '$__tool_directory__/part_haplotype_caller.py'
              other 22 PARTs of the bundled BED resolve to zero coverage rather than
              to an error; exactly one PART clears the 50-read floor. -->
         <test expect_num_outputs="1">
+            <param name="emit_summary" value="false"/>
             <param name="input" value="parts_reads.bam" ftype="bam"/>
             <param name="specimen" value="TEST"/>
             <conditional name="reference">
@@ -142,6 +124,9 @@ python '$__tool_directory__/part_haplotype_caller.py'
                     <not_has_text text="Nu_CDS2_PART_B"/>
                 </assert_contents>
             </output>
+            <assert_command>
+                <not_has_text text="--summary"/>
+            </assert_command>
         </test>
         <!-- History reference set plus the depth summary. Same call, and the summary
              shows why PART_B is missing above: span 30, called = no. -->

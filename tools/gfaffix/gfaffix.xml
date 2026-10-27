@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>gfaffix --version 2>&amp;1 | head -1</version_command>
+    <version_command>gfaffix --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $in_ext = 'gfa.gz' if str($input.ext) == 'gfa1.gz' else 'gfa'
 ln -sf '$input' 'input.${in_ext}' &&
@@ -24,24 +24,14 @@ gfaffix 'input.${in_ext}'
     --threads \${GALAXY_SLOTS:-1}
     ]]></command>
     <inputs>
-        <param name="input" type="data" format="gfa1,gfa1.gz" label="Input variation graph (GFA1)"
-               help="GFA1 format, plain or gzipped. Typically the smoothed GFA from seqwish/smoothxg."/>
-        <param name="output_affixes" type="boolean" truevalue="yes" falsevalue="no"
-               checked="true" label="Report identified affixes"
-               help="Emits a TSV of every collapsed shared prefix/suffix."/>
-        <param name="output_transformation" type="boolean" truevalue="yes" falsevalue="no"
-               checked="false" label="Report node transformation map"
-               help="For every original node, the walk in the refined graph that replaces it."/>
-        <param argument="--check_transformation" type="boolean"
-               truevalue="--check_transformation" falsevalue=""
-               checked="false" label="Verify sequence preservation"
-               help="Checks that transformed sub-graphs spell identical sequences to the original. Slower but catches regressions."/>
-        <param argument="--dont_collapse" type="text" value=""
-               label="Do-not-collapse path regex"
-               help="Skip nodes on P/W lines whose name matches this regular expression. Leave blank to collapse everywhere.">
+        <param name="input" type="data" format="gfa1,gfa1.gz" label="Input variation graph (GFA1)" help="GFA1 format, plain or gzipped. Typically the smoothed GFA from seqwish/smoothxg."/>
+        <param name="output_affixes" type="boolean" truevalue="yes" falsevalue="" checked="true" label="Report identified affixes" help="Emits a TSV of every collapsed shared prefix/suffix."/>
+        <param name="output_transformation" type="boolean" truevalue="yes" falsevalue="" checked="false" label="Report node transformation map" help="For every original node, the walk in the refined graph that replaces it."/>
+        <param argument="--check_transformation" type="boolean" truevalue="--check_transformation" falsevalue="" checked="false" label="Verify sequence preservation" help="Checks that transformed sub-graphs spell identical sequences to the original. Slower but catches regressions."/>
+        <param argument="--dont_collapse" type="text" value="" label="Do-not-collapse path regex" help="Skip nodes on P/W lines whose name matches this regular expression. Leave blank to collapse everywhere.">
             <sanitizer invalid_char="">
                 <valid initial="string.printable">
-                    <remove value="&apos;"/>
+                    <remove value="'"/>
                 </valid>
             </sanitizer>
         </param>
@@ -93,6 +83,26 @@ gfaffix 'input.${in_ext}'
             <assert_command>
                 <has_text text="--check_transformation"/>
             </assert_command>
+        </test>
+        <!-- Both reports OFF: the refined graph is the only output. This case pins a
+             templating defect. With falsevalue="no" the Cheetah string was "no", which is
+             truthy, so the command passed both report flags while the filters told Galaxy
+             not to create those datasets. The command and the filters disagreed, and no
+             test exercised the branch where they do. -->
+        <test expect_num_outputs="1">
+            <param name="input" value="tiny.gfa" ftype="gfa1"/>
+            <param name="output_affixes" value="false"/>
+            <param name="output_transformation" value="false"/>
+            <param name="check_transformation" value="false"/>
+            <assert_command>
+                <not_has_text text="--output_affixes"/>
+                <not_has_text text="--output_transformation"/>
+            </assert_command>
+            <output name="refined_graph">
+                <assert_contents>
+                    <has_text text="S"/>
+                </assert_contents>
+            </output>
         </test>
     </tests>
     <help format="markdown"><![CDATA[

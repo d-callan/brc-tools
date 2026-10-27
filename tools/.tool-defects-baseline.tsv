@@ -1,0 +1,41 @@
+# Galaxy tool defects present when check_tool_defects.py was introduced.
+# CI fails on anything NOT listed here, and on any line here whose defect is gone.
+# DELETE LINES AS YOU FIX. Never regenerate this to clear a failure -- that is exactly
+# the ratchet it exists to hold.
+#
+# ⛔ BOOL-TEST-NEVER, added with the rule on 2026-10-06. The one-sided-boolean rule only
+# fired when a <test> SET a boolean, so a boolean no test touched read clean -- strictly
+# worse than one-sided, because NEITHER branch is exercised. Closing that blind spot made
+# 34 booleans visible repo-wide.
+#
+# The 10 in tools/ucsc_kent/ were FIXED, not listed: each tool gained a test that flips its
+# booleans and asserts the flags with <assert_command>, which needs no new fixture.
+#
+# The 24 below are on the Plasmodium/pangenome side. They are real and they are listed
+# rather than fixed because adding tests to those wrappers is not this change's business.
+# Each needs one case that sets the boolean plus an <assert_command>; delete the line when
+# you add it.
+tools/cyclospora/cyclospora_junction_caller/cyclospora_junction_caller.xml	BOOL-TEST-NEVER	emit_specimen_column
+tools/cyclospora/cyclospora_pyeuk/cyclospora_pyeuk.xml	BOOL-TEST-NEVER	report_excluded
+tools/cyclospora/cyclospora_pyeuk/cyclospora_pyeuk.xml	BOOL-TEST-NEVER	robust
+tools/longdust/longdust.xml	BOOL-TEST-NEVER	a
+tools/odgi/build.xml	BOOL-TEST-NEVER	optimize
+tools/odgi/stats.xml	BOOL-TEST-NEVER	file_size
+tools/odgi/stats.xml	BOOL-TEST-NEVER	nondeterministic_edges
+tools/odgi/stats.xml	BOOL-TEST-NEVER	self_loops
+tools/odgi/stats.xml	BOOL-TEST-NEVER	weak_connected_components
+tools/odgi/viz.xml	BOOL-TEST-NEVER	path_per_row
+tools/pggb/pggb.xml	BOOL-TEST-NEVER	global_poa
+tools/pggb/pggb.xml	BOOL-TEST-NEVER	no_splits
+tools/pggb/pggb.xml	BOOL-TEST-NEVER	run_abpoa
+tools/pggb/pggb.xml	BOOL-TEST-NEVER	skip_normalization
+tools/pggb/pggb.xml	BOOL-TEST-NEVER	write_maf
+tools/smoothxg/smoothxg.xml	BOOL-TEST-NEVER	adaptive_poa_params
+tools/sourmash_compare/sourmash_compare.xml	BOOL-TEST-NEVER	containment
+tools/vg/deconstruct.xml	BOOL-TEST-NEVER	all_snarls
+tools/vg/deconstruct.xml	BOOL-TEST-NEVER	contig_only_ref
+tools/wfmash/wfmash.xml	BOOL-TEST-NEVER	lower_triangular
+tools/wfmash/wfmash.xml	BOOL-TEST-NEVER	md_tag
+tools/wfmash/wfmash.xml	BOOL-TEST-NEVER	no_split
+tools/wfmash/wfmash.xml	BOOL-TEST-NEVER	sam
+tools/wfmash/wfmash.xml	BOOL-TEST-NEVER	self_maps

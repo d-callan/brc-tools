@@ -11,13 +11,18 @@
 # publication gap rather than for an unknowable hash.
 class: GalaxyUserTool
 id: brc-fastan-gdb
-version: "0.1.0"
+version: "0.2.0"
 name: FAtoGDB -> GDB tarball (BRC UDT)
 description: Convert a FASTA to a FastGA GDB, stage 1 of 3 for the fastan tandem-array track
 container: quay.io/biocontainers/fastga:1.5.20260729--h118bc1c_0
 shell_command: |
   set -o pipefail
-  cp '$(inputs.input.path)' up.fa &&
+  # ⛔ A SYMLINK, NOT A COPY, AND THE NAME IS THE WHOLE REASON THE LINK EXISTS. FAtoGDB refuses a
+  # path it cannot read an extension from -- handed Galaxy's `dataset_42.dat` it prints
+  # "Could not find valid extension of dataset_42.dat" and exits 1 -- so the `.fa` name is
+  # required. Copying to get it is not: measured, a symlink satisfies the extension check and
+  # FAtoGDB reads through it (rc=0, same gdb). The copy was a full extra genome per job.
+  ln -sf '$(inputs.input.path)' up.fa &&
   FAtoGDB up.fa gdb &&
   tar cf gdb.tar gdb.1gdb .gdb.bps
 inputs:

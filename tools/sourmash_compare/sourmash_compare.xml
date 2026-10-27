@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>sourmash --version 2>&amp;1 | tail -1</version_command>
+    <version_command>sourmash --version 2&gt;&amp;1 | tail -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 mkdir -p stage &&
 ## Stage every signature in the list collection under a name keyed by its
@@ -83,39 +83,25 @@ sourmash plot --labels maxc
              actually is, so a reader is not left inferring it from `txt`. The older two
              stay because histories staged before the sketch wrapper emitted the real
              datatype hold `json` signatures, and dropping them would strand those. -->
-        <param name="signatures" type="data_collection" collection_type="list"
-               format="sourmash.sig,json,txt"
-               label="Signature list collection"
-               help="A 'list' collection of sourmash signature files (e.g. from sourmash sketch, mapped over strains). The element identifier of each element should be the strain name; it is staged as '{strain}.sig'. The signature names become the matrix row/column labels."/>
-        <param name="containment" type="boolean" checked="false" truevalue="true"
-               falsevalue="false" label="Also emit a containment matrix"
-               help="Asymmetric, and robust to assembly size: |A n B| / |A|. Jaccard divides by
-                     the union, so on a panel spanning 286 Mb to 2,297 Mb it penalises a size
-                     difference as if it were distance. Off by default because it adds an output
-                     and this workflow's output set is consumed downstream."/>
-        <param argument="--ksize" type="integer" value="31" min="1"
-               label="k-mer size"
-               help="k-mer size to select from each signature for the comparison (default 31). Must match a k-mer size present in the sketched signatures."/>
+        <param name="signatures" type="data_collection" format="sourmash.sig,json,txt" label="Signature list collection" help="A 'list' collection of sourmash signature files (e.g. from sourmash sketch, mapped over strains). The element identifier of each element should be the strain name; it is staged as '{strain}.sig'. The signature names become the matrix row/column labels." collection_type="list"/>
+        <param name="containment" type="boolean" truevalue="true" falsevalue="false" checked="false" label="Also emit a containment matrix" help="Asymmetric, and robust to assembly size: |A n B| / |A|. Jaccard divides by                      the union, so on a panel spanning 286 Mb to 2,297 Mb it penalises a size                      difference as if it were distance. Off by default because it adds an output                      and this workflow's output set is consumed downstream."/>
+        <param argument="--ksize" type="integer" min="1" value="31" label="k-mer size" help="k-mer size to select from each signature for the comparison (default 31). Must match a k-mer size present in the sketched signatures."/>
     </inputs>
     <outputs>
         <data name="output" format="csv" label="${tool.name} on ${on_string}: similarity matrix (CSV)"/>
         <!-- ⚠ FILTERED, so with the box unchecked this dataset is not created at all rather than
              created empty. An empty matrix is the silent-success shape: it arrives as a real
              dataset, joins cleanly and describes nothing. -->
-        <data name="containment_matrix" format="csv"
-              label="${tool.name} on ${on_string}: containment matrix (CSV, asymmetric)">
+        <data name="containment_matrix" format="csv" label="${tool.name} on ${on_string}: containment matrix (CSV, asymmetric)">
             <filter>containment</filter>
         </data>
-        <data name="max_containment_matrix" format="csv"
-              label="${tool.name} on ${on_string}: max-containment matrix (CSV, symmetric)">
+        <data name="max_containment_matrix" format="csv" label="${tool.name} on ${on_string}: max-containment matrix (CSV, symmetric)">
             <filter>containment</filter>
         </data>
-        <data name="max_containment_heatmap" format="png" from_work_dir="maxc.matrix.png"
-              label="${tool.name} on ${on_string}: max-containment heatmap">
+        <data name="max_containment_heatmap" format="png" from_work_dir="maxc.matrix.png" label="${tool.name} on ${on_string}: max-containment heatmap">
             <filter>containment</filter>
         </data>
-        <data name="max_containment_dendrogram" format="png" from_work_dir="maxc.dendro.png"
-              label="${tool.name} on ${on_string}: max-containment dendrogram">
+        <data name="max_containment_dendrogram" format="png" from_work_dir="maxc.dendro.png" label="${tool.name} on ${on_string}: max-containment dendrogram">
             <filter>containment</filter>
         </data>
         <!-- ⚠ `npy`, NOT `data`. `sourmash compare` writes this with numpy, and Galaxy has

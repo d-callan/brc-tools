@@ -27,50 +27,30 @@ python '$__tool_directory__/pyeuk_cluster.py'
 #end if
     ]]></command>
     <inputs>
-        <param argument="--sheet" name="sheet" type="data" format="tabular"
-               label="Haplotype data sheet (CDC HDS wide format)"
-               help="Rows are specimens, columns are haplotype names, 'X' marks presence and an empty cell absence. An ENTIRELY empty locus block means the locus was NOT CALLED; PyEuk handles that as dropout rather than as absence. Produced by the 'Cyclospora HDS sheet' tool. The first column must be named Seq_ID."/>
+        <param argument="--sheet" type="data" format="tabular" label="Haplotype data sheet (CDC HDS wide format)" help="Rows are specimens, columns are haplotype names, 'X' marks presence and an empty cell absence. An ENTIRELY empty locus block means the locus was NOT CALLED; PyEuk handles that as dropout rather than as absence. Produced by the 'Cyclospora HDS sheet' tool. The first column must be named Seq_ID."/>
         <conditional name="calibration">
-            <param name="mode" type="select" label="Cluster threshold calibration"
-                   help="Label-free is the default and is what the pre-registered analysis used: PyEuk never sees an epidemiological label and picks k from the dendrogram merge-height gap knee. Supply gold-standard labels only if you genuinely have them; the result is then no longer a blind prediction.">
+            <param name="mode" type="select" label="Cluster threshold calibration" help="Label-free is the default and is what the pre-registered analysis used: PyEuk never sees an epidemiological label and picks k from the dendrogram merge-height gap knee. Supply gold-standard labels only if you genuinely have them; the result is then no longer a blind prediction.">
                 <option value="label_free" selected="true">Label-free (unsupervised) — dendrogram merge-height gap knee</option>
                 <option value="supervised">Supervised — calibrate the threshold from gold-standard cluster labels</option>
             </param>
             <when value="label_free"/>
             <when value="supervised">
-                <param argument="--gold" name="gold" type="data" format="tabular"
-                       label="Gold-standard cluster labels"
-                       help="Two columns with a header: Seq_ID and Cluster_alias. Only specimens present in both this file and the distance matrix are used to calibrate."/>
-                <param argument="--stringency" name="stringency" type="float" value="95.0" min="0.0" max="100.0"
-                       label="Stringency (%)"
-                       help="Percentage of within-cluster pairs that must fall at or below the calibrated threshold before a k is accepted."/>
-                <param argument="--robust" name="robust" type="boolean" checked="true" truevalue="true" falsevalue="false"
-                       label="Robust threshold calibration"
-                       help="Yes: median + 3 * 1.4826 * MAD of the within-cluster distances. No: mean + 3 * standard deviation."/>
-                <param argument="--default-threshold" name="default_threshold" type="float" value="0.05" min="0.0"
-                       label="Fallback threshold"
-                       help="Used only if no gold-standard specimen pair overlaps the distance matrix."/>
+                <param argument="--gold" type="data" format="tabular" label="Gold-standard cluster labels" help="Two columns with a header: Seq_ID and Cluster_alias. Only specimens present in both this file and the distance matrix are used to calibrate."/>
+                <param argument="--stringency" type="float" min="0.0" max="100.0" value="95.0" label="Stringency (%)" help="Percentage of within-cluster pairs that must fall at or below the calibrated threshold before a k is accepted."/>
+                <param argument="--robust" type="boolean" truevalue="true" falsevalue="false" checked="true" label="Robust threshold calibration" help="Yes: median + 3 * 1.4826 * MAD of the within-cluster distances. No: mean + 3 * standard deviation."/>
+                <param argument="--default-threshold" type="float" min="0.0" value="0.05" label="Fallback threshold" help="Used only if no gold-standard specimen pair overlaps the distance matrix."/>
             </when>
         </conditional>
         <section name="advanced" title="Advanced options" expanded="false">
-            <param argument="--min-completeness" name="min_completeness" type="float" value="0.10" min="0.0" max="1.0"
-                   label="Minimum specimen completeness"
-                   help="A specimen enters the distance matrix only if at least this fraction of the sheet's haplotype columns are marked 'X'. PyEuk's default is 0.10; on the 153-specimen reference sheet it keeps 144 of 153."/>
-            <param argument="--k-min" name="k_min" type="integer" value="2" min="2"
-                   label="Minimum number of clusters to consider"
-                   help="Held at 2 by PyEuk to guard against collapsing everything into a single cluster."/>
-            <param argument="--k-max" name="k_max" type="integer" value="50" min="2"
-                   label="Maximum number of clusters to consider"/>
-            <param argument="--report-excluded" name="report_excluded" type="boolean" checked="true" truevalue="true" falsevalue="false"
-                   label="Report excluded specimens as cluster -1"
-                   help="Yes: specimens dropped by the completeness filter still appear in the cluster table with Assigned_cluster = -1, so no specimen disappears silently. No: they are omitted, which reproduces PyEuk's own output file exactly."/>
+            <param argument="--min-completeness" type="float" min="0.0" max="1.0" value="0.10" label="Minimum specimen completeness" help="A specimen enters the distance matrix only if at least this fraction of the sheet's haplotype columns are marked 'X'. PyEuk's default is 0.10; on the 153-specimen reference sheet it keeps 144 of 153."/>
+            <param argument="--k-min" type="integer" min="2" value="2" label="Minimum number of clusters to consider" help="Held at 2 by PyEuk to guard against collapsing everything into a single cluster."/>
+            <param argument="--k-max" type="integer" min="2" value="50" label="Maximum number of clusters to consider"/>
+            <param argument="--report-excluded" type="boolean" truevalue="true" falsevalue="false" checked="true" label="Report excluded specimens as cluster -1" help="Yes: specimens dropped by the completeness filter still appear in the cluster table with Assigned_cluster = -1, so no specimen disappears silently. No: they are omitted, which reproduces PyEuk's own output file exactly."/>
         </section>
     </inputs>
     <outputs>
-        <data name="distance_matrix" format="tabular"
-              label="${tool.name} on ${on_string}: wIBS distance matrix"/>
-        <data name="clusters" format="tabular"
-              label="${tool.name} on ${on_string}: cluster assignments"/>
+        <data name="distance_matrix" format="tabular" label="${tool.name} on ${on_string}: wIBS distance matrix"/>
+        <data name="clusters" format="tabular" label="${tool.name} on ${on_string}: cluster assignments"/>
     </outputs>
     <tests>
         <!-- Label-free (default) on a 40-specimen subset of the CDC 153 sheet.

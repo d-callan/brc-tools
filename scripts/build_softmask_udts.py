@@ -23,11 +23,12 @@ for blast + python in one call -- but no such image is PUBLISHED (checked agains
 mulled-v2 images), so somebody has to register one first.
 Splitting costs one extra workflow step per masker and needs no new image at all.
 
-⚠ THE MASKER EMITS ITS UPPERCASED FASTA AS A SECOND OUTPUT, AND THAT IS NOT A CONVENIENCE.
-`lc_classify` reads the sequence to classify each interval, so it must read the SAME bases the
-masker saw -- same decompression, same uppercasing, same header parsing. Handing it the original
-assembly instead would agree almost always and disagree silently wherever the two paths differ,
-which is the class of bug that does not announce itself.
+⛔ THE MASKERS TAKE THE UPPERCASED FASTA AS INPUT; THEY DO NOT MAKE THEIR OWN. They used to emit
+a second output so `lc_classify` could read "the SAME bases the masker saw". That argument was
+self-defeating: the workflow already feeds every masker `uppercase/output`, so binding
+`lc_classify` to that SAME dataset is one file by reference, which is strictly stronger than two
+independently derived copies. `lc_classify` uppercases internally anyway
+(`"".join(buf).upper()`), so the case of what it is handed never mattered.
 
     python3 scripts/build_softmask_udts.py            # writes udt/*.gxtool.yml
     python3 scripts/build_softmask_udts.py --check    # non-zero if the committed copies are stale
@@ -83,30 +84,27 @@ SPLIT_NOTE = """#
 # gap, not for an unknowable hash, and `planemo container_register` is the way to close it.
 # Splitting costs one extra workflow step and needs no new image today.
 #
-# ⚠ THE MASKER EMITS ITS UPPERCASED FASTA AS A SECOND OUTPUT, ON PURPOSE. lc_classify reads the
-# sequence to classify each interval, and it must read the SAME bases the masker saw -- same
-# decompression, same uppercasing. Feeding it the original assembly instead would usually agree and
-# would silently disagree wherever the two paths differ.
+# ⛔ THE MASKER TAKES THE UPPERCASED FASTA AS INPUT AND EMITS ONLY INTERVALS. `lc_classify` is
+# bound to the SAME `uppercase/output` dataset the masker read -- one file by reference, not a
+# second copy derived by repeating the same transformation. See build_softmask_udts.py.
 """
 
 #: ⛔ NOT `gzip -cdf`. GNU gzip passes unrecognised input through with --stdout; the gzip inside the
 #: blast biocontainer does not -- it fails `gzip: invalid magic` on a plain FASTA. Test and branch.
 #: ⚠ NOT wrapped in `$(...)`: that is Galaxy's templating delimiter, not a shell substitution.
 #:
-#: ⛔ THE UTF-8 BOM IS STRIPPED BEFORE THE HEADER TEST, AND WITHOUT THIS THE tantan ROUTE FAILED
-#: GREEN. `/^>/` does not match a BOM-prefixed first header, so that line fell through to
-#: `print toupper($0)` -- which uppercases the SEQUENCE NAME, the one thing this preprocessing must
-#: never touch (`chr1` becomes `CHR1` and every downstream join by name then finds nothing). tantan
-#: read the malformed upper.fa, wrote ZERO BYTES, printed nothing to stderr and exited 0, so
+#: ⛔ THE UTF-8 BOM IS STRIPPED IN `brc-fasta-uppercase` (`encoding='utf-8-sig'`), WHICH IS THE
+#: ONLY PLACE IT CAN BE. It used to be stripped here, by the masker's own awk -- but that was
+#: already too late: `line.startswith('>')` is equally defeated by a BOM, so the uppercase stage
+#: read the BOM'd first header as a SEQUENCE line and uppercased the NAME, the one thing this
+#: preprocessing must never touch (`chr1` becomes `CHR1` and every downstream join by name then
+#: finds nothing). Measured 2026-09-22: it emitted `\ufeff>BOM1` and counted 1 header, not 2.
+#: The tantan route then FAILED GREEN -- tantan
 #: neither `set -o pipefail` nor the `&&` chain noticed, and lc_classify then produced an empty
 #: BED6 at exit 0 as well. Measured in quay.io/biocontainers/tantan:51--h5ca1c30_1 on a BOM'd FASTA
 #: whose LF-only twin yields three intervals. dustmasker and windowmasker are accidentally
 #: protected -- NCBI's reader refuses the file outright ("Input doesn't start with a defline",
 #: exit 3) -- so tantan was the only route that went green with no output.
-#:
-#: ⚠ OCTAL STRING ESCAPES, NOT `\x` OR A REGEX. The biocontainers ship a non-gawk awk; `"\357\273\277"`
-#: as a STRING constant compared with substr() is POSIX and was verified inside the tantan
-#: container itself, where a `\x`-escaped regex is not portable.
 #: The decompress half on its own, so a consumer that must NOT uppercase can compose it directly.
 #: ⛔ THIS SPLIT REPLACED A `.replace()` THAT DELETED THE awk BY MATCHING ITS EXACT TEXT, and the
 #: BOM fix above broke that match instantly: `samtools_faidx` silently GAINED the uppercasing it
@@ -118,14 +116,38 @@ DECOMPRESS_ONLY = (
     "then gzip -cd '$(inputs.input.path)'; else cat '$(inputs.input.path)'; fi; } \\\n"
 )
 
-#: Uppercase every residue line, leaving headers alone, with the BOM stripped first. See above.
-UPPERCASE_AWK = (
-    "    | awk 'BEGIN { bom = \"\\357\\273\\277\" } "
-    "NR == 1 && substr($0, 1, 3) == bom { $0 = substr($0, 4) } "
-    "/^>/{print;next}{print toupper($0)}' "
+#: ⛔ THE MASKERS NO LONGER UPPERCASE, AND THEY NO LONGER COPY. They are fed `uppercase/output`,
+#: which `brc-fasta-uppercase` has already normalised, so re-doing it was pure duplication:
+#: MEASURED on invocation 40e6358d13bff69c, the three maskers wrote ~530 GiB of `upper.fa` against
+#: a 164.5 GiB canonical copy -- three extra copies of every genome -- and one of those writes is
+#: what killed the USV job (`upper.fa` truncated at 80.16%, so dustmasker never ran at all).
+#:
+#: ⛔ AND THE UPPERCASING WAS NEVER LOAD-BEARING FOR THE MASKING. All three maskers are
+#: case-INSENSITIVE, measured in their own containers on one sequence in two cases (identical
+#: bases, low-complexity tracts soft-masked in one copy):
+#:
+#:     dustmasker    md5 3d748614...  ==  3d748614...
+#:     windowmasker  md5 060905c9...  ==  060905c9...
+#:     tantan        md5 92eff0a2...  ==  92eff0a2...   (61.8% lower-cased either way)
+#:
+#: So removing it cannot change an interval in EITHER arm of `strip_existing_mask` -- not only in
+#: the `true` arm where the input is already uppercase.
+#:
+#: ⚠ `$SRC`, NOT `${SRC}`. Galaxy's UDT templating kills the braced form outright; the bare form
+#: is fine. See the udt-authoring notes.
+#:
+#: ⚠ THE BOM GUARD MOVED, IT WAS NOT DROPPED. It now lives in `brc-fasta-uppercase`, which is the
+#: single point every assembly enters through -- and it belonged there all along, because that tool
+#: read a BOM'd first header as a SEQUENCE line and uppercased the name (`\ufeff>BOM1`) before any
+#: masker ever saw the file. Measured: tantan then wrote 0 bytes and exited 0.
+SOURCE_SELECT = (
+    "  if gzip -t '$(inputs.input.path)' 2>/dev/null; then\n"
+    "    gzip -cd '$(inputs.input.path)' > seq.fa\n"
+    "    SRC=seq.fa\n"
+    "  else\n"
+    "    SRC='$(inputs.input.path)'\n"
+    "  fi\n"
 )
-
-DECOMPRESS = DECOMPRESS_ONLY + UPPERCASE_AWK + "> upper.fa &&"
 
 
 def indent(body: str, pad: str = "  ") -> str:
@@ -159,10 +181,24 @@ def read_helper(relpath: str) -> str:
 #: allowance on the same panel and is fine, because it streams and the cgroup fills with reclaimable
 #: cache. windowmasker builds a k-mer counts structure; there is nothing to give back.
 #:
-#: ⛔ `ram_min` IS ON THE GB SCALE, NOT THE MEBIBYTES THE SCHEMA DOCUMENTS. The destination's
-#: `max_accepted_mem` is 120, so a schema-conformant value exceeds it, matches no destination, and
-#: the job dies with an empty error and no command line. Measured: `ram_min: 16` yields
-#: GALAXY_MEMORY_MB=16384, GALAXY_SLOTS=1, nproc=1. See udt/slots_probe.gxtool.yml.
+#: ⛔ `ram_min` IS IN MEBIBYTES, AS THE SCHEMA SAYS. THIS BLOCK USED TO SAY THE OPPOSITE, AND THE
+#: OPPOSITE WAS TRUE UNTIL 2026-09-12 -- DO NOT "RESTORE" IT.
+#:
+#: Galaxy follows CWL and expresses `ram_min`/`ram_max` in MiB; TPV's `mem`/`max_mem` are in GiB.
+#: TPV injected the one into the other WITHOUT converting, so `ram_min: 16` really did yield
+#: GALAXY_MEMORY_MB=16384 -- a GB scale -- and a schema-conformant 16384 really did exceed the
+#: destination's `max_accepted_mem` of 120 and leave the job unroutable. Both of those observations
+#: were correct when they were made.
+#:
+#: total-perspective-vortex#205 ("Convert Galaxy tool RAM requirements from MiB to GiB") merged
+#: 2026-09-12 and divides by 1024. Its own description names this exact hazard: *"Tools previously
+#: tuned against the buggy behavior would now request significantly less memory after this
+#: correction, potentially causing out-of-memory failures."* That is what happened here.
+#:
+#: ⚠ MEASURED AFTER THE UPGRADE, 2026-09-21: `ram_min: 8` yielded GALAXY_MEMORY_MB=**8**, and every
+#: dustmasker job in a 195-genome run was SIGKILLed (exit 137) -- 9 of 9, on inputs from 520 MB to
+#: 1.2 GB. The measured peaks below are unchanged and still govern; only the unit moved, so every
+#: value here is now the GiB figure times 1024.
 #:
 #: ⛔ AND NO `cores_min` ON ANY MASKER. None of dustmasker, windowmasker or tantan takes a thread
 #: flag, so a core request would be reserved and left idle.
@@ -171,12 +207,27 @@ MASKER_MEMORY_BASIS = "see MASKER_MEMORY_BASIS in scripts/build_softmask_udts.py
 
 def masker(tool_id, name, container, desc, cmd, helper_path, helper_name,
            ram_min=None, version="0.1.0") -> str:
-    helper = read_helper(helper_path)
+    # ⚠ A MASKER THAT NEEDS NO CONVERTER PASSES helper_path=None. tantan emits BED itself
+    # (`-f 3`), so it ships no awk at all; the NCBI pair still do, because their `-outfmt` has no
+    # BED among its values (interval / fasta / maskinfo_* / seqloc_* / acclist -- checked).
+    helper_block = ""
+    if helper_path is not None:
+        helper_block = f"  cat > {helper_name} <<'BRC_AWK'\n{indent(read_helper(helper_path))}\n  BRC_AWK\n"
     # ⚠ EMITTED ONLY WHEN ASKED FOR. A masker that needs no more than the default carries no
-    # `resource` entry at all -- and that is not cosmetic: an entry whose `ram_min` defaults to 256
-    # is read as 256 GB here, exceeds the destination limit and makes the tool unroutable.
+    # `resource` entry at all. Pre-TPV#205 that mattered because the schema default of 256 was read
+    # as 256 GB and made the tool unroutable; post-#205 it is 256 MiB, which is merely far too
+    # little. Either way, omitting the entry is what yields the instance default of 3788 MB.
     reqs = ""
     if ram_min is not None:
+        # ⛔ A GUARD, NOT A STYLE RULE. Every value here is MEBIBYTES. The three maskers were once
+        # tuned in GB against a TPV that did not convert, and after #205 those numbers became 8 MB
+        # and 16 MB. Nothing downstream complains: the tool registers, the workflow schedules, the
+        # jobs go green-then-137. A plain floor is the only thing between that and a rerun.
+        if ram_min < 256:
+            raise SystemExit(
+                f"ram_min={ram_min} for {tool_id}: ram_min is in MEBIBYTES since "
+                f"total-perspective-vortex#205 (2026-09-12). A value this small is almost "
+                f"certainly a GiB figure -- did you mean {ram_min * 1024}?")
         reqs = (f"requirements:\n"
                 f"  # ⛔ MEASURED. {MASKER_MEMORY_BASIS}\n"
                 f"  - type: resource\n"
@@ -188,39 +239,38 @@ name: {name}
 description: {desc}
 container: {container}
 {reqs}shell_command: |
-  cat > {helper_name} <<'BRC_AWK'
-{indent(helper)}
-  BRC_AWK
-  set -o pipefail
-{DECOMPRESS}
-{cmd}
+{helper_block}  set -o pipefail
+  # ⛔ `set -e` IS LOAD-BEARING HERE, NOT HOUSE STYLE. The decompress branch below writes seq.fa and
+  # then assigns SRC as a SEPARATE statement -- an assignment always succeeds, so without errexit a
+  # failed or truncated `gzip -cd` would leave SRC pointing at a short file and the masker would
+  # mask it and exit 0. That is the exact shape of the USV failure this change removes, so it must
+  # not be reintroduced by the fix for it. check_workflow_ports.py's UNCHAINED-COMMAND rule catches
+  # its absence.
+  set -e
+{SOURCE_SELECT}{cmd}
 inputs:
   - name: input
     type: data
     format: fasta,fasta.gz
-    label: Assembly FASTA
-    help: plain or gzipped
+    label: Uppercased assembly FASTA
+    help: the `brc-fasta-uppercase` output, plain or gzipped -- NOT a raw assembly
 outputs:
   - name: intervals
     type: data
     format: bed
     from_work_dir: intervals.bed3
     label: masked intervals (BED3, unclassified)
-  - name: upper_fasta
-    type: data
-    format: fasta
-    from_work_dir: upper.fa
-    label: uppercased FASTA (feed to lc_classify alongside the intervals)
 help:
   format: markdown
   content: |
-    Stage 1 of a two-step port. Emits BED3 intervals plus the uppercased FASTA they index into.
-    Feed BOTH to `brc-lc-classify` to get the content-annotated BED6 the workflow expects.
+    Stage 1 of a two-step port. Emits BED3 intervals into the coordinates of the FASTA it was
+    given. Feed `intervals` to `brc-lc-classify` together with THAT SAME FASTA -- the workflow
+    passes `uppercase/output` to both, so the two are one dataset by reference, not two copies.
 """
 
 
 #: The masker columns, in the one order both the header and masking_table.py must use.
-MASKER_COLUMNS = ("dustmasker", "windowmasker", "tantan", "fastan", "union")
+MASKER_COLUMNS = ("arrived", "dustmasker", "windowmasker", "tantan", "fastan", "union")
 
 #: UDTs that live in udt/ but are deliberately NOT generated, with the reason.
 #: ⚠ Anything here is exempt from the staleness check, so the list should stay short.
@@ -257,7 +307,7 @@ HAND_WRITTEN_UDTS = frozenset({
 #: ⛔ THESE ARE MATCHED AGAINST THE <command> ELEMENT ONLY, NOT THE WHOLE FILE. An earlier version
 #: searched the raw XML text, and prose satisfied the anchors: `tantan ` matches
 #: `<description>tantan gentle low-complexity...`, `FasTAN` and `ANOtoBED` appear in fastan.xml's
-#: comment and help. An adversarial pass gutted tantan's entire <command>, left `lc2bed.awk` in a
+#: comment and help. An adversarial pass gutted tantan's entire <command>, left a helper name in a
 #: `## FIXME` comment, and the tripwire passed.
 XML_ANCHORS = {
     "tools/dustmasker/dustmasker.xml": ["dustmasker -in", "-outfmt interval", "interval2bed.awk",
@@ -265,7 +315,7 @@ XML_ANCHORS = {
     "tools/windowmasker/windowmasker.xml": ["windowmasker -mk_counts", "windowmasker -ustat",
                                             "-outfmt interval", "interval2bed.awk",
                                             "lc_classify.py", "toupper"],
-    "tools/tantan/tantan.xml": ["tantan in.fa", "lc2bed.awk", "lc_classify.py", "toupper"],
+    "tools/tantan/tantan.xml": ["tantan -f3 in.fa", "lc_classify.py", "toupper"],
     "tools/fastan/fastan.xml": ["FAtoGDB", "FasTAN", "ONEview", "ano2bed6.awk", "toupper"],
     "tools/masking_table/masking_table.xml": ["masking_table.py", "--dustmasker", "--union"],
 }
@@ -293,7 +343,7 @@ XML_REQUIREMENTS = {
 XML_COMMAND_DIGESTS: dict[str, str] = {
     "tools/dustmasker/dustmasker.xml": "44ba77c505a3a1d9",
     "tools/windowmasker/windowmasker.xml": "5e7222543a06ea8f",
-    "tools/tantan/tantan.xml": "75d35538a082d2c1",
+    "tools/tantan/tantan.xml": "1f0c4bd0d9fabc3a",
     "tools/fastan/fastan.xml": "6fd29cf164a54fea",
     "tools/masking_table/masking_table.xml": "2d7cb425599d5daa",
 }
@@ -382,7 +432,28 @@ def assert_sources_aligned() -> None:
                      f"see. Reconcile build() with the XML, then update XML_COMMAND_DIGESTS.")
     for xml, reqs in XML_REQUIREMENTS.items():
         root = ET.parse(ROOT / xml).getroot()
-        got = {r.text.strip(): r.get("version") for r in root.iter("requirement")
+        # ⚠ Resolve @TOKEN@ before comparing. This reads the XML with ElementTree, not
+        # through Galaxy's macro expansion, so a tokenized requirement arrives as the
+        # literal string "@TOOL_VERSION@" and the comparison below refuses a wrapper
+        # that is in fact pinned correctly. Measured: tokenizing dustmasker/windowmasker
+        # (so the tool version and the blast requirement are stated once) turned this
+        # guard red while the effective version had not moved at all. The tokens are
+        # defined in the tool's own inline <macros>, so resolving them here needs no
+        # expansion machinery -- and the guard keeps its real intent, which is to compare
+        # the version the tool EFFECTIVELY requires against the container this generator
+        # pins. Same trap as `ShedVersion`: a reader of raw XML cannot see through a token.
+        tokens = {name: (tok.text or "").strip()
+                  for tok in root.iter("token")
+                  if (name := tok.get("name"))}
+
+        def _resolved(value: str | None) -> str | None:
+            for name, literal in tokens.items():
+                if value and name in value:
+                    value = value.replace(name, literal)
+            return value
+
+        got = {r.text.strip(): _resolved(r.get("version"))
+               for r in root.iter("requirement")
                if r.get("type") == "package" and r.text}
         for pkg, ver in reqs.items():
             if got.get(pkg) != ver:
@@ -461,19 +532,19 @@ def build() -> dict[str, str]:
         "brc-dustmasker-bed3", "dustmasker -> BED3 (BRC UDT)",
         "quay.io/biocontainers/blast:2.17.0--h66d330f_0",
         "NCBI symmetric-DUST low-complexity intervals, stage 1 of 2",
-        "  dustmasker -in upper.fa -outfmt interval | awk -f interval2bed.awk > intervals.bed3",
+        "  dustmasker -in $SRC -outfmt interval | awk -f interval2bed.awk > intervals.bed3",
         "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
-        ram_min=8, version="0.3.0")            # peaked 59% of 3788 MB on 23 cannabis genomes
+        ram_min=8192, version="0.5.0")         # 8 GiB; peaked 59% of 3788 MB on 23 cannabis genomes
 
     out["windowmasker_bed3.gxtool.yml"] = masker(
         "brc-windowmasker-bed3", "windowmasker -> BED3 (BRC UDT)",
         "quay.io/biocontainers/blast:2.17.0--h66d330f_0",
         "NCBI WindowMasker genome-frequency repeats, stage 1 of 2",
-        "  windowmasker -mk_counts -in upper.fa -out counts &&\n"
-        "  windowmasker -ustat counts -in upper.fa -outfmt interval"
+        "  windowmasker -mk_counts -in $SRC -out counts &&\n"
+        "  windowmasker -ustat counts -in $SRC -outfmt interval"
         " | awk -f interval2bed.awk > intervals.bed3",
         "tools/dustmasker/interval2bed.awk", "interval2bed.awk",
-        ram_min=16, version="0.3.0")           # peaked 89%, projects >100% on 11 panel members
+        ram_min=16384, version="0.5.0")        # 16 GiB; peaked 89%, projects >100% on 11 panel members
 
     out["tantan_bed3.gxtool.yml"] = masker(
         "brc-tantan-bed3", "tantan -> BED3 (BRC UDT)",
@@ -487,13 +558,25 @@ def build() -> dict[str, str]:
         # --check-containers now asks, so a guess cannot ship again.
         "quay.io/biocontainers/tantan:51--h5ca1c30_1",
         "tantan gentle low-complexity intervals, stage 1 of 2",
-        "  tantan upper.fa | awk -f lc2bed.awk > intervals.bed3",
-        "tools/tantan/lc2bed.awk", "lc2bed.awk",
-        ram_min=8, version="0.3.0")            # peaked 66% of 3788 MB on 23 cannabis genomes
+        # ⛔ `-f 3` IS tantan's OWN BED WRITER, and it replaces a converter we maintained.
+        # `-f` is documented as 0=masked sequence, 1=repeat probabilities, 2=repeat counts,
+        # 3=BED, 4=tandem repeats. MEASURED byte-identical to the `tantan | awk -f lc2bed.awk`
+        # route it replaces, on a synthetic sequence AND on 288 real records / 37 MB of
+        # salk_USV: 163,983 BED lines, same md5, same 288 distinct sequence names.
+        #
+        # ⚠ AND IT STRENGTHENS check_coordinates RATHER THAN GUTTING IT. The old `case_tantan`
+        # compared lc2bed.awk against a Python reimplementation of the same idea, both reading
+        # the SAME lc.fa -- the weak form its own docstring warns about, which can only catch a
+        # bug one implementation has and the other does not. It now compares tantan's BED writer
+        # against tantan's soft-mask writer: two different routes out of the tool, which is
+        # exactly what makes `case_ncbi_masker` strong. See scripts/check_coordinates.py.
+        "  tantan -f3 $SRC > intervals.bed3",
+        None, None,
+        ram_min=8192, version="0.6.0")         # 8 GiB; peaked 66% of 3788 MB on 23 cannabis genomes
 
     out["fasta_uppercase.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-fasta-uppercase
-version: "0.2.0"
+version: "0.4.0"
 name: Uppercase a FASTA (BRC UDT)
 description: Optionally strip an existing soft-mask so the workflow's output is its OWN mask
 container: quay.io/biocontainers/python:3.12
@@ -509,8 +592,8 @@ shell_command: |
   src = '$(inputs.input.path)'
   with open(src, 'rb') as fh:
       gzipped = fh.read(2) == b'\\x1f\\x8b'
-  op = (lambda p: gzip.open(p, 'rt', encoding='utf-8', errors='replace')) if gzipped \\
-      else (lambda p: open(p, 'rt', encoding='utf-8', errors='replace'))
+  op = (lambda p: gzip.open(p, 'rt', encoding='utf-8-sig', errors='replace')) if gzipped \\
+      else (lambda p: open(p, 'rt', encoding='utf-8-sig', errors='replace'))
 
   # ⛔ WHETHER TO STRIP IS A PARAMETER, AND THE REASON IS MEASURED. Discarding the mask an
   # assembly arrived with is NOT free downstream: on Salk_SRIb chr7 x Salk_HAWb chr7, a 1.06%
@@ -538,18 +621,61 @@ shell_command: |
   # either offline, so run it after editing a comment and not only after editing code.
   strip = $(inputs.strip_existing_mask ? 'True' : 'False')
 
-  lower = total = seqs = 0
-  with op(src) as fin, open('uppercased.fasta', 'w', encoding='utf-8') as out:
+  # ⛔ THE SEQUENCE IS NOW ALWAYS UPPERCASED, AND THE ARRIVING MASK LEAVES AS INTERVALS.
+  # It used to emit the input unchanged when strip_existing_mask was false, so `uppercased.fasta`
+  # was only uppercase half the time and its own workflow output had to carry a disclaimer. That
+  # also made the arriving mask INVISIBLE: it reached the published FASTA by surviving in the
+  # bytes, so `mask_union` was a strict SUBSET of the published lower-case and
+  # verify_softmask_outputs.py had to infer the mode to know which direction it could assert.
+  #
+  # Nothing downstream lost anything, because MEASURED 2026-09-22 nothing downstream reads case
+  # except `bedtools maskfasta`: dustmasker, windowmasker and tantan are case-INSENSITIVE
+  # (identical md5 on an uppercase vs soft-masked copy of one sequence), FAtoGDB packs 2 bits per
+  # base so `.gdb.bps` is byte-identical either way, lc_classify uppercases its own slices, and
+  # samtools faidx reports the same lengths and offsets.
+  #
+  # So the arriving mask becomes the FIFTH ARM of the union instead of a property of the bytes,
+  # and `strip_existing_mask` decides whether that arm is populated or EMPTY -- which is why the
+  # flag still reaches exactly one node and nothing downstream needs a conditional.
+  lower = total = seqs = runs = 0
+  name = None
+  run_start = -1          # start of the lower-case run currently open, in 0-based record coords
+  pos = 0                 # 0-based offset within the current record
+  with op(src) as fin, \
+       open('uppercased.fasta', 'w', encoding='utf-8') as out, \
+       open('arrived_mask.bed3', 'w', encoding='utf-8') as bed:
+
+      def close_run():
+          # ⚠ `strip` gates the WRITING, not the counting. The percentages below are reported in
+          # both modes and must mean the same thing in both, so the scan always runs.
+          global run_start, runs
+          if run_start >= 0:
+              runs += 1
+              if not strip:
+                  bed.write('%s\\t%d\\t%d\\n' % (name, run_start, pos))
+              run_start = -1
+
       for line in fin:
           if line.startswith('>'):
+              close_run()
               seqs += 1
+              pos = 0
+              name = line[1:].split()[0] if line[1:].split() else ''
               out.write(line)          # verbatim -- see above
               continue
           s = line.rstrip('\\n')
           total += len(s)
-          lower += sum(1 for c in s if 'a' <= c <= 'z')
-          out.write(s.upper() if strip else s)
+          for ch in s:
+              if 'a' <= ch <= 'z':
+                  lower += 1
+                  if run_start < 0:
+                      run_start = pos
+              elif run_start >= 0:
+                  close_run()
+              pos += 1
+          out.write(s.upper())
           out.write('\\n')
+      close_run()
 
   if seqs == 0:
       raise SystemExit('no FASTA headers found -- is this a FASTA file?')
@@ -562,20 +688,23 @@ shell_command: |
   # ⛔ THE LOG MUST SAY WHICH MODE RAN. A tool that reports "removed 462,181,305" whether or not
   # it removed anything makes the one number a reader checks meaningless, and this tool's
   # whole purpose is that the two modes produce measurably different downstream results.
+  print(f'arriving soft-mask: {lower:,} residues ({frac:.1%}), {runs:,} interval(s)')
   if strip:
-      print(f'soft-masked residues removed: {lower:,} ({frac:.1%})')
+      print(f'strip_existing_mask is TRUE: DISCARDED. arrived_mask.bed3 is empty, so the '
+            f'published mask is this workflow\\'s own and nothing else.')
       if lower == 0:
-          print('NOTE: input carried no soft-masking; this was a no-op')
+          print('NOTE: input carried no soft-masking, so this was a no-op either way')
       elif frac > 0.10:
           print(f'NOTE: a substantial existing mask ({frac:.1%}) was discarded. That is '
-                f'intended when strip_existing_mask is true -- the workflow re-masks from '
-                f'scratch -- and is data loss anywhere else.')
+                f'intended here -- the workflow re-masks from scratch -- and is data loss '
+                f'anywhere else.')
   else:
-      print(f'soft-masked residues KEPT: {lower:,} ({frac:.1%}) -- strip_existing_mask is '
-            f'false, so the sequence passed through unchanged.')
+      print(f'strip_existing_mask is FALSE: KEPT, as {runs:,} interval(s) in arrived_mask.bed3, '
+            f'which joins the union as a fifth arm.')
       if lower:
-          print('NOTE: the published FASTA will carry this mask AND this workflow\\'s own, '
-                'indistinguishably. The BED tracks report only the latter.')
+          print('NOTE: the published FASTA will carry this mask AND this workflow\\'s own. '
+                'They are distinguishable now: the `arrived` column of the masking table and '
+                'the arrived_mask BED report this one alone.')
   BRC_PY
 inputs:
   - name: input
@@ -604,14 +733,28 @@ outputs:
     format: fasta
     from_work_dir: uppercased.fasta
     label: Uppercased FASTA
+  - name: arrived_mask
+    type: data
+    format: bed
+    from_work_dir: arrived_mask.bed3
+    label: the soft-mask this assembly ARRIVED with, as BED3 (EMPTY when strip_existing_mask)
 help:
   format: markdown
   content: |
-    Rewrites every sequence line in uppercase -- WHEN `strip_existing_mask` is true -- and leaves
-    header lines exactly as they were either way. ⚠ THE DEFAULT IS **false**, which passes the
-    sequence through byte-for-byte, so the workflow masks the assembly as it ARRIVED and matches
-    the classic `softmask.gxwf.yml`. Uppercasing is opt-in because discarding the arriving mask
-    changes alignment measurably; the parameter's own help carries the numbers.
+    Rewrites every sequence line in uppercase -- **always, in both modes** -- and leaves header
+    lines exactly as they were. `strip_existing_mask` no longer decides whether the sequence is
+    uppercased; it decides whether the mask the assembly ARRIVED with is carried forward, as
+    intervals, in the second output.
+
+    | `strip_existing_mask` | `output` | `arrived_mask` |
+    |---|---|---|
+    | false (default) | fully uppercase | the arriving soft-mask, as BED3 |
+    | true | fully uppercase | EMPTY |
+
+    ⚠ THE DEFAULT IS STILL **false**, and still means "keep what arrived" -- the classic
+    `softmask.gxwf.yml` behaviour -- because discarding the arriving mask changes alignment
+    measurably; the parameter's own help carries the numbers. What changed is HOW it is kept: as
+    a fifth arm of the union rather than as lower-case surviving in the sequence bytes.
 
     ⛔ **Why the workflow needs this as a SEPARATE step even though each masker already uppercases
     internally.** The maskers uppercase their own working copy, so the BED tracks are computed on
@@ -631,22 +774,25 @@ help:
 
     out["samtools_faidx.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-samtools-faidx
-version: "0.2.0"
+version: "0.3.0"
 name: samtools faidx (BRC UDT)
 description: Index a FASTA (.fai) and emit the chrom/length table bedtools wants as its genome file
 container: quay.io/biocontainers/samtools:1.24--h9dcdb79_1
 shell_command: |
   set -o pipefail
-""" + DECOMPRESS_ONLY + "    > seq.fa &&" + """
-  samtools faidx seq.fa &&
+  # ⛔ `set -e`: SOURCE_SELECT assigns SRC as a separate statement and an assignment always
+  # succeeds, so without errexit a truncated `gzip -cd` would leave SRC pointing at a short file
+  # and this would publish a chrom.sizes that looks complete. See SOURCE_SELECT.
+  set -e
+""" + SOURCE_SELECT + """  samtools faidx $SRC --fai-idx seq.fa.fai &&
   cut -f1,2 seq.fa.fai > chrom.sizes &&
   awk '{ line = $0; sub(/\\r$/, "", line) } line ~ /\\r/ {
       print "⛔ brc-samtools-faidx: a carriage return appears MID-LINE, so this FASTA has lone-CR (classic Mac) or mixed line endings." > "/dev/stderr"
       print "   samtools splits records on a newline exactly as this awk does, so a > that follows a bare CR is invisible to BOTH: the record is swallowed into its predecessor, whose length then covers it, and the record-count guard below sees MATCHING counts and passes." > "/dev/stderr"
       print "   Measured: a 3-record FASTA came out as a 2-row index with the second contig reported 18 bp long when it is 8, and the third absent entirely, exit 0." > "/dev/stderr"
       print "   chrom.sizes is the bedtools genome file WF-C runs on -- an over-long contig lets intervals past its real end survive, and a missing one makes every interval on it vanish. REFUSING; convert the line endings first." > "/dev/stderr"
-      exit 1 }' seq.fa &&
-  awk '/^>/ {n++} END {print n+0}' seq.fa > n_seq.txt &&
+      exit 1 }' $SRC &&
+  awk '/^>/ {n++} END {print n+0}' $SRC > n_seq.txt &&
   awk 'END {print NR+0}' seq.fa.fai > n_fai.txt &&
   awk 'NR == FNR {a = $1; next} {b = $1} END {
       if (a+0 == 0) {
@@ -726,13 +872,18 @@ help:
     awk_ano = read_helper("tools/fastan/ano2bed6.awk")
     out["fastan_gdb.gxtool.yml"] = HEADER + FASTAN_NOTE + """class: GalaxyUserTool
 id: brc-fastan-gdb
-version: "0.1.0"
+version: "0.2.0"
 name: FAtoGDB -> GDB tarball (BRC UDT)
 description: Convert a FASTA to a FastGA GDB, stage 1 of 3 for the fastan tandem-array track
 container: quay.io/biocontainers/fastga:1.5.20260729--h118bc1c_0
 shell_command: |
   set -o pipefail
-  cp '$(inputs.input.path)' up.fa &&
+  # ⛔ A SYMLINK, NOT A COPY, AND THE NAME IS THE WHOLE REASON THE LINK EXISTS. FAtoGDB refuses a
+  # path it cannot read an extension from -- handed Galaxy's `dataset_42.dat` it prints
+  # "Could not find valid extension of dataset_42.dat" and exits 1 -- so the `.fa` name is
+  # required. Copying to get it is not: measured, a symlink satisfies the extension check and
+  # FAtoGDB reads through it (rc=0, same gdb). The copy was a full extra genome per job.
+  ln -sf '$(inputs.input.path)' up.fa &&
   FAtoGDB up.fa gdb &&
   tar cf gdb.tar gdb.1gdb .gdb.bps
 inputs:
@@ -765,14 +916,16 @@ help:
 
     out["fastan_scan.gxtool.yml"] = HEADER + FASTAN_NOTE + """class: GalaxyUserTool
 id: brc-fastan-scan
-version: "0.1.0"
+version: "0.2.0"
 name: FasTAN tandem scan (BRC UDT)
 description: Find tandem arrays in a GDB, stage 2 of 3
 container: quay.io/biocontainers/fastan:0.8--h118bc1c_1
 shell_command: |
   set -o pipefail
-  cp '$(inputs.gdb.path)' gdb.tar &&
-  tar xf gdb.tar &&
+  # ⚠ No copy and no link: `tar` has no extension requirement, so it extracts straight from the
+  # dataset. (Measured: `tar xf <read-only dataset path>` then FasTAN, rc=0.) The GDB tarball is
+  # genome-sized, so the `cp` this replaces was the largest single write in the fastan arm.
+  tar xf '$(inputs.gdb.path)' &&
   FasTAN -m -p -T1 -oscan gdb
 inputs:
   - name: gdb
@@ -817,7 +970,7 @@ help:
 
     out["fastan_bed.gxtool.yml"] = HEADER + FASTAN_NOTE + f"""class: GalaxyUserTool
 id: brc-fastan-bed
-version: "0.1.0"
+version: "0.2.1"
 name: FasTAN .1ano -> BED6 (BRC UDT)
 description: Convert a FasTAN .1ano to a content-annotated BED6 via ONEview (NOT ANOtoBED), stage 3 of 3
 container: quay.io/biocontainers/fastga:1.5.20260729--h118bc1c_0
@@ -826,7 +979,12 @@ shell_command: |
 {indent(awk_ano)}
   BRC_AWK
   set -o pipefail
-  cp '$(inputs.ano.path)' scan.1ano &&
+  # ⚠ THE LINK'S NAME IS LOAD-BEARING, THOUGH THE COPY WAS NOT. ONEview reads a path with no
+  # recognised extension perfectly well, but it stamps the name it was GIVEN into the 1-code
+  # provenance line, so reading the raw dataset path would put a Galaxy object-store path into
+  # every output and change its bytes run to run. A symlink keeps the name -- and the output
+  # byte-identical to the copy it replaces -- for none of the I/O.
+  ln -sf '$(inputs.ano.path)' scan.1ano &&
   ONEview scan.1ano | awk -f ano2bed6.awk \\
     | LC_ALL=C sort -k1,1 -k2,2n > annotated.bed6
 inputs:
@@ -843,6 +1001,29 @@ outputs:
 help:
   format: markdown
   content: |
+    ⛔ **COLUMNS 4 AND 5 DO NOT MEAN THE SAME THING AS IN THE OTHER THREE TRACKS, AND NOTHING
+    ERRORS IF YOU MIX THEM.** The dustmasker, windowmasker and tantan BED6s go through
+    `lc_classify`, which names a SEQUENCE SIGNATURE and scores PURITY. This one comes straight from
+    `ano2bed6.awk`, which names the repeat UNIT LENGTH and scores DIVERGENCE:
+
+    | track | name (col 4) | score (col 5) |
+    |---|---|---|
+    | dustmasker / windowmasker / tantan | `polyA`, `(AT)n`, `lc` | purity x 1000 |
+    | fastan | `u65`, `u8` -- the unit LENGTH | 1000 - 10 x divergence |
+
+    Both scores are 0-1000 and higher-is-better, so a UCSC hub renders all four happily. But
+    anything that GROUPS BY NAME or COMPARES SCORES across tracks is mixing two vocabularies, and no
+    check in this repository would notice.
+
+    ⛔ **`lc_classify` IS ABSENT ON PURPOSE -- ADDING IT WOULD DESTROY INFORMATION.** It brute-forces
+    periods 1-6 only and returns `lc` for anything longer. MEASURED on 103,341 real fastan intervals
+    (ASM1303036v1): **75.9% have a unit longer than 6**, 65,084 of them 20 bp or more, median
+    interval 62 bp and longest 22,755. FASTAN *measures* the unit from its own tandem-array model
+    (the `L` record) and reports divergence (`X`); running lc_classify over that would fail on three
+    quarters of the intervals and overwrite a measured value with a guess. FASTAN is a tandem-array
+    finder, not a low-complexity masker -- it already knows what lc_classify guesses. The classic
+    `tools/fastan/fastan.xml` omits it for the same reason, so the two are in step.
+
     ⚠ **`set -o pipefail` is on, so any filter added to this pipeline needs its own guard.**
     There is no `grep` in this tool today -- the pipeline is
     `ONEview | awk -f ano2bed6.awk | sort` -- but a `grep -v` inserted later exits 1 when it
@@ -866,7 +1047,7 @@ help:
     mt = read_helper("tools/masking_table/masking_table.py")
     out["masking_row.gxtool.yml"] = HEADER + f"""class: GalaxyUserTool
 id: brc-masking-row
-version: "0.2.0"
+version: "0.3.0"
 name: masking table row (BRC UDT)
 description: One strain's percent-masked values, to be mapped over the genomecov collections
 container: quay.io/biocontainers/python:3.12
@@ -884,6 +1065,10 @@ shell_command: |
     --out full.tabular &&
   tail -n +2 full.tabular | cut -f2- > row.tabular
 inputs:
+  - name: arrived
+    type: data
+    format: tabular
+    label: genomecov of the ARRIVING mask (brc-fasta-uppercase's arrived_mask)
   - name: dustmasker
     type: data
     format: tabular
@@ -938,7 +1123,7 @@ help:
     # exactly the mislabeled-percentages failure that guard exists to prevent. One source now.
     out["masking_header.gxtool.yml"] = HEADER + """class: GalaxyUserTool
 id: brc-masking-header
-version: "0.1.0"
+version: "0.2.0"
 name: masking table header (BRC UDT)
 description: Prepend the Sample/masker header to the collapsed per-strain rows
 container: quay.io/biocontainers/python:3.12
@@ -979,7 +1164,7 @@ help:
     lc = read_helper("tools/dustmasker/lc_classify.py")
     out["lc_classify.gxtool.yml"] = HEADER + SPLIT_NOTE + f"""class: GalaxyUserTool
 id: brc-lc-classify
-version: "0.1.0"
+version: "0.2.2"
 name: lc_classify -> BED6 (BRC UDT)
 description: Annotate masked intervals with repeat-unit signature and purity, stage 2 of 2
 container: quay.io/biocontainers/python:3.12
@@ -995,7 +1180,8 @@ inputs:
     type: data
     format: fasta
     label: Uppercased FASTA
-    help: the `upper_fasta` output of the matching stage-1 masker, NOT the original assembly
+    help: the SAME FASTA the stage-1 masker read (the workflow's `uppercase/output`), so the
+      intervals index into it exactly -- NOT the original assembly
   - name: intervals
     type: data
     format: bed

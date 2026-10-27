@@ -17,12 +17,10 @@ python '$__tool_directory__/process_maf.py'
     '$output_maf'
     ]]></command>
     <inputs>
-        <param argument="ref_acc" type="text" label="Reference accession"
-               help="Accession prefix used in the s-line names, e.g. GCA_900093555.2. Blocks lacking this reference are dropped; the matching s-line is moved first in every kept block.">
+        <param argument="ref_acc" type="text" label="Reference accession" help="Accession prefix used in the s-line names, e.g. GCA_900093555.2. Blocks lacking this reference are dropped; the matching s-line is moved first in every kept block.">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
         </param>
-        <param name="input_maf" argument="in.maf" type="data" format="maf" label="Input MAF"
-               help="Multiple Alignment Format file. s-lines must already be accession-named (species.chrom)."/>
+        <param name="input_maf" argument="in.maf" type="data" format="maf" label="Input MAF" help="Multiple Alignment Format file. s-lines must already be accession-named (species.chrom)."/>
     </inputs>
     <outputs>
         <data name="output_maf" format="maf" label="${tool.name} on ${on_string}: reference-first MAF"/>

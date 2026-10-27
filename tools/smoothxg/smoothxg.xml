@@ -5,7 +5,7 @@
     </macros>
     <expand macro="requirements"/>
     <expand macro="stdio"/>
-    <version_command>smoothxg --version 2>&amp;1 | head -1</version_command>
+    <version_command>smoothxg --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 ln -sf '$gfa_in' input.gfa &&
 smoothxg
@@ -29,56 +29,34 @@ smoothxg
     $adaptive_poa_params
     ]]></command>
     <inputs>
-        <param argument="--gfa-in" type="data" format="gfa1" label="Input graph (GFA1)"
-               help="Typically from seqwish."/>
-        <param argument="--n-haps" type="integer" min="1" value="8"
-               label="Number of haplotypes (-r)"
-               help="Set to match the number of haplotypes in the source FASTA. For the Pv 8-strain build this is 8."/>
-        <param argument="--block-id-min" type="float" min="0.0" max="1.0" value="0.9"
-               label="Min block identity (-I)"
-               help="Minimum edit-based identity to cluster sequences into a block. pggb default 0.9."/>
-        <param argument="--path-jump-max" type="integer" min="0" value="100"
-               label="Max path jump (-j)"
-               help="Maximum path jump to include in a block."/>
-        <param argument="--edge-jump-max" type="integer" min="0" value="0"
-               label="Max edge jump (-e)"
-               help="Maximum edge jump before breaking. 0 disables."/>
-        <param argument="--poa-length-targets" type="text" value="700,900,1100"
-               label="POA target lengths (-l)"
-               help="Comma-separated POA target lengths; one smoothxg iteration is executed per length. pggb default is 700,900,1100.">
+        <param argument="--gfa-in" type="data" format="gfa1" label="Input graph (GFA1)" help="Typically from seqwish."/>
+        <param argument="--n-haps" type="integer" min="1" value="8" label="Number of haplotypes (-r)" help="Set to match the number of haplotypes in the source FASTA. For the Pv 8-strain build this is 8."/>
+        <param argument="--block-id-min" type="float" min="0.0" max="1.0" value="0.9" label="Min block identity (-I)" help="Minimum edit-based identity to cluster sequences into a block. pggb default 0.9."/>
+        <param argument="--path-jump-max" type="integer" min="0" value="100" label="Max path jump (-j)" help="Maximum path jump to include in a block."/>
+        <param argument="--edge-jump-max" type="integer" min="0" value="0" label="Max edge jump (-e)" help="Maximum edge jump before breaking. 0 disables."/>
+        <param argument="--poa-length-targets" type="text" value="700,900,1100" label="POA target lengths (-l)" help="Comma-separated POA target lengths; one smoothxg iteration is executed per length. pggb default is 700,900,1100.">
             <validator type="regex" message="Digits separated by commas">[0-9]+(,[0-9]+)*</validator>
         </param>
-        <param argument="--poa-params" type="text" value="1,19,39,3,81,1"
-               label="POA score parameters (-p)"
-               help="match,mismatch,gap1,ext1(,gap2,ext2). 4 values = affine, 6 = convex. pggb default 1,19,39,3,81,1.">
+        <param argument="--poa-params" type="text" value="1,19,39,3,81,1" label="POA score parameters (-p)" help="match,mismatch,gap1,ext1(,gap2,ext2). 4 values = affine, 6 = convex. pggb default 1,19,39,3,81,1.">
             <validator type="regex" message="Comma-separated integers">[0-9]+(,[0-9]+)+</validator>
         </param>
-        <param argument="--block-ratio-min" type="text" value=""
-               label="Min block ratio (-R, blank = off)"
-               help="Minimum small/large length ratio in a block.">
+        <param argument="--block-ratio-min" type="text" value="" label="Min block ratio (-R, blank = off)" help="Minimum small/large length ratio in a block.">
             <validator type="regex" message="Float or blank">([0-9]*\.?[0-9]+)?</validator>
         </param>
-        <param argument="--chop-to" type="text" value=""
-               label="Chop to length (-X, blank = default 100)"
-               help="During prep, chop nodes to this length.">
+        <param argument="--chop-to" type="text" value="" label="Chop to length (-X, blank = default 100)" help="During prep, chop nodes to this length.">
             <validator type="regex" message="Integer or blank">[0-9]*</validator>
         </param>
-        <param argument="--abpoa" type="boolean" truevalue="--abpoa" falsevalue=""
-               checked="false" label="Use abPOA instead of SPOA"/>
-        <param argument="--change-alignment-mode" type="boolean"
-               truevalue="--change-alignment-mode" falsevalue=""
-               checked="false" label="Change alignment mode to global"
-               help="Default is local."/>
-        <param argument="--adaptive-poa-params" type="boolean"
-               truevalue="--adaptive-poa-params" falsevalue=""
-               checked="false" label="Adaptive POA parameters"
-               help="Estimate POA scores from pairwise similarity in each block."/>
+        <param argument="--abpoa" type="boolean" truevalue="--abpoa" falsevalue="" checked="false" label="Use abPOA instead of SPOA"/>
+        <param argument="--change-alignment-mode" type="boolean" truevalue="--change-alignment-mode" falsevalue="" checked="false" label="Change alignment mode to global" help="Default is local."/>
+        <param argument="--adaptive-poa-params" type="boolean" truevalue="--adaptive-poa-params" falsevalue="" checked="false" label="Adaptive POA parameters" help="Estimate POA scores from pairwise similarity in each block."/>
     </inputs>
     <outputs>
         <data name="smoothed_out" format="gfa1" label="${tool.name} on ${on_string}: smoothed GFA"/>
     </outputs>
     <tests>
         <test expect_num_outputs="1">
+            <param name="change_alignment_mode" value="false"/>
+            <param name="abpoa" value="false"/>
             <param name="gfa_in" value="seqwish.gfa" ftype="gfa1"/>
             <param name="n_haps" value="3"/>
             <param name="block_id_min" value="0.5"/>
@@ -89,6 +67,10 @@ smoothxg
                     <has_line_matching expression="^S\t.+"/>
                 </assert_contents>
             </output>
+            <assert_command>
+                <not_has_text text="--change-alignment-mode"/>
+                <not_has_text text="--abpoa"/>
+            </assert_command>
         </test>
         <test expect_num_outputs="1">
             <param name="gfa_in" value="seqwish.gfa" ftype="gfa1"/>

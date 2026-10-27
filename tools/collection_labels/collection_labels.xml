@@ -4,9 +4,7 @@
 printf '%s\n' '$input.element_identifier' > '$label'
     ]]></command>
     <inputs>
-        <param name="input" type="data" format="data"
-               label="Collection to label"
-               help="Map this over a collection. Each job writes its element's identifier to a one-line dataset, so the output is a parallel collection carrying the names as DATA."/>
+        <param name="input" type="data" format="data" label="Collection to label" help="Map this over a collection. Each job writes its element's identifier to a one-line dataset, so the output is a parallel collection carrying the names as DATA."/>
     </inputs>
     <outputs>
         <data name="label" format="txt" label="${on_string}: ${input.element_identifier}"/>

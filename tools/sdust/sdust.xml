@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>sdust 2>&amp;1 | head -1</version_command>
+    <version_command>sdust 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $in_ext = 'fasta.gz' if str($input.ext) == 'fasta.gz' else 'fasta'
 ln -sf '$input' 'input.${in_ext}' &&
@@ -16,14 +16,9 @@ sdust
     > '$out_bed'
     ]]></command>
     <inputs>
-        <param name="input" type="data" format="fasta,fasta.gz" label="Input FASTA"
-               help="Nucleotide sequences, plain or gzipped. Low-complexity intervals are reported in BED."/>
-        <param argument="-w" name="window" type="integer" min="1" value="64"
-               label="Window size"
-               help="Width of the sliding window scored for low complexity (sdust default 64)."/>
-        <param argument="-t" name="threshold" type="integer" min="1" value="20"
-               label="Score threshold"
-               help="Minimum DUST score for an interval to be masked (sdust default 20). Higher = stricter; fewer regions masked."/>
+        <param name="input" type="data" format="fasta,fasta.gz" label="Input FASTA" help="Nucleotide sequences, plain or gzipped. Low-complexity intervals are reported in BED."/>
+        <param name="window" argument="-w" type="integer" min="1" value="64" label="Window size" help="Width of the sliding window scored for low complexity (sdust default 64)."/>
+        <param name="threshold" argument="-t" type="integer" min="1" value="20" label="Score threshold" help="Minimum DUST score for an interval to be masked (sdust default 20). Higher = stricter; fewer regions masked."/>
     </inputs>
     <outputs>
         <data name="out_bed" format="bed" label="${tool.name} on ${on_string}: low-complexity intervals (BED)"/>

@@ -67,19 +67,12 @@ done < order.txt &&
 cp "\$PREV" '$folded_maf'
     ]]></command>
     <inputs>
-        <param name="pairwise_mafs" type="data_collection" collection_type="list" format="maf"
-               label="Per-query pairwise MAFs for this hinge"
-               help="A 'list' collection of the hinge's pairwise alignments (hinge vs each query). The element identifier MUST be the query strain name and the hinge must be the reference (top) row in every block."/>
-        <param argument="--compare-csv" type="data" format="csv"
-               label="sourmash compare.csv similarity matrix"
-               help="N+1 row sourmash compare.csv (header of strain labels, then one similarity row per strain). Similarity is 1.0 = identical; fold order sorts DESCENDING (closest first)."/>
-        <param name="hinge_label" type="data" format="txt"
-               label="Hinge strain name (one-line dataset)"
-               help="A text dataset whose contents are the hinge strain name, e.g. a single line reading PvW1. It must appear as a label in compare.csv. This is a dataset rather than a text box so that a workflow mapping over the hinge dimension can supply one name per job -- Galaxy cannot route a map-over element identifier into a text parameter."/>
+        <param name="pairwise_mafs" type="data_collection" format="maf" label="Per-query pairwise MAFs for this hinge" help="A 'list' collection of the hinge's pairwise alignments (hinge vs each query). The element identifier MUST be the query strain name and the hinge must be the reference (top) row in every block." collection_type="list"/>
+        <param argument="--compare-csv" type="data" format="csv" label="sourmash compare.csv similarity matrix" help="N+1 row sourmash compare.csv (header of strain labels, then one similarity row per strain). Similarity is 1.0 = identical; fold order sorts DESCENDING (closest first)."/>
+        <param name="hinge_label" type="data" format="txt" label="Hinge strain name (one-line dataset)" help="A text dataset whose contents are the hinge strain name, e.g. a single line reading PvW1. It must appear as a label in compare.csv. This is a dataset rather than a text box so that a workflow mapping over the hinge dimension can supply one name per job -- Galaxy cannot route a map-over element identifier into a text parameter."/>
     </inputs>
     <outputs>
-        <data name="folded_maf" format="maf"
-              label="${tool.name} on ${on_string}: ${hinge_label.element_identifier}.multiz.maf"/>
+        <data name="folded_maf" format="maf" label="${tool.name} on ${on_string}: ${hinge_label.element_identifier}.multiz.maf"/>
     </outputs>
     <tests>
         <!-- 3-way fold: hinge H vs A and vs B; A closer than B by similarity. -->

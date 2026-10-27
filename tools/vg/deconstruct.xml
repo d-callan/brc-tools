@@ -7,7 +7,7 @@
         <xref type="bio.tools">vg</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>vg version 2>&amp;1 | head -1</version_command>
+    <version_command>vg version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #if str($graph.ext) in ('gfa1', 'gfa1.gz')
     ## vg deconstruct cannot read GFA directly; convert to vg first
@@ -40,34 +40,25 @@ vg deconstruct
     > '$output_vcf'
     ]]></command>
     <inputs>
-        <param argument="--graph" type="data" format="vg,xg,gfa1,gfa1.gz" label="Input graph"
-               help="Variation graph in any vg-readable format (vg/xg/GFA). PanSN-named paths recommended for -P prefix mode."/>
+        <param argument="--graph" type="data" format="vg,xg,gfa1,gfa1.gz" label="Input graph" help="Variation graph in any vg-readable format (vg/xg/GFA). PanSN-named paths recommended for -P prefix mode."/>
         <conditional name="ref_mode">
             <param name="mode" type="select" label="Reference selection">
                 <option value="path">Specific path name(s) (-p, comma-separated)</option>
                 <option value="prefix" selected="true">PanSN-style path prefix (-P, comma-separated)</option>
             </param>
             <when value="path">
-                <param argument="--path" type="text" value=""
-                       label="Reference path names"
-                       help="Comma-separated path names to deconstruct against, e.g. 'chr1,chr2'.">
+                <param argument="--path" type="text" value="" label="Reference path names" help="Comma-separated path names to deconstruct against, e.g. 'chr1,chr2'.">
                     <validator type="empty_field"/>
                 </param>
             </when>
             <when value="prefix">
-                <param argument="--path-prefix" type="text" value=""
-                       label="Reference path prefix(es)"
-                       help="Comma-separated PanSN prefixes, e.g. 'GCA_900093555.2' for the Pv PvP01 reference. All paths starting with this prefix are treated as reference.">
+                <param argument="--path-prefix" type="text" value="" label="Reference path prefix(es)" help="Comma-separated PanSN prefixes, e.g. 'GCA_900093555.2' for the Pv PvP01 reference. All paths starting with this prefix are treated as reference.">
                     <validator type="empty_field"/>
                 </param>
             </when>
         </conditional>
-        <param argument="--all-snarls" type="boolean" truevalue="--all-snarls" falsevalue=""
-               checked="false" label="Report all nested snarls (-a)"
-               help="By default only top-level snarls are reported."/>
-        <param argument="--contig-only-ref" type="boolean"
-               truevalue="--contig-only-ref" falsevalue="" checked="false"
-               label="Use CONTIG-only reference names (-C)"/>
+        <param argument="--all-snarls" type="boolean" truevalue="--all-snarls" falsevalue="" checked="false" label="Report all nested snarls (-a)" help="By default only top-level snarls are reported."/>
+        <param argument="--contig-only-ref" type="boolean" truevalue="--contig-only-ref" falsevalue="" checked="false" label="Use CONTIG-only reference names (-C)"/>
     </inputs>
     <outputs>
         <data name="output_vcf" format="vcf" label="${tool.name} on ${on_string}"/>

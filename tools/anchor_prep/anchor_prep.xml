@@ -7,7 +7,7 @@
     <required_files>
         <include path="build_anchor_inputs.py"/>
     </required_files>
-    <version_command>gffread --version 2>&amp;1 | head -1</version_command>
+    <version_command>gffread --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 ln -sf '$input' 'input.gff3' &&
 
@@ -20,8 +20,7 @@ python '$__tool_directory__/build_anchor_inputs.py'
     --out-isoforms '$isoforms'
     ]]></command>
     <inputs>
-        <param argument="--gff" name="input" type="data" format="gff3" label="Anchor annotation (GFF3)"
-               help="Chrom-reconciled GFF3 for one anchor species. Protein-coding genes (feature type 'protein_coding_gene' or 'gene') with mRNA + CDS children."/>
+        <param name="input" argument="--gff" type="data" format="gff3" label="Anchor annotation (GFF3)" help="Chrom-reconciled GFF3 for one anchor species. Protein-coding genes (feature type 'protein_coding_gene' or 'gene') with mRNA + CDS children."/>
     </inputs>
     <outputs>
         <data name="bed12" format="bed12" label="${tool.name} on ${on_string}: protein-coding BED12"/>

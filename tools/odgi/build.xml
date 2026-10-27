@@ -7,7 +7,7 @@
         <xref type="bio.tools">odgi</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>odgi version 2>&amp;1 | head -1</version_command>
+    <version_command>odgi version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 #set $in_ext = 'gfa.gz' if str($gfa.ext) == 'gfa1.gz' else 'gfa'
 ln -sf '$gfa' 'input.${in_ext}' &&
@@ -20,18 +20,18 @@ odgi build
     #if $to_gfa
         --to-gfa > '$gfa_output'
     #end if
+## ⛔ READ THE .og BACK. A succinct index truncated mid-write is still a plausible-looking
+## binary, still sniffs as the odgi datatype, and the job still reports ok -- it fails later,
+## in whatever queries it. `odgi stats` parses the index, so it either loads or it does not,
+## and odgi is already this tool's only requirement. Galaxy offers no declarative equivalent:
+## <assert_contents> lives inside <tests> and never runs on a production job.
+    && odgi stats --idx '$odgi_output' --summarize > /dev/null
     ]]></command>
     <inputs>
-        <param argument="--gfa" type="data" format="gfa1,gfa1.gz" label="Input GFA1"
-               help="GFA1 (smoothed/fixed graph from pggb)."/>
-        <param argument="--sort" type="boolean" truevalue="--sort" falsevalue=""
-               checked="false" label="Topological sort"
-               help="Apply generalized topological sort and reassign node IDs in order."/>
-        <param argument="--optimize" type="boolean" truevalue="--optimize" falsevalue=""
-               checked="false" label="Optimize node IDs after build"/>
-        <param argument="--to-gfa" type="boolean" truevalue="yes" falsevalue="no"
-               checked="false" label="Also output GFA"
-               help="Also emit a GFA1 export of the graph."/>
+        <param argument="--gfa" type="data" format="gfa1,gfa1.gz" label="Input GFA1" help="GFA1 (smoothed/fixed graph from pggb)."/>
+        <param argument="--sort" type="boolean" truevalue="--sort" falsevalue="" checked="false" label="Topological sort" help="Apply generalized topological sort and reassign node IDs in order."/>
+        <param argument="--optimize" type="boolean" truevalue="--optimize" falsevalue="" checked="false" label="Optimize node IDs after build"/>
+        <param argument="--to-gfa" type="boolean" truevalue="yes" falsevalue="" checked="false" label="Also output GFA" help="Also emit a GFA1 export of the graph."/>
     </inputs>
     <outputs>
         <data name="odgi_output" format="odgi" label="${tool.name} on ${on_string}: odgi .og"/>
@@ -40,12 +40,39 @@ odgi build
         </data>
     </outputs>
     <tests>
+        <!-- GFA export OFF (the default): one output. With falsevalue="no" the Cheetah
+             string was "no", which is truthy, so this command still appended the export and
+             its redirect while the filter told Galaxy not to create the dataset. -->
         <test expect_num_outputs="1">
             <param name="gfa" value="toy.gfa" ftype="gfa1"/>
             <param name="sort" value="true"/>
+            <param name="to_gfa" value="false"/>
+            <assert_command>
+                <not_has_text text="to-gfa"/>
+            </assert_command>
             <output name="odgi_output">
                 <assert_contents>
                     <has_size min="10"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- GFA export ON: the second dataset appears and the flag reaches the command. -->
+        <test expect_num_outputs="2">
+            <param name="sort" value="false"/>
+            <param name="gfa" value="toy.gfa" ftype="gfa1"/>
+            <param name="to_gfa" value="true"/>
+            <assert_command>
+                <not_has_text text="--sort"/>
+                <has_text text="to-gfa"/>
+            </assert_command>
+            <output name="odgi_output">
+                <assert_contents>
+                    <has_size min="10"/>
+                </assert_contents>
+            </output>
+            <output name="gfa_output">
+                <assert_contents>
+                    <has_text text="S"/>
                 </assert_contents>
             </output>
         </test>

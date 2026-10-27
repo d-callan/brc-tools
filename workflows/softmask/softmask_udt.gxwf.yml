@@ -67,70 +67,82 @@ outputs:
     doc: Per-strain .fai indexes for the soft-masked FASTAs.
   uppercased_fasta_index:
     outputSource: faidx_ref/output
-    doc: >-
-      .fai for `uppercased_fasta`. ⚠ With the DEFAULT `strip_arrived_mask: false` that FASTA is the
-      input passed through unchanged rather than an uppercased copy, so this indexes the arriving
-      sequence; the name describes the step, not a guarantee about case. Computed already -- `faidx_ref` exists to give `sort_bed` its
-      genome file -- and previously discarded, which the port checker flagged as a step output
-      nothing consumes. ⚠ UNLIKE WF-A's `fasta_index`, THESE BYTE OFFSETS ARE USABLE: uppercase
-      emits plain FASTA and brc-samtools-faidx only decompresses a gzipped input, so the indexed
-      bytes are the published bytes.
+    doc: '.fai for `uppercased_fasta`, which since brc-fasta-uppercase 0.4.0 IS fully uppercase in both
+      arms -- the name is a guarantee now, not just a description of the step. Computed already: `faidx_ref`
+      exists to give `sort_bed` its genome file, and this output was previously discarded, which the port
+      checker flagged as a step output nothing consumes. UNLIKE WF-A''s `fasta_index`, THESE BYTE OFFSETS
+      ARE USABLE: uppercase emits plain FASTA and brc-samtools-faidx only decompresses a gzipped input,
+      so the indexed bytes are the published bytes.'
   sizes:
     outputSource: faidx/sizes
-    doc: >-
-      Per-strain chrom/length tables (`chrom<TAB>length`), the bedtools genome file -- and the
-      collection WF-C takes as its `sizes` input.
+    doc: 'Per-strain chrom/length tables (`chrom<TAB>length`), the bedtools genome file -- and the collection
+      WF-C takes as its `sizes` input.
 
-      ⚠ DECLARED AS AN OUTPUT BECAUSE WF-C CANNOT COMPOSE WITHOUT IT. `brc-samtools-faidx` has
-      always emitted this beside the .fai, but it was not a workflow output, so a WF-B run left it
-      as an unlabelled step result in the history. Feeding WF-C then meant hunting a collection by
-      its rendered name ("chrom/length table") among two candidates that differ only in which faidx
-      step produced them -- done once by hand here, on run 19581fd094b2dfdd, which is exactly the
-      kind of step that is easy to get silently wrong. Lengths do not depend on masking, so this and
-      `faidx_ref/sizes` agree; this one is published because it is the index OF the FASTA WF-C
-      aligns.
+      ⚠ DECLARED AS AN OUTPUT BECAUSE WF-C CANNOT COMPOSE WITHOUT IT. `brc-samtools-faidx` has always
+      emitted this beside the .fai, but it was not a workflow output, so a WF-B run left it as an unlabelled
+      step result in the history. Feeding WF-C then meant hunting a collection by its rendered name ("chrom/length
+      table") among two candidates that differ only in which faidx step produced them -- done once by
+      hand here, on run 19581fd094b2dfdd, which is exactly the kind of step that is easy to get silently
+      wrong. Lengths do not depend on masking, so this and `faidx_ref/sizes` agree; this one is published
+      because it is the index OF the FASTA WF-C aligns.'
   dustmasker_bed:
     outputSource: dustmasker_classify/output
-    doc: dustmasker low-complexity BED6 (UCSC-hub track).
+    doc: 'dustmasker low-complexity BED6 (UCSC-hub track). ⚠ COLUMN VOCABULARY: name = sequence signature
+      (`polyA`, `(AT)n`, `lc`), score = purity x 1000, from `lc_classify`. The `fastan_bed` track uses
+      a DIFFERENT vocabulary -- see its doc -- so grouping by name or comparing scores across the four
+      tracks mixes two schemes and nothing errors.'
   windowmasker_bed:
     outputSource: windowmasker_classify/output
-    doc: windowmasker masked-interval BED6 (UCSC-hub track).
+    doc: 'windowmasker masked-interval BED6 (UCSC-hub track). ⚠ COLUMN VOCABULARY: name = sequence signature
+      (`polyA`, `(AT)n`, `lc`), score = purity x 1000, from `lc_classify`. The `fastan_bed` track uses
+      a DIFFERENT vocabulary -- see its doc -- so grouping by name or comparing scores across the four
+      tracks mixes two schemes and nothing errors.'
   tantan_bed:
     outputSource: tantan_classify/output
-    doc: tantan low-complexity BED6 (UCSC-hub track).
+    doc: 'tantan low-complexity BED6 (UCSC-hub track). ⚠ COLUMN VOCABULARY: name = sequence signature
+      (`polyA`, `(AT)n`, `lc`), score = purity x 1000, from `lc_classify`. The `fastan_bed` track uses
+      a DIFFERENT vocabulary -- see its doc -- so grouping by name or comparing scores across the four
+      tracks mixes two schemes and nothing errors.'
   fastan_bed:
     outputSource: fastan_bed/output
-    doc: fastan tandem-array BED6 (UCSC-hub track).
+    doc: 'fastan tandem-array BED6 (UCSC-hub track). ⛔ ITS COLUMNS 4 AND 5 DO NOT MATCH THE OTHER THREE
+      TRACKS: name is the repeat UNIT LENGTH (`u65`, `u8`) and score is 1000 - 10 x divergence, straight
+      from `ano2bed6.awk`, where dustmasker/windowmasker/tantan give a sequence signature and purity x
+      1000 from `lc_classify`. Both are 0-1000 and higher-is-better, so a UCSC hub renders all four happily
+      and no check here would notice the mix. ⛔ `lc_classify` is absent ON PURPOSE: it searches periods
+      1-6 only, and measured on 103,341 real intervals (ASM1303036v1) 75.9% have a unit longer than 6
+      -- 65,084 of them 20 bp or more. FASTAN measures the unit from its own tandem-array model; classifying
+      it would overwrite a measured value with a guess on three quarters of the intervals. The classic
+      tools/fastan/fastan.xml omits it too.'
   mask_union:
     outputSource: merge_bed/output
-    doc: >-
-      The merged union of all four maskers -- the mask itself, as intervals. Published because it is
-      what makes `softmasked_fasta` CHECKABLE. ⚠ HOW CHECKABLE DEPENDS ON `strip_arrived_mask`.
-      With it TRUE, the published FASTA's lowercase count must EQUAL this union exactly. With the
-      DEFAULT false the FASTA carries the submitter's mask as well, so the union is a SUBSET of its
-      lowercase bases and only the other direction holds -- everything computed must be applied.
-      `scripts/verify_softmask_outputs.py` checks whichever of the two applies, inferring the mode
-      from the uppercase step's own output rather than being told.
+    doc: 'The merged union of the four maskers AND the mask the assembly arrived with -- the published
+      mask itself, as intervals. Published because it makes `softmasked_fasta` CHECKABLE, and since brc-fasta-uppercase
+      0.4.0 that check is UNCONDITIONAL: the published FASTA''s lower-case must EQUAL this union exactly,
+      in both arms of `strip_arrived_mask`. It used to depend on the mode -- with the default false the
+      arriving mask reached the FASTA by surviving in the sequence bytes, so this union was a strict SUBSET
+      of its lower-case and only ''everything computed is applied'' could be asserted, with scripts/verify_softmask_outputs.py
+      inferring the mode to know which half it was allowed to check. The arriving mask is a fifth arm
+      of the union now, so both directions hold. Its contribution is reported separately in the `arrived`
+      column of `masking_table`, so the union stays decomposable rather than silently absorbing it.'
   masking_table:
     outputSource: masking_header/output
-    doc: >-
-      Sample x masker table of % genome masked, one row per strain. Reassembled from the per-strain
+    doc: Sample x masker table of % genome masked, one row per strain. Reassembled from the per-strain
       rows rather than produced in one job -- see `masking_row`.
   masking_report:
     outputSource: masking_multiqc/html_report
     doc: MultiQC report rendering the masking table (custom content, table).
   uppercased_fasta:
     outputSource: uppercase/output
-    doc: >-
-      The uppercased assemblies every masker and `maskfasta` actually saw. Published so the mask can
-      be verified against the sequence it was applied to rather than against the original, which may
-      have arrived carrying a mask of its own (PvP01 in this repo's own captured WF-B run does exactly
-      that -- invocation 75ed0631e40c6c7b, workflows/examples/wf_b_examples.json: its 880-base input
-      peek is 75.9% lower-case, the same peek of the published maskfasta output is 91.6%, and
-      comparing the two position by position gives 0 reverted and 138 newly masked. That run's own
-      masking_table puts WF-B's union for PvP01 at 39.01% genome-wide, so the FASTA it published
-      carried mostly the mask the assembly arrived with).
-
+    doc: 'The uppercased assemblies every masker and `maskfasta` actually saw -- fully uppercase in BOTH
+      arms of `strip_arrived_mask` since brc-fasta-uppercase 0.4.0, so the name is a guarantee rather
+      than a description of the step. Published so the mask can be verified against the sequence it was
+      applied to rather than against the original, which may have arrived carrying a mask of its own.
+      PvP01 in this repo''s captured WF-B run does exactly that -- invocation 75ed0631e40c6c7b, workflows/examples/wf_b_examples.json:
+      its 880-base input peek is 75.9% lower-case, the same peek of the published maskfasta output is
+      91.6%, and comparing the two position by position gives 0 reverted and 138 newly masked. That run
+      PREDATES this change, so its arriving mask is invisible to its own BED outputs; a run of the current
+      workflow records the same mask in `arrived_mask` and in the `arrived` column instead.'
 steps:
   # ---- strip any pre-existing mask ---------------------------------------------------------
   uppercase:
@@ -195,7 +207,10 @@ steps:
     position: {top: 240, left: 980}
     doc: Annotate the DUST intervals with repeat-unit signature and purity -> BED6.
     in:
-      fasta: dustmasker_bed3/upper_fasta
+      # ⛔ THE SAME DATASET THE MASKER READ, BY REFERENCE. The masker used to emit its own
+      # uppercased copy for this input; three copies of every genome (~530 GiB measured on
+      # invocation 40e6358d13bff69c) derived by repeating a transformation already done here.
+      fasta: uppercase/output
       intervals: dustmasker_bed3/intervals
 
   # ---- windowmasker -----------------------------------------------------------------------
@@ -220,7 +235,10 @@ steps:
         action_arguments: {tags: WindowMasker}
     position: {top: 460, left: 980}
     in:
-      fasta: windowmasker_bed3/upper_fasta
+      # ⛔ THE SAME DATASET THE MASKER READ, BY REFERENCE. The masker used to emit its own
+      # uppercased copy for this input; three copies of every genome (~530 GiB measured on
+      # invocation 40e6358d13bff69c) derived by repeating a transformation already done here.
+      fasta: uppercase/output
       intervals: windowmasker_bed3/intervals
 
   # ---- tantan -----------------------------------------------------------------------------
@@ -245,7 +263,10 @@ steps:
         action_arguments: {tags: TanTan}
     position: {top: 680, left: 980}
     in:
-      fasta: tantan_bed3/upper_fasta
+      # ⛔ THE SAME DATASET THE MASKER READ, BY REFERENCE. The masker used to emit its own
+      # uppercased copy for this input; three copies of every genome (~530 GiB measured on
+      # invocation 40e6358d13bff69c) derived by repeating a transformation already done here.
+      fasta: uppercase/output
       intervals: tantan_bed3/intervals
 
   # ---- fastan (three stages: two conda packages, one container each) --------------------------
@@ -292,14 +313,28 @@ steps:
     tool_id: cat1
     label: union_cat
     position: {top: 460, left: 1660}
-    doc: Concatenate the four per-strain BED6 sets (zipped by element identifier) before merge.
+    doc: >-
+      Concatenate the four per-strain BED6 sets AND the mask the assembly arrived with, zipped by
+      element identifier, before merge.
+    # ⛔ THE FIFTH ARM IS WHY `uppercase` CAN UPPERCASE UNCONDITIONALLY. The arriving mask used to
+    # reach the published FASTA by surviving in the sequence BYTES, which made it invisible to every
+    # BED here and made `mask_union` a strict SUBSET of the published lower-case. It is intervals
+    # like any other masker now, and brc-fasta-uppercase emits it EMPTY when strip_arrived_mask is
+    # true -- so this connection is unconditional and the flag still reaches exactly one node.
+    #
+    # ⚠ EVERY ARM NEEDS ITS OWN `queries` ENTRY BELOW. A repeat connection with no matching repeat
+    # instance in tool_state is dropped SILENTLY: the job runs green and the arm is simply absent.
+    # Four `queries_N|input2` connections, four ConnectedValue entries. Count them.
     in:
       input1: dustmasker_classify/output
       queries_0|input2: windowmasker_classify/output
       queries_1|input2: tantan_classify/output
       queries_2|input2: fastan_bed/output
+      queries_3|input2: uppercase/arrived_mask
     state:
       queries:
+        - input2:
+            __class__: ConnectedValue
         - input2:
             __class__: ConnectedValue
         - input2:
@@ -460,6 +495,27 @@ steps:
       dz: false
       five: false
       three: false
+  # ---- coverage of the ARRIVING mask, so `union` stays decomposable ------------------------
+  gcov_arrived:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/bedtools/bedtools_genomecoveragebed/2.31.1
+    label: gcov_arrived
+    position: {top: 1360, left: 2580}
+    doc: >-
+      Coverage of the mask the assembly arrived with. Without this the `union` figure would
+      silently absorb a contribution no column accounts for.
+    in:
+      input_type|input: uppercase/arrived_mask
+      input_type|genome_file_opts|genome: faidx_ref/sizes
+    state:
+      input_type:
+        input_type_select: bed
+        genome_file_opts:
+          genome_file_opts_selector: hist
+      report:
+        report_select: hist
+        max: 1
+      split: false
+      strand: ''
   gcov_fastan:
     tool_id: toolshed.g2.bx.psu.edu/repos/iuc/bedtools/bedtools_genomecoveragebed/2.31.1
     label: gcov_fastan
@@ -521,6 +577,7 @@ steps:
       emits only the numbers and `collapse_rows` supplies the Sample column from Galaxy's own
       element identifiers.
     in:
+      arrived: gcov_arrived/output
       dustmasker: gcov_dust/output
       windowmasker: gcov_window/output
       tantan: gcov_tantan/output

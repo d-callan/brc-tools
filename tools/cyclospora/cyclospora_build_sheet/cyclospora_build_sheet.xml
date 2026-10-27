@@ -1,4 +1,3 @@
-<?xml version="1.0"?>
 <tool id="cyclospora_build_sheet" name="Cyclospora HDS sheet" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="@PROFILE@">
     <description>collect per-specimen Cyclospora haplotype calls into one CDC wide sheet</description>
     <macros>
@@ -36,19 +35,10 @@ $drop_novel
 #end if
     ]]></command>
     <inputs>
-        <param name="calls" type="data_collection" collection_type="list" format="tabular"
-               label="Per-specimen haplotype call TSVs"
-               help="A 'list' collection of caller output: the long TSV from Cyclospora PART haplotypes, the TSV from Cyclospora Mt-Junction, or both for the same specimens. The file TYPE is detected from its header, never from its name. The specimen id comes from the file's own 'specimen' column when there is one, and otherwise from the element identifier - so name elements after the specimen, and run the junction caller with its 'Emit specimen column' option on."/>
-        <param argument="--specimens" name="specimens" type="data" format="txt,tabular" optional="true"
-               label="Specimen list (optional)"
-               help="One specimen id per line. Fixes the row order and, crucially, FORCES a row for a specimen that produced no calls at all - which is how a whole-specimen failure enters the sheet as an all-empty row rather than vanishing. Without it, rows are the specimens actually seen, sorted. Ids present in the collection but absent from this list are dropped with a warning on stderr."/>
-        <param argument="--drop-novel" name="drop_novel" type="boolean" checked="false"
-               truevalue="--drop-novel" falsevalue=""
-               label="Keep only named reference haplotypes"
-               help="Discard haplotypes that did not match a named reference (the '&lt;PART&gt;_NOV_&lt;md5&gt;' and junction NOVEL columns). Off by default: novel haplotypes carry real discriminating signal, and the pre-registered analysis keeps them. Turning this on reproduces the 'knownonly' sheets."/>
-        <param name="emit_summary" type="boolean" checked="false" truevalue="yes" falsevalue=""
-               label="Also emit the per-specimen audit table"
-               help="Per specimen: how many haplotypes, how many locus blocks were called, and which came out empty. The sheet format cannot distinguish 'amplicon dropped out' from 'locus was called but no haplotype cleared the gates' - both are an empty block. This table is what makes that auditable."/>
+        <param name="calls" type="data_collection" format="tabular" label="Per-specimen haplotype call TSVs" help="A 'list' collection of caller output: the long TSV from Cyclospora PART haplotypes, the TSV from Cyclospora Mt-Junction, or both for the same specimens. The file TYPE is detected from its header, never from its name. The specimen id comes from the file's own 'specimen' column when there is one, and otherwise from the element identifier - so name elements after the specimen, and run the junction caller with its 'Emit specimen column' option on." collection_type="list"/>
+        <param argument="--specimens" type="data" format="txt,tabular" optional="true" label="Specimen list (optional)" help="One specimen id per line. Fixes the row order and, crucially, FORCES a row for a specimen that produced no calls at all - which is how a whole-specimen failure enters the sheet as an all-empty row rather than vanishing. Without it, rows are the specimens actually seen, sorted. Ids present in the collection but absent from this list are dropped with a warning on stderr."/>
+        <param argument="--drop-novel" type="boolean" truevalue="--drop-novel" falsevalue="" checked="false" label="Keep only named reference haplotypes" help="Discard haplotypes that did not match a named reference (the '&lt;PART&gt;_NOV_&lt;md5&gt;' and junction NOVEL columns). Off by default: novel haplotypes carry real discriminating signal, and the pre-registered analysis keeps them. Turning this on reproduces the 'knownonly' sheets."/>
+        <param name="emit_summary" type="boolean" truevalue="yes" falsevalue="" checked="false" label="Also emit the per-specimen audit table" help="Per specimen: how many haplotypes, how many locus blocks were called, and which came out empty. The sheet format cannot distinguish 'amplicon dropped out' from 'locus was called but no haplotype cleared the gates' - both are an empty block. This table is what makes that auditable."/>
     </inputs>
     <outputs>
         <data name="sheet" format="tabular" label="${tool.name} on ${on_string}: CDC HDS sheet"/>
@@ -60,6 +50,8 @@ $drop_novel
         <!-- 1. One specimen, both caller types. Exercises both header parsers and
              the union of a PART call with a junction call in one row. -->
         <test expect_num_outputs="1">
+            <param name="emit_summary" value="false"/>
+            <param name="drop_novel" value="false"/>
             <param name="calls">
                 <collection type="list">
                     <element name="TEST_parts" value="calls_parts.tsv" ftype="tabular"/>
@@ -67,6 +59,10 @@ $drop_novel
                 </collection>
             </param>
             <output name="sheet" file="expected_sheet.tabular" ftype="tabular" compare="diff"/>
+            <assert_command>
+                <not_has_text text="--summary"/>
+                <not_has_text text="--drop-novel"/>
+            </assert_command>
         </test>
         <!-- 2. The same calls plus a specimen list naming a specimen with no calls.
              TEST_DROPOUT must appear as a row of empty cells: an entirely empty

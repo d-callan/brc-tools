@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>seqwish --version 2>&amp;1 | head -1</version_command>
+    <version_command>seqwish --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 seqwish
     --paf-alns='$paf_alns'
@@ -23,25 +23,14 @@ seqwish
     --threads=\${GALAXY_SLOTS:-1}
     ]]></command>
     <inputs>
-        <param argument="--paf-alns" type="data" format="paf" label="PAF alignments"
-               help="All-vs-all PAF mappings (typically from wfmash). The graph is induced from these."/>
-        <param argument="--seqs" type="data"
-               format="fasta,fasta.gz,fastqsanger,fastqsanger.gz" multiple="true"
-               label="Source sequences"
-               help="The FASTA(s)/FASTQ(s) referenced in the PAF query/target names."/>
-        <param argument="--match-list" type="data" format="txt,tabular" optional="true"
-               label="Subset PAF list (-m)" help="Restrict transitive closure to the alignments listed in this file."/>
-        <param argument="--repeat-max" type="text" value=""
-               label="Max copies per input base (-r, blank = unlimited)"
-               help="Cap the transitive closure at N copies of any input base. Tames runaway repeats.">
+        <param argument="--paf-alns" type="data" format="paf" label="PAF alignments" help="All-vs-all PAF mappings (typically from wfmash). The graph is induced from these."/>
+        <param argument="--seqs" type="data" format="fasta,fasta.gz,fastqsanger,fastqsanger.gz" label="Source sequences" help="The FASTA(s)/FASTQ(s) referenced in the PAF query/target names." multiple="true"/>
+        <param argument="--match-list" type="data" format="txt,tabular" optional="true" label="Subset PAF list (-m)" help="Restrict transitive closure to the alignments listed in this file."/>
+        <param argument="--repeat-max" type="text" value="" label="Max copies per input base (-r, blank = unlimited)" help="Cap the transitive closure at N copies of any input base. Tames runaway repeats.">
             <validator type="regex" message="Integer or blank">[0-9]*</validator>
         </param>
-        <param argument="--min-match-len" type="integer" min="0" value="23"
-               label="Min match length (-k)"
-               help="Filter exact matches below this length before induction. 23 is the pggb default; lower values give a finer-grained graph at the cost of complexity."/>
-        <param argument="--transclose-batch" type="text" value=""
-               label="Transitive-closure batch size (bp) (-B, blank = default)"
-               help="Number of base pairs per transitive-closure batch. Higher = more memory, faster.">
+        <param argument="--min-match-len" type="integer" min="0" value="23" label="Min match length (-k)" help="Filter exact matches below this length before induction. 23 is the pggb default; lower values give a finer-grained graph at the cost of complexity."/>
+        <param argument="--transclose-batch" type="text" value="" label="Transitive-closure batch size (bp) (-B, blank = default)" help="Number of base pairs per transitive-closure batch. Higher = more memory, faster.">
             <validator type="regex" message="Integer or blank">[0-9]*</validator>
         </param>
     </inputs>

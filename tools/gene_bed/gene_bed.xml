@@ -14,8 +14,7 @@ python '$__tool_directory__/gene_bed.py'
     --output '$output'
     ]]></command>
     <inputs>
-        <param argument="--input" type="data" format="gff3,gff" label="Native GFF3 annotation"
-               help="One strain's native gene annotation. Gene rows are selected by feature type (gene, protein_coding_gene, ncRNA_gene, pseudogene) and the ID attribute is parsed for the gene name."/>
+        <param argument="--input" type="data" format="gff3,gff" label="Native GFF3 annotation" help="One strain's native gene annotation. Gene rows are selected by feature type (gene, protein_coding_gene, ncRNA_gene, pseudogene) and the ID attribute is parsed for the gene name."/>
     </inputs>
     <outputs>
         <data name="output" format="bed" label="${tool.name} on ${on_string}: gene.bed"/>

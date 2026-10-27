@@ -4,7 +4,7 @@
         <import>macros.xml</import>
     </macros>
     <expand macro="requirements"/>
-    <version_command>iqtree3 --version 2>&amp;1 | head -1</version_command>
+    <version_command>iqtree3 --version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 ln -sf '$alignment' 'aln.fa' &&
 
@@ -23,23 +23,21 @@ iqtree3
     --prefix out
     ]]></command>
     <inputs>
-        <param name="alignment" type="data" format="fasta" label="Sequence alignment"
-               help="A codon or protein multiple-sequence alignment in aligned FASTA format."/>
-        <param name="bootstrap" type="boolean" truevalue="yes" falsevalue="no" checked="true"
-               label="Ultrafast bootstrap (-B 1000)"
-               help="Run 1000 ultrafast bootstrap replicates. Automatically skipped when the alignment has fewer than 4 distinct sequences (UFBoot hangs below this threshold)."/>
+        <param name="alignment" type="data" format="fasta" label="Sequence alignment" help="A codon or protein multiple-sequence alignment in aligned FASTA format."/>
+        <param name="bootstrap" type="boolean" truevalue="yes" falsevalue="" checked="true" label="Ultrafast bootstrap (-B 1000)" help="Run 1000 ultrafast bootstrap replicates. Automatically skipped when the alignment has fewer than 4 distinct sequences (UFBoot hangs below this threshold)."/>
     </inputs>
     <outputs>
-        <data name="treefile" format="nhx" from_work_dir="out.treefile"
-              label="${tool.name} on ${on_string}: ML tree (Newick)"/>
-        <data name="iqtree_report" format="txt" from_work_dir="out.iqtree"
-              label="${tool.name} on ${on_string}: report"/>
+        <data name="treefile" format="nhx" from_work_dir="out.treefile" label="${tool.name} on ${on_string}: ML tree (Newick)"/>
+        <data name="iqtree_report" format="txt" from_work_dir="out.iqtree" label="${tool.name} on ${on_string}: report"/>
     </outputs>
     <tests>
         <!-- >=4 distinct sequences: UFBoot runs, treefile is valid Newick -->
         <test expect_num_outputs="2">
             <param name="alignment" value="four_seqs.fasta" ftype="fasta"/>
             <param name="bootstrap" value="true"/>
+            <assert_command>
+                <has_text text="-B 1000"/>
+            </assert_command>
             <output name="treefile">
                 <assert_contents>
                     <has_text text="("/>
@@ -56,6 +54,23 @@ iqtree3
         <test expect_num_outputs="2">
             <param name="alignment" value="three_seqs.fasta" ftype="fasta"/>
             <param name="bootstrap" value="true"/>
+            <output name="treefile">
+                <assert_contents>
+                    <has_text text="("/>
+                    <has_text text=";"/>
+                </assert_contents>
+            </output>
+        </test>
+        <!-- Bootstrap OFF. This asserts on the COMMAND rather than the tree, because the
+             defect it pins is a templating one: with falsevalue="no" the rendered Cheetah
+             string was "no", which is truthy, so -B 1000 was emitted here too and the box
+             did nothing. Both branches of every boolean need a test for exactly this reason. -->
+        <test expect_num_outputs="2">
+            <param name="alignment" value="four_seqs.fasta" ftype="fasta"/>
+            <param name="bootstrap" value="false"/>
+            <assert_command>
+                <not_has_text text="-B 1000"/>
+            </assert_command>
             <output name="treefile">
                 <assert_contents>
                     <has_text text="("/>

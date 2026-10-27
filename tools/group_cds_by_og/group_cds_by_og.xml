@@ -36,25 +36,15 @@ python '$__tool_directory__/group_cds_by_og.py'
     --log-level INFO
     ]]></command>
     <inputs>
-        <param argument="--ortho" type="data" format="tabular" label="Ortholog table (TSV)"
-               help="ortholog_table.tsv from the consensus step. Must have an orthogroup_id column and one column per strain (header = strain name) holding gene IDs or '-'."/>
-        <param argument="--ref-name" type="text" value="REF" label="Reference strain name"
-               help="Must match the reference column header in the ortholog table.">
+        <param argument="--ortho" type="data" format="tabular" label="Ortholog table (TSV)" help="ortholog_table.tsv from the consensus step. Must have an orthogroup_id column and one column per strain (header = strain name) holding gene IDs or '-'."/>
+        <param argument="--ref-name" type="text" value="REF" label="Reference strain name" help="Must match the reference column header in the ortholog table.">
             <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
         </param>
-        <param argument="--ref-gff" type="data" format="gff3,gff" label="Reference GFF3"
-               help="The reference strain's own fixed GFF3. CDS features are read for the reference gene models."/>
-        <param argument="--ref-fasta" type="data" format="fasta" label="Reference softmasked FASTA"
-               help="The reference (softmasked) genome. Seqids must match the GFF chrom column."/>
-        <param name="query_gff" type="data_collection" collection_type="list" format="gff3,gff"
-               label="Per-query merged GFF3 collection"
-               help="A 'list' collection of per-query merged annotation GFF3s; element identifier = strain name (must match the ortholog-table column and the FASTA collection)."/>
-        <param name="query_fasta" type="data_collection" collection_type="list" format="fasta"
-               label="Per-query softmasked FASTA collection"
-               help="A 'list' collection of per-query softmasked FASTAs; element identifier = strain name (parallel to the GFF collection)."/>
-        <param argument="--min-intact" type="integer" value="2" min="1"
-               label="Minimum intact query members per orthogroup"
-               help="Only orthogroups with at least this many intact QUERY members (queries with an extractable CDS; the reference is not counted) are emitted. Matches v3 build_msa.py semantics."/>
+        <param argument="--ref-gff" type="data" format="gff3,gff" label="Reference GFF3" help="The reference strain's own fixed GFF3. CDS features are read for the reference gene models."/>
+        <param argument="--ref-fasta" type="data" format="fasta" label="Reference softmasked FASTA" help="The reference (softmasked) genome. Seqids must match the GFF chrom column."/>
+        <param name="query_gff" type="data_collection" format="gff3,gff" label="Per-query merged GFF3 collection" help="A 'list' collection of per-query merged annotation GFF3s; element identifier = strain name (must match the ortholog-table column and the FASTA collection)." collection_type="list"/>
+        <param name="query_fasta" type="data_collection" format="fasta" label="Per-query softmasked FASTA collection" help="A 'list' collection of per-query softmasked FASTAs; element identifier = strain name (parallel to the GFF collection)." collection_type="list"/>
+        <param argument="--min-intact" type="integer" min="1" value="2" label="Minimum intact query members per orthogroup" help="Only orthogroups with at least this many intact QUERY members (queries with an extractable CDS; the reference is not counted) are emitted. Matches v3 build_msa.py semantics."/>
     </inputs>
     <outputs>
         <collection name="cds" type="list" label="${tool.name} on ${on_string}: CDS per orthogroup">

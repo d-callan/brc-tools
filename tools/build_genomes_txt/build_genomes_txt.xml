@@ -14,8 +14,7 @@ python '$__tool_directory__/build_genomes_txt.py'
     --output '$output'
     ]]></command>
     <inputs>
-        <param argument="--metadata" type="data" format="tabular" label="Per-assembly metadata table"
-               help="TSV with a header row. Required columns: accession, defaultPos (chrom:start-end), organism, scientificName, description. Optional columns override the derived paths: twoBitPath, trackDb, groups, htmlPath."/>
+        <param argument="--metadata" type="data" format="tabular" label="Per-assembly metadata table" help="TSV with a header row. Required columns: accession, defaultPos (chrom:start-end), organism, scientificName, description. Optional columns override the derived paths: twoBitPath, trackDb, groups, htmlPath."/>
     </inputs>
     <outputs>
         <data name="output" format="txt" label="${tool.name} on ${on_string}: genomes.txt"/>

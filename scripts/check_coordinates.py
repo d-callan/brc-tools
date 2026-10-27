@@ -26,7 +26,7 @@ a planted expectation with a tolerance, which cannot see an off-by-one -- an ans
 produces by a different route:
 
     dustmasker/windowmasker   BED3   vs   the lowercase runs of its own `-outfmt fasta`
-    tantan                    BED3   vs   the lowercase runs of its own masked FASTA
+    tantan                    `-f3` BED3  vs  the lowercase runs of its own masked FASTA
     fastan                    BED6   vs   the `M` records of its own .1ano, read with ONEview
 
 Each pair must agree EXACTLY, AND ON A NON-EMPTY ANSWER. A one-base shift fails, a 3 kb shift
@@ -110,10 +110,17 @@ def case_ncbi_masker(tool, image, wd):
 
 
 def case_tantan(_tool, image, wd):
-    """tantan: BED3 from lc2bed.awk vs the lowercase runs of tantan's own output."""
+    """tantan: its own `-f3` BED vs the lowercase runs of its own masked FASTA.
+
+    ⛔ THIS CASE USED TO BE THE WEAK KIND, AND `-f3` IS WHAT FIXED IT. It ran
+    `tantan in.fa > lc.fa` and then compared `lc2bed.awk lc.fa` against `lowercase_runs(lc.fa)` --
+    both sides derived from the SAME bytes, so it could only ever catch a bug that our awk had and
+    the Python reader did not. `case_ncbi_masker`'s docstring names that as the form to avoid.
+    tantan emits BED directly, so the two sides now come from two different WRITERS inside tantan:
+    an off-by-one in either one fails here, which is what this file exists for.
+    """
     synthetic(wd / "in.fa")
-    (wd / "lc2bed.awk").write_text((ROOT / "tools/tantan/lc2bed.awk").read_text())
-    rc, _, err = run(image, "tantan in.fa > lc.fa && awk -f lc2bed.awk lc.fa > out.bed3", wd)
+    rc, _, err = run(image, "tantan in.fa > lc.fa && tantan -f3 in.fa > out.bed3", wd)
     if rc != 0:
         return None, f"the tool itself failed (rc={rc}): {err.strip().splitlines()[-1:]}"
     bed = [(int(a), int(b)) for a, b in

@@ -11,14 +11,16 @@
 # publication gap rather than for an unknowable hash.
 class: GalaxyUserTool
 id: brc-fastan-scan
-version: "0.1.0"
+version: "0.2.0"
 name: FasTAN tandem scan (BRC UDT)
 description: Find tandem arrays in a GDB, stage 2 of 3
 container: quay.io/biocontainers/fastan:0.8--h118bc1c_1
 shell_command: |
   set -o pipefail
-  cp '$(inputs.gdb.path)' gdb.tar &&
-  tar xf gdb.tar &&
+  # ⚠ No copy and no link: `tar` has no extension requirement, so it extracts straight from the
+  # dataset. (Measured: `tar xf <read-only dataset path>` then FasTAN, rc=0.) The GDB tarball is
+  # genome-sized, so the `cp` this replaces was the largest single write in the fastan arm.
+  tar xf '$(inputs.gdb.path)' &&
   FasTAN -m -p -T1 -oscan gdb
 inputs:
   - name: gdb

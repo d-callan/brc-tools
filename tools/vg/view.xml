@@ -7,7 +7,7 @@
         <xref type="bio.tools">vg</xref>
     </xrefs>
     <expand macro="requirements"/>
-    <version_command>vg version 2>&amp;1 | head -1</version_command>
+    <version_command>vg version 2&gt;&amp;1 | head -1</version_command>
     <command detect_errors="aggressive"><![CDATA[
 vg view
     $input_format.input_format_selector
