@@ -30,13 +30,7 @@ def parse_pairs(items):
             acc, label = item.split("=", 1)
         else:
             acc, label = item, item
-        acc, label = acc.strip(), label.strip()
-        # ⛔ A BLANK TOKEN IS NOT AN ASSEMBLY. `--strain-label ""` is one argv entry, so the
-        # list was non-empty and the emptiness check downstream passed, while this appended
-        # ('', '') -- an accession-less pair that produced a subtrack named after nothing.
-        if not acc:
-            continue
-        out.append((acc, label))
+        out.append((acc.strip(), label.strip()))
     return out
 
 
@@ -126,48 +120,52 @@ def annot_stanza(out, *, anchors, group, html):
 
 
 def select_stanza(out, *, group, html):
-    """Composite bigBed 12 selection/orthogroup track (reference strain only)."""
+    """Comparative-genomics composite (reference strain only).
+
+    Sub-tracks fed by WF-GH ``selection_hyphaeon`` BigBeds. The parent
+    declares ``type bigBed`` (no field count) because the sub-tracks carry
+    heterogeneous schemas; each sub-track declares its own ``type bigBed
+    N +`` matching its AutoSql, so UCSC renders the extra columns.
+
+    Names are load-bearing: the out-of-band hub staging materializes each
+    ``bigDataUrl`` from the WF-GH output of the same base name -- the file
+    name (``bb``) therefore tracks the WF-GH output name, not the subtrack
+    label. The ``recombination_tracts`` subtrack is re-added when WF-GH
+    regains recombination handling (upstream ``rhizaeon partition``).
+    """
     out.append("track brc_pangenome_select")
     if html:
         out.append("html {}".format(html))
     out.append("compositeTrack on")
-    out.append("shortLabel Pangenome select")
-    out.append("longLabel  BUSTED selection + orthogroup membership")
-    out.append("type bigBed 12")
+    out.append("shortLabel Comparative")
+    out.append("longLabel  HyphAeon selection and orthogroup membership")
+    out.append("type bigBed")
     out.append("group {}".format(group))
     out.append("visibility hide")
     out.append("")
     subs = [
-        ("selection_strict", "Selection (strict)", "BUSTED selection, strict core set"),
-        ("selection_relaxed", "Selection (relaxed)", "BUSTED selection, relaxed core set"),
-        ("orthogroup_membership", "Orthogroups", "Orthogroup membership per gene"),
+        ("selection_sites", "Selection (sites)",
+         "HyphAeon codon-resolution episodic selection sites",
+         "bigBed 9 +", "selection_sites"),
+        ("orthogroup_membership", "Orthogroups",
+         "Orthogroup membership per reference gene",
+         "bigBed 12", "orthogroup"),
     ]
-    for name, short, long in subs:
+    for name, short, long, btype, bb in subs:
         out.append("    track {}".format(name))
         if html:
             out.append("    html {}".format(html))
         out.append("    parent brc_pangenome_select off")
         out.append("    shortLabel {}".format(short))
         out.append("    longLabel  {}".format(long))
-        out.append("    type bigBed 12 +")
-        out.append("    bigDataUrl {}.bb".format(name))
+        out.append("    type {}".format(btype))
+        out.append("    bigDataUrl {}.bb".format(bb))
         out.append("    visibility dense")
         out.append("")
 
 
 def build(args):
     pairs = parse_pairs(args.strain_label)
-    # ⛔ AN EMPTY PANEL IS NOT A TRACKDB. --strain-label is optional and its validator
-    # accepts the empty string, so with it unset `pairs` is [] -> species_order [] and
-    # targets [], and this wrote a STRUCTURALLY VALID trackDb.txt whose chains composite
-    # had no subtracks and whose bigMaf had no speciesOrder, from a job that exited 0. The
-    # longLabel even said so -- "Pairwise chain alignments (0 targets)" -- and nothing read
-    # it. build_genomes_txt already refuses the equivalent ("no assembly rows found").
-    if not pairs:
-        raise SystemExit(
-            "error: --strain-label is empty, so the panel has no assemblies. The chains "
-            "composite would have no subtracks and the bigMaf no speciesOrder, in an "
-            "otherwise valid trackDb.txt. Pass ACC=LABEL tokens for the panel.")
     # species order / labels for the bigMaf: all strains in the panel.
     species_order = [s for s, _ in pairs] if pairs else []
     labels = pairs

@@ -1,0 +1,1 @@
+{"edges": [{"site_u": 5, "site_v": 10, "ref_u": "A", "ref_v": "V", "lrt_u": 20.1, "lrt_v": 5.2, "similarity": 0.91, "shared_branches": 4, "cesi": 0.8, "p_hyper": 0.001, "fdr_q": 0.02}], "sectors": [{"sector_id": 1, "size": 2, "sites": [5, 10], "spectral_coherence": 0.9, "p_perm": 0.002, "null_coherence_mean": 0.4, "mean_lrt": 12.6, "pars_signature": "sig"}], "plasticity": []}

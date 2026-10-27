@@ -407,6 +407,8 @@ UDT_RATIONALE = {
     "anchor_prep":       ("CONVERTED", "an awk port of tools/anchor_prep/build_anchor_inputs.py, "
                           "hand-written rather than generated -- see the backflow check below",
                           "tools/anchor_prep/build_anchor_inputs.py"),
+    "hyphaeon_bundle":   ("CONVERTED", "ports tools/hyphaeon_bundle/hyphaeon_bundle.xml",
+                          "tools/hyphaeon_bundle/hyphaeon_bundle.py"),
     # -- WORKAROUND: an installed third-party tool has a gap ----------------------------------
     "samtools_faidx":  ("WORKAROUND",
         "IUC's `samtools_faidx` wrapper exists in the main toolshed and is simply not installed on "

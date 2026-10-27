@@ -1,0 +1,55 @@
+- doc: |
+    v0 smoke test on two 60-codon orthogroups (3 taxa: REF, Q1, Q2). Asserts
+    the workflow runs end-to-end and emits all declared outputs; exact counts
+    depend on the neural backends, so assertions are presence/shape only.
+  job:
+    codon_alignments:
+      class: Collection
+      collection_type: list
+      elements:
+      - identifier: OG000001
+        class: File
+        path: test-data/aln_og1.fasta
+        filetype: fasta
+      - identifier: OG000002
+        class: File
+        path: test-data/aln_og2.fasta
+        filetype: fasta
+    ortholog_table:
+      class: File
+      path: test-data/ortholog_table.tsv
+      filetype: tabular
+    ref_bed12:
+      class: File
+      path: test-data/ref.bed12
+      filetype: bed
+    ref_sizes:
+      class: File
+      path: test-data/ref.sizes
+      filetype: tabular
+    ref_column: REF
+    bundle_id: testpanel
+    bundle_version: v1
+  outputs:
+    gene_selection_table:
+      asserts:
+        has_text:
+          text: "orthogroup_id"
+        has_size:
+          min: 200
+    selection_sites_bb:
+      asserts:
+        has_size:
+          min: 100
+    orthogroup_bb:
+      asserts:
+        has_size:
+          min: 100
+    tacc_comparative_bundle:
+      asserts:
+        has_size:
+          min: 500
+    qc_report:
+      asserts:
+        has_size:
+          min: 1000

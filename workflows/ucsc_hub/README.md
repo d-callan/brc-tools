@@ -1,16 +1,25 @@
 # WF-K `ucsc_hub` (Phase K)
 
-Build a UCSC assembly hub from the Phase I/C/H/E/B artifacts. **Least-validated
+Build a UCSC assembly hub from the Phase I/C artifacts and the four comparative
+BigBeds produced by WF-GH `selection_hyphaeon`. **Least-validated
 stage** — no impl artifact to diff against; validation gate = `hubCheck` clean +
 one manual UCSC-browser load (Decision 15).
+
+> **Interface change (de-BUSTED).** The workflow no longer computes selection
+> tracks: `build_hub_bb` (BUSTED tar → BED12+5 → BigBed) is retired together
+> with its `busted_strict`/`busted_relaxed` tar inputs, `ortholog_table`,
+> `ref_bed12`, `ref_column`, and `gene_prefix` parameters. The four
+> comparative tracks arrive as finished BigBeds and are consumed by the
+> out-of-band hub staging (`execution/assemble_hub.py`), which materializes
+> them and writes the `brc_pangenome_select` composite via `build_trackdb`.
 
 File: `ucsc_hub.gxwf.yml` (gxformat2, `class: GalaxyWorkflow`).
 
 ## Status — proven on real data (2026-06-10)
 
 All track artifacts build green on the Pv4 panel (PvP01-reference hub): bigMaf,
-4×(bigChain+bigLink), annotation, strict + relaxed BUSTED selection, orthogroup,
-5 2bits, genomes.txt. The assembled hub passes **`hubCheck` with exit 0, zero
+4×(bigChain+bigLink), annotation, the four WF-GH comparative tracks, 5 2bits,
+genomes.txt. The assembled hub passes **`hubCheck` with exit 0, zero
 errors, zero warnings** (5 genomes; PvP01 carries 9 tracks). Two operational
 requirements surfaced — neither is a workflow bug, both are input/packaging steps:
 
@@ -33,15 +42,13 @@ requirements surfaced — neither is a workflow bug, both are input/packaging st
 | `multiz_mafs` | `list` | Per-reference multiz MAFs (WF-I), **assumed already accession-renamed**. `element_identifier = reference accession`. |
 | `cleaned_chains` | `list` | Full N(N−1) directed cleaned chains (Phase C). `element_identifier = directed pair`. |
 | `annotation_gffs` | `list` | Native self-annotation per anchor AND cross-strain `{anchor}-as-ref/{strain}.annotation.gff3` (C.4). |
-| `ortholog_table` | data | Phase E `ortholog_table.tsv`. |
-| `ref_bed12` | data | Reference gene models BED12 (WF-C anchor_prep `{A}.bed12`). |
-| `busted_strict` | data | Strict BUSTED archive (Phase H, core_v3): `tar.gz` of `<gene_id>.json` at tar root. |
-| `busted_relaxed` | data | Relaxed BUSTED archive (Phase H, core_relaxed). |
+| `selection_sites_bb` | data | WF-GH `selection_sites_bb` — codon-resolution HyphAeon sites, BED9+7 (`bigSelectionSites`). |
+| `orthogroup_bb` | data | WF-GH `orthogroup_bb` — orthogroup membership per reference gene, BED12. |
 | `assemblies` | `list` | Per-accession genome FASTAs (Phase B). |
 | `ref_sizes` | data | Reference `{ACC}.fa.fai` / chrom sizes (accession space). |
 | `hub_metadata` | data | Per-assembly metadata TSV for `build_genomes_txt`. |
 | `bigmaf_as` / `bigchain_as` / `biglink_as` | data | The autoSql `.as` assets required by `bedToBigBed -as=`. |
-| `ref_acc` / `ref_column` / `gene_prefix` | string | REF_ACC + ortholog-table reference column/prefix params. |
+| `ref_acc` | string | Reference accession (accession space). |
 
 ## Steps — our wrappers vs IUC / kent suite
 
@@ -58,7 +65,6 @@ requirements surfaced — neither is a workflow bug, both are input/packaging st
 | `gff3_to_genepred` | `ucsc_gff3togenepred` | **OUR kent suite** | annotation source (native + cross-strain). |
 | `genepred_to_bed` | `ucsc_genepredtobed` | **OUR kent suite** | genePred → BED12. |
 | `annot_bb` | `ucsc_bedtobigbed` | **OUR kent suite** | `-type=bed12` (no `.as`). |
-| `build_hub_bb` | `build_hub_bb` | **OUR** | selection BED12+5 (strict+relaxed) + orthogroup BED12; internal `bedToBigBed`. |
 | `fa_to_2bit` | `ucsc_fatotwobit` | **OUR kent suite** | per-accession 2bit. |
 | `build_genomes_txt` | `build_genomes_txt` | **OUR** | global `genomes.txt`. |
 | `hub_check` | `ucsc_hubcheck` | **OUR kent suite** | validation gate. |
@@ -120,9 +126,14 @@ is required for WF-K.
    (alongside `hub.txt`). `build_genomes_txt` (global, single metadata TSV) IS
    wired.
 
-4. **`build_hub_bb` runs once** for the reference set (strict + relaxed via the
-   `relaxed` conditional, `do_relaxed: yes`), producing `selection_core_v3.bb`,
-   `selection_core_relaxed.bb`, and `orthogroup_membership.bb`.
+4. **Comparative tracks arrive as finished BigBeds.** `build_hub_bb` is
+   retired; WF-GH `selection_hyphaeon` emits `selection_sites.bb` and
+   `orthogroup.bb` directly (v0; `selection_genes.bb` and
+   `recombination_tracts.bb` return when WF-GH regains gene-level
+   statistics and recombination handling). The out-of-band staging places
+   them in the reference genome directory and `build_trackdb
+   --is-reference` emits the `brc_pangenome_select` composite with each
+   subtrack's `type bigBed N +`.
 
 5. **Annotation fan-out.** `gff3_to_genepred` maps over `annotation_gffs`, which
    carries both native self-annotation and cross-strain projections fanned over

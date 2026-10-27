@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<macros>
+    <token name="@TOOL_VERSION@">0.1.0</token>
+    <token name="@VERSION_SUFFIX@">0</token>
+    <token name="@PROFILE@">26.0</token>
+    <xml name="requirements">
+        <requirements>
+            <requirement type="package" version="3.12">python</requirement>
+        </requirements>
+    </xml>
+    <xml name="citations">
+        <citations>
+            <citation type="bibtex"><![CDATA[
+@misc{brc_hyphaeon_bundle,
+  author = {Nekrutenko lab},
+  title = {Assemble HyphAeon/RhizAeon comparative-genomics assets (UCSC tracks + TACC bundle)},
+  year = {2026},
+  note = {WF-GH selection_hyphaeon glue tool}
+}
+            ]]></citation>
+        </citations>
+    </xml>
+</macros>

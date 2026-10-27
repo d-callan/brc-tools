@@ -1,9 +1,17 @@
 class: GalaxyWorkflow
 label: WF-K ucsc_hub (Phase K)
 doc: |
-  Phase K of the Pv4 pangenome pipeline: build a UCSC assembly hub from the
-  multiz MAFs (I), cleaned chains (C), merged GFFs (C.4), BUSTED jsons (H),
-  ortholog_table (E), assemblies (B) and the reference BED12 (C anchor_prep).
+  Phase K of the pangenome pipeline: build a UCSC assembly hub from the
+  multiz MAFs (I), cleaned chains (C), merged GFFs (C.4), the two comparative
+  BigBeds from WF-GH selection_hyphaeon, and assemblies (B).
+
+  The comparative tracks arrive as FINISHED BigBeds -- the upstream
+  HyphAeon scan + brc-hyphaeon-bundle pipeline already
+  sorted and converted them, so the former build_hub_bb step (BUSTED tar
+  archive -> BED -> BigBed) is retired along with its ortholog_table,
+  ref_bed12, ref_column, and gene_prefix inputs. The two .bb datasets are
+  consumed by the out-of-band hub-staging step and build_trackdb, which emit
+  the reference-only comparative composite (see README).
 
   Least-validated stage (no impl artifact to diff against). Validation gate =
   hubCheck clean + one manual UCSC-browser load (Decision 15).
@@ -49,23 +57,16 @@ inputs:
       Annotation GFF3s: native self-annotation per anchor AND cross-strain
       {anchor}-as-ref/{strain}.annotation.gff3 (C.4 merged). element_identifier
       encodes accession + source anchor. BigBed12 annotation source.
-  ortholog_table:
-    type: data
-    doc: Phase E ortholog_table.tsv. build_hub_bb selection + orthogroup source.
-  ref_bed12:
-    type: data
-    doc: Reference gene models BED12 (WF-C anchor_prep {A}.bed12).
-  busted_strict:
+  selection_sites_bb:
     type: data
     doc: >
-      Strict BUSTED archive (Phase H, core_v3): tar.gz of <gene_id>.json at the
-      tar root (one per element_identifier), OR <GENE_ID>/busted.json. build_hub_bb
-      reads both and refuses an archive it can read no gene from -- it used to accept
-      only the second and publish an empty selection track from the first.
-      selection_strict source.
-  busted_relaxed:
+      WF-GH selection_hyphaeon selection_sites_bb -- codon-resolution HyphAeon
+      sites, BED9+7 (bigSelectionSites). Subtrack selection_sites.
+  orthogroup_bb:
     type: data
-    doc: Relaxed BUSTED archive (Phase H, core_relaxed). selection_relaxed source.
+    doc: >
+      WF-GH selection_hyphaeon orthogroup_bb -- orthogroup membership per
+      reference gene, BED12. Subtrack orthogroup_membership.
   assemblies:
     type: collection
     collection_type: list
@@ -75,12 +76,8 @@ inputs:
   ref_sizes:
     type: data
     doc: >
-      Reference {ACC}.fa.fai / chrom sizes (accession space). Used by the bigMaf and
-      annotation bedToBigBed steps and by build_hub_bb, all of which are on the
-      reference assembly. NOT by the bigChain/bigLink steps: those map over a directed
-      chain collection whose elements target different assemblies, and they take
-      chain_to_bigchain/target_sizes instead. The mafIndex step this doc used to name
-      was removed from the workflow.
+      Reference {ACC}.fa.fai / chrom sizes (accession space). Used by bigMaf
+      bedToBigBed, build_hub_bb, and mafIndex.
   hub_metadata:
     type: data
     doc: >
@@ -99,14 +96,6 @@ inputs:
   ref_acc:
     type: string
     doc: Reference accession (REF_ACC), keyed off ref_strain via the strain->acc map.
-  ref_column:
-    type: string
-    default: PvP01
-    doc: ortholog_table column holding reference gene IDs.
-  gene_prefix:
-    type: string
-    default: PVP01_
-    doc: Reference gene-ID prefix for build_hub_bb selection.
 
 steps:
   # ---------------- bigMaf track ----------------
@@ -171,24 +160,13 @@ steps:
   chain_to_bigchain:
     tool_id: chain_to_bigChain
     doc: >
-      Convert each cleaned chain to bigChain.bed (bed6+6) + bigLink.bed (bed4+1), plus
-      the TARGET assembly's chrom.sizes derived from the chain headers.
+      Convert each cleaned chain to bigChain.bed (bed6+6) + bigLink.bed (bed4+1).
       OUR wrapper. Map-over cleaned_chains (per directed pair).
-      target_sizes is what the two bedToBigBed steps consume, NOT ref_sizes: this
-      collection is the full N(N-1) DIRECTED set, so each element targets a different
-      assembly and one ref_sizes dataset is right only for the pairs that happen to
-      target it. Cannabis assemblies share chr1-style names, and bedToBigBed does NOT
-      cross-check: measured with kent v482, sizes declaring chr1 at 900 and at 5000
-      were BOTH accepted (exit 0) against a BED whose chain header says 1000. It
-      rejects only coordinates exceeding the declared length, so nothing catches a
-      wrong sizes file and the browser draws the track against wrong lengths. Every chain header carries tName and tSize, so the
-      sizes come from the same element as the BED and cannot disagree with it.
     in:
       chain: cleaned_chains
     out:
       - bigchain_bed
       - biglink_bed
-      - target_sizes
 
   sort_bigchain_bed:
     tool_id: sort1
@@ -213,7 +191,7 @@ steps:
     doc: bigChain BigBed. -as=bigChain.as. ucsc_kent suite.
     in:
       bed: sort_bigchain_bed/out_file1
-      chrom_sizes: chain_to_bigchain/target_sizes
+      chrom_sizes: ref_sizes
       as_file: bigchain_as
     state:
       type: bed6+6
@@ -243,7 +221,7 @@ steps:
     doc: bigLink BigBed. -as=bigLink.as. ucsc_kent suite.
     in:
       bed: sort_biglink_bed/out_file1
-      chrom_sizes: chain_to_bigchain/target_sizes
+      chrom_sizes: ref_sizes
       as_file: biglink_as
     state:
       type: bed4+1
@@ -298,30 +276,6 @@ steps:
     out:
       - output
 
-  # ---------------- selection + orthogroup track ----------------
-  build_hub_bb:
-    tool_id: build_hub_bb
-    doc: >
-      Selection BED12+5 (strict + relaxed) and orthogroup BED12; internal
-      bedToBigBed with bigSelectionPlus5.as. OUR consolidated wrapper. Runs once
-      for the reference set.
-    in:
-      ortholog_table: ortholog_table
-      ref_bed12: ref_bed12
-      sizes: ref_sizes
-      busted_strict: busted_strict
-      relaxed|busted_relaxed: busted_relaxed
-      ref_acc: ref_acc
-      ref_column: ref_column
-      gene_prefix: gene_prefix
-    state:
-      relaxed:
-        do_relaxed: "yes"
-    out:
-      - selection_strict_bb
-      - selection_relaxed_bb
-      - orthogroup_bb
-
   # ---------------- per-assembly 2bit ----------------
   fa_to_2bit:
     tool_id: ucsc_fatotwobit
@@ -368,15 +322,6 @@ outputs:
   annotation_track:
     outputSource: annot_bb/output
     doc: Per-(accession,anchor) annotation BigBed12.
-  selection_strict_track:
-    outputSource: build_hub_bb/selection_strict_bb
-    doc: selection_core_v3.bb (strict).
-  selection_relaxed_track:
-    outputSource: build_hub_bb/selection_relaxed_bb
-    doc: selection_core_relaxed.bb (relaxed).
-  orthogroup_track:
-    outputSource: build_hub_bb/orthogroup_bb
-    doc: orthogroup_membership BigBed12.
   twobit_track:
     outputSource: fa_to_2bit/output
     doc: Per-accession 2bit.

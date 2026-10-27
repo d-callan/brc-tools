@@ -1,0 +1,199 @@
+<tool id="hyphaeon_bundle" name="HyphAeon bundle" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="@PROFILE@">
+    <description>bundle per-orthogroup HyphAeon results into UCSC track BEDs and the TACC comparative bundle</description>
+    <macros>
+        <import>macros.xml</import>
+    </macros>
+    <expand macro="requirements"/>
+    <required_files>
+        <include path="hyphaeon_bundle.py"/>
+    </required_files>
+    <version_command>python '$__tool_directory__/hyphaeon_bundle.py' --help | head -1</version_command>
+    <command detect_errors="aggressive"><![CDATA[
+## Stage every list collection keyed by element_identifier. In v0 every
+## collection -- the five HyphAeon outputs and the raw codon alignments --
+## is keyed by the bare orthogroup id (one element per OG, unpartitioned).
+mkdir -p staged/meme staged/epistasis staged/dms staged/splits_nwk
+    staged/splits_csv staged/aln autosql bundled &&
+#for $j in $meme_jsons
+ln -s '$j' 'staged/meme/${j.element_identifier}.json' &&
+#end for
+#for $j in $epistasis_jsons
+ln -s '$j' 'staged/epistasis/${j.element_identifier}.json' &&
+#end for
+#for $j in $dms_jsons
+ln -s '$j' 'staged/dms/${j.element_identifier}.json' &&
+#end for
+#for $n in $splits_newicks
+ln -s '$n' 'staged/splits_nwk/${n.element_identifier}.nwk' &&
+#end for
+#for $c in $splits_csvs
+ln -s '$c' 'staged/splits_csv/${c.element_identifier}.csv' &&
+#end for
+#for $a in $codon_alignments
+ln -s '$a' 'staged/aln/${a.element_identifier}.fasta' &&
+#end for
+python '$__tool_directory__/hyphaeon_bundle.py'
+    --meme-dir staged/meme
+    --epistasis-dir staged/epistasis
+    --dms-dir staged/dms
+    --splits-nwk-dir staged/splits_nwk
+    --splits-csv-dir staged/splits_csv
+    --aln-dir staged/aln
+    --element-identifiers '$element_identifiers'
+    --og-identifiers '$og_identifiers'
+    --ortholog-table '$ortholog_table'
+    --ref-bed12 '$ref_bed12'
+    --sizes '$ref_sizes'
+    --ref-column '$ref_column'
+    --site-p-cutoff $site_p_cutoff
+    --bundle-id '$bundle_id'
+    --bundle-version '$bundle_version'
+    --as-dir autosql
+    --out-dir bundled
+    ]]></command>
+    <inputs>
+        <param name="meme_jsons" type="data_collection" collection_type="list" format="json"
+               label="hyphaeon_meme JSON collection"
+               help="Per-orthogroup hyphaeon_meme json_output; element identifier {og}."/>
+        <param name="epistasis_jsons" type="data_collection" collection_type="list" format="json"
+               label="hyphaeon_epistasis JSON collection"
+               help="Per-orthogroup hyphaeon_epistasis json_output; element identifier {og}."/>
+        <param name="dms_jsons" type="data_collection" collection_type="list" format="json"
+               label="hyphaeon_dms JSON collection"
+               help="Per-orthogroup hyphaeon_dms json_output; element identifier {og}."/>
+        <param name="splits_newicks" type="data_collection" collection_type="list" format="txt"
+               label="hyphaeon_splits Newick collection"
+               help="Per-orthogroup hyphaeon_splits newick_output; element identifier {og}."/>
+        <param name="splits_csvs" type="data_collection" collection_type="list" format="csv"
+               label="hyphaeon_splits CSV collection"
+               help="Per-orthogroup hyphaeon_splits csv_output; element identifier {og}."/>
+        <param name="codon_alignments" type="data_collection" collection_type="list" format="fasta"
+               label="Per-orthogroup codon alignments"
+               help="The original untrimmed pal2nal alignments (element identifier = orthogroup id); needed for gap-aware alignment-codon to reference-codon mapping."/>
+        <param name="element_identifiers" type="data" format="txt"
+               label="HyphAeon element identifiers"
+               help="collection_element_identifiers output over the HyphAeon output collections (one orthogroup id per line in v0)."/>
+        <param name="og_identifiers" type="data" format="txt"
+               label="Orthogroup element identifiers"
+               help="collection_element_identifiers output over the codon_alignments collection."/>
+        <param name="ortholog_table" type="data" format="tabular"
+               label="Ortholog table (TSV)"
+               help="WF-E consensus ortholog_table.tsv; needs orthogroup_id, label, n_strains, max_copies, clique, density and one column per strain."/>
+        <param name="ref_bed12" type="data" format="bed12,bed"
+               label="Reference gene BED12"
+               help="Reference-strain protein-coding gene models; column 4 = gene ID (isoform suffix stripped)."/>
+        <param name="ref_sizes" type="data" format="tabular"
+               label="Reference chrom sizes"
+               help="Two-column TSV chrom&lt;TAB&gt;length for the reference assembly."/>
+        <param name="ref_column" type="text" value="REF" label="Reference strain column"
+               help="Ortholog-table column header of the reference strain; also the reference FASTA record name.">
+            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
+        </param>
+        <param name="site_p_cutoff" type="float" value="0.05" min="0" max="1"
+               label="Site p-value cutoff"
+               help="Codon sites also enter the sites track when p_value &lt;= this cutoff (in addition to all q &lt;= 0.10 sites)."/>
+        <param name="bundle_id" type="text" label="Bundle identifier"
+               help="Strain-panel identifier written into the TACC manifest (e.g. panel5).">
+            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
+        </param>
+        <param name="bundle_version" type="text" value="v1" label="Bundle version"
+               help="Version string written into the TACC manifest.">
+            <validator type="regex" message="Letters, digits, underscore, hyphen, dot only">[A-Za-z0-9_.\-]+</validator>
+        </param>
+    </inputs>
+    <outputs>
+        <data name="selection_sites_bed" format="bed" from_work_dir="bundled/selection_sites.bed"
+              label="${tool.name} on ${on_string}: codon selection BED9+7"/>
+        <data name="orthogroup_bed" format="bed" from_work_dir="bundled/orthogroup.bed"
+              label="${tool.name} on ${on_string}: orthogroup membership BED12"/>
+        <data name="bigselection_sites_as" format="txt" from_work_dir="autosql/bigSelectionSites.as"
+              label="${tool.name} on ${on_string}: AutoSql (sites)"/>
+        <data name="gene_selection_tsv" format="tabular" from_work_dir="bundled/gene_selection.tsv"
+              label="${tool.name} on ${on_string}: per-OG summary"/>
+        <data name="multiqc_table_tsv" format="tabular" from_work_dir="bundled/multiqc_table.tsv"
+              label="${tool.name} on ${on_string}: MultiQC table"/>
+        <data name="tacc_bundle_tar" format="data" from_work_dir="bundled/tacc_comparative_bundle.tar.gz"
+              label="${tool.name} on ${on_string}: TACC comparative bundle"/>
+    </outputs>
+    <tests>
+        <test expect_num_outputs="6">
+            <param name="meme_jsons">
+                <collection type="list">
+                    <element name="OG000001" value="meme_og1.json" ftype="json"/>
+                </collection>
+            </param>
+            <param name="epistasis_jsons">
+                <collection type="list">
+                    <element name="OG000001" value="epi_og1.json" ftype="json"/>
+                </collection>
+            </param>
+            <param name="dms_jsons">
+                <collection type="list">
+                    <element name="OG000001" value="dms_og1.json" ftype="json"/>
+                </collection>
+            </param>
+            <param name="splits_newicks">
+                <collection type="list">
+                    <element name="OG000001" value="splits_og1.nwk" ftype="txt"/>
+                </collection>
+            </param>
+            <param name="splits_csvs">
+                <collection type="list">
+                    <element name="OG000001" value="splits_og1.csv" ftype="csv"/>
+                </collection>
+            </param>
+            <param name="codon_alignments">
+                <collection type="list">
+                    <element name="OG000001" value="aln_og1.fasta" ftype="fasta"/>
+                </collection>
+            </param>
+            <param name="element_identifiers" value="element_ids.txt"/>
+            <param name="og_identifiers" value="og_ids.txt"/>
+            <param name="ortholog_table" value="ortholog_table.tsv"/>
+            <param name="ref_bed12" value="ref.bed12"/>
+            <param name="ref_sizes" value="ref.sizes"/>
+            <param name="ref_column" value="REF"/>
+            <param name="bundle_id" value="testpanel"/>
+            <output name="orthogroup_bed">
+                <assert_contents>
+                    <has_text text="OG000001"/>
+                </assert_contents>
+            </output>
+            <output name="gene_selection_tsv">
+                <assert_contents>
+                    <has_text text="orthogroup_id"/>
+                    <has_text text="OG000001"/>
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+    <help format="markdown"><![CDATA[
+**HyphAeon bundle** — collects per-orthogroup HyphAeon results and
+emits the comparative-genomics assets.
+
+In v0 every alignment is analyzed whole and every collection element is
+keyed by the bare `{og}` identifier. Codon coordinates are projected
+onto the reference genome through the reference BED12 (CDS exon blocks,
+strand-aware, gap-aware via the reference row of each untrimmed
+alignment). v0 reports descriptive statistics only (site-level HyphAeon
+p/q-values and site-call counts) -- no gene-level omnibus or
+extreme-value statistic is emitted.
+
+**Outputs:** `selection_sites.bed` (BED9+7, codon resolution),
+`orthogroup.bed` (BED12, membership colored by ortholog-table `label`),
+`bigSelectionSites.as` for `bedToBigBed`, the per-OG summary and MultiQC
+tables, and `tacc_comparative_bundle.tar.gz` (manifest + tables +
+per-gene JSON payloads for the BRC comparative-genomics UI).
+
+Every BED is guaranteed non-empty — `bedToBigBed` fails on a 0-line file,
+so a fallback sentinel row is emitted when a track would otherwise be
+empty.
+
+Recombination handling is out of scope for this v0 wrapper: no
+recombination inputs are accepted and no tract track is emitted.
+Recombination-aware partitioning is planned upstream in the HyphAeon
+monorepo (`rhizaeon partition`, `hyphaeon merge`); its output contract
+will be wired in a future version once it lands.
+    ]]></help>
+    <expand macro="citations"/>
+</tool>

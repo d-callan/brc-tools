@@ -1,0 +1,318 @@
+class: GalaxyWorkflow
+label: WF-GH selection_hyphaeon (HyphAeon selection + UCSC tracks)
+doc: >-
+  v0: tree-free (--no-tree) neural selection, epistasis, digital DMS, and
+  spectral splits inference with HyphAeon, replacing WF-G (iqtree3) and WF-H
+  (hyphy_busted). Consumes untrimmed per-orthogroup codon alignments from WF-F
+  (pal2nal_codon), the consensus ortholog_table from WF-E, and the reference
+  strain's BED12 and chrom.sizes from WF-A. Uses stock IUC tools
+  (collection_element_identifiers, hyphaeon_meme, hyphaeon_epistasis,
+  hyphaeon_dms, hyphaeon_splits, ucsc_bedtobigbed, multiqc) and one
+  pure-Python BRC UDT (brc-hyphaeon-bundle).
+
+  v0 scope note: no recombination scan/partition is performed — for highly
+  recombining organisms, uncorrected recombinant tracts can inflate the
+  site-level selection signal. Recombination-aware partitioning/merge is
+  planned upstream in the HyphAeon monorepo (rhizaeon partition,
+  hyphaeon merge); a v1 workflow will re-add it.
+creator:
+  - class: Person
+    identifier: https://orcid.org/0000-0002-5987-8032
+    name: Anton Nekrutenko
+  - class: Person
+    identifier: https://orcid.org/0009-0006-5949-0958
+    name: Richard Burhans
+  - class: Person
+    identifier: https://orcid.org/0009-0009-3690-8372
+    name: Danielle Callan
+license: MIT
+release: "0.1"
+
+inputs:
+  codon_alignments:
+    type: collection
+    collection_type: list
+    doc: >-
+      Per-orthogroup untrimmed in-frame codon alignments from WF-F
+      (pal2nal_codon/output_file). Element identifier = orthogroup_id.
+    position: {top: 100, left: 40}
+  ortholog_table:
+    type: data
+    format: tabular
+    doc: Consensus ortholog_table.tsv from WF-E.
+    position: {top: 240, left: 40}
+  ref_bed12:
+    type: data
+    format: bed
+    doc: Reference strain protein-coding gene BED12 (WF-A anchor_prep).
+    position: {top: 360, left: 40}
+  ref_sizes:
+    type: data
+    format: tabular
+    doc: Reference strain chrom.sizes (2-column TSV) from WF-A (brc-samtools-faidx).
+    position: {top: 480, left: 40}
+  ref_column:
+    type: string
+    default: REF
+    doc: >-
+      Column header in ortholog_table holding reference strain gene IDs. Also
+      the reference record's FASTA header (group_cds_by_og writes seqs under
+      the literal ref column name) and the focal_taxon passed to hyphaeon_dms.
+      Matches WF-F's ref_name input (default REF).
+    position: {top: 600, left: 40}
+  bundle_id:
+    type: string
+    doc: >-
+      Bundle identifier written into the TACC manifest.json — the strain panel
+      name, chosen per organism run (no default; e.g. a 5-strain panel might
+      be 'panel5').
+    position: {top: 840, left: 40}
+  bundle_version:
+    type: string
+    default: v1
+    doc: Bundle version string written into the TACC manifest.json.
+    position: {top: 960, left: 40}
+
+outputs:
+  meme_json_collection:
+    outputSource: hyphaeon_meme/json_output
+    doc: Per-orthogroup HyphAeon MEME JSON results.
+  epistasis_json_collection:
+    outputSource: hyphaeon_epistasis/json_output
+    doc: Per-orthogroup HyphAeon Epistasis JSON results.
+  epistasis_graphml_collection:
+    outputSource: hyphaeon_epistasis/graphml_out
+    doc: Per-orthogroup co-selection networks in GraphML format.
+  dms_json_collection:
+    outputSource: hyphaeon_dms/json_output
+    doc: Per-orthogroup HyphAeon DMS 19-AA perturbation JSON results.
+  splits_newick_collection:
+    outputSource: hyphaeon_splits/newick_output
+    doc: Per-orthogroup attention-derived spectral bisection Newick trees.
+  splits_csv_collection:
+    outputSource: hyphaeon_splits/csv_output
+    doc: Per-orthogroup clade assignments and spectral eigengap tables.
+  gene_selection_table:
+    outputSource: hyphaeon_bundle/gene_selection_tsv
+    doc: Combined orthogroup + selection + epistasis + DMS summary TSV.
+  selection_sites_bb:
+    outputSource: sites_bed_to_bb/output
+    doc: UCSC BigBed (BED9+7) codon-resolution positive selection sites track.
+  orthogroup_bb:
+    outputSource: orthogroup_bed_to_bb/output
+    doc: UCSC BigBed (BED12) orthogroup-membership track for the reference strain.
+  tacc_comparative_bundle:
+    outputSource: hyphaeon_bundle/tacc_bundle_tar
+    doc: Self-contained tarball of JSON/TSV assets for TACC hosting and BRC Analytics UI.
+  qc_report:
+    outputSource: selection_multiqc/html_report
+    doc: MultiQC HTML summary of selection across orthogroups.
+
+steps:
+  og_identifiers:
+    tool_id: collection_element_identifiers
+    label: og_identifiers
+    position: {top: 100, left: 340}
+    doc: Extract orthogroup element identifiers in collection order.
+    in:
+      input_collection: codon_alignments
+
+  hyphaeon_meme:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/hyphaeon_meme/hyphaeon_meme/0.3.0+galaxy0
+    label: hyphaeon_meme
+    position: {top: 220, left: 940}
+    doc: >-
+      Stock IUC HyphAeon-MEME mapped over codon_alignments with --no-tree
+      (TN93 pairwise distances), --no-prune-duplicates (preserves all panel strains
+      on small panels), --filter (in-place artifact masking), and --attribute
+      (counterfactual taxon/epoch attribution).
+    in:
+      input_file: codon_alignments
+    state:
+      input_tree: null
+      no_tree: true
+      model_source:
+        source_type: hub
+        model_variant: general
+      advanced:
+        max_species: null
+        no_prune_duplicates: true
+        filter_flag: true
+        filter_p_thresh: 0.01
+        min_patch_consec: 3
+        filter_out_aln: false
+        attribute: true
+        attribution_min_lrt: 3.84
+      output_json: true
+      output_csv: true
+
+  hyphaeon_epistasis:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/hyphaeon_epistasis/hyphaeon_epistasis/0.3.0+galaxy0
+    label: hyphaeon_epistasis
+    position: {top: 420, left: 940}
+    doc: >-
+      Stock IUC HyphAeon-Epistasis mapped over codon_alignments with --no-tree
+      and --no-dms.
+    in:
+      input_file: codon_alignments
+    state:
+      input_tree: null
+      no_tree: true
+      model_source:
+        source_type: hub
+        model_variant: general
+      focal_taxon: ''
+      min_sim: 0.30
+      min_shared: 2
+      max_fdr: 0.05
+      min_lrt: 1.0
+      min_clique_size: 3
+      max_overlap: 0.50
+      min_coherence: 0.50
+      n_permutations: 1000
+      max_perm_p: null
+      no_dms: true
+      graphml_output: true
+      output_json: true
+      output_csv: true
+
+  hyphaeon_dms:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/hyphaeon_dms/hyphaeon_dms/0.3.0+galaxy0
+    label: hyphaeon_dms
+    position: {top: 620, left: 940}
+    doc: >-
+      Stock IUC HyphAeon-DMS mapped over codon_alignments with --no-tree and
+      focal_taxon set to ref_column (reference strain wild-type codons mutated to
+      all 19 alternative amino acids).
+    in:
+      input_file: codon_alignments
+      focal_taxon: ref_column
+    state:
+      input_tree: null
+      no_tree: true
+      model_source:
+        source_type: hub
+        model_variant: general
+      output_json: true
+      output_csv: true
+
+  hyphaeon_splits:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/hyphaeon_splits/hyphaeon_splits/0.3.0+galaxy0
+    label: hyphaeon_splits
+    position: {top: 820, left: 940}
+    doc: >-
+      Stock IUC HyphAeon-Splits mapped over codon_alignments with --no-tree and
+      min_clade_size=1. Recovers attention + TN93-MDS spectral bisection Newick
+      tree and clade eigengaps per orthogroup without running iqtree3.
+    in:
+      input_file: codon_alignments
+    state:
+      input_tree: null
+      no_tree: true
+      model_source:
+        source_type: hub
+        model_variant: general
+      min_clade_size: 1
+      max_depth: 10
+
+  hyphaeon_bundle:
+    tool_id: brc-hyphaeon-bundle
+    label: hyphaeon_bundle
+    position: {top: 320, left: 1280}
+    doc: >-
+      Stitch per-orthogroup HyphAeon (MEME, Epistasis, DMS, Splits) results
+      back to full-gene codon coordinates, project codon features through
+      ref_bed12 onto reference genome coordinates, and emit unsorted BED
+      files + AutoSql schemas + TACC comparative bundle tarball
+      (descriptive stats only -- no gene-level omnibus statistic in v0).
+    in:
+      meme_jsons: hyphaeon_meme/json_output
+      epistasis_jsons: hyphaeon_epistasis/json_output
+      dms_jsons: hyphaeon_dms/json_output
+      splits_newicks: hyphaeon_splits/newick_output
+      splits_csvs: hyphaeon_splits/csv_output
+      element_identifiers: og_identifiers/output
+      codon_alignments: codon_alignments
+      og_identifiers: og_identifiers/output
+      ortholog_table: ortholog_table
+      ref_bed12: ref_bed12
+      ref_sizes: ref_sizes
+      ref_column: ref_column
+      bundle_id: bundle_id
+      bundle_version: bundle_version
+    state:
+      site_p_cutoff: 0.05
+
+  sort_selection_sites_bed:
+    tool_id: sort1
+    label: sort_selection_sites_bed
+    position: {top: 320, left: 1600}
+    in:
+      input: hyphaeon_bundle/selection_sites_bed
+    state:
+      column: "1"
+      style: alpha
+      order: ASC
+      column_set:
+        - other_column: "2"
+          other_style: num
+          other_order: ASC
+
+  sites_bed_to_bb:
+    tool_id: ucsc_bedtobigbed
+    label: sites_bed_to_bb
+    position: {top: 320, left: 1880}
+    in:
+      bed: sort_selection_sites_bed/out_file1
+      chrom_sizes: ref_sizes
+      as_file: hyphaeon_bundle/bigselection_sites_as
+    state:
+      type: bed9+7
+
+  sort_orthogroup_bed:
+    tool_id: sort1
+    label: sort_orthogroup_bed
+    position: {top: 680, left: 1600}
+    in:
+      input: hyphaeon_bundle/orthogroup_bed
+    state:
+      column: "1"
+      style: alpha
+      order: ASC
+      column_set:
+        - other_column: "2"
+          other_style: num
+          other_order: ASC
+
+  orthogroup_bed_to_bb:
+    tool_id: ucsc_bedtobigbed
+    label: orthogroup_bed_to_bb
+    position: {top: 680, left: 1880}
+    in:
+      bed: sort_orthogroup_bed/out_file1
+      chrom_sizes: ref_sizes
+    state:
+      type: bed12
+
+  selection_multiqc:
+    tool_id: toolshed.g2.bx.psu.edu/repos/iuc/multiqc/multiqc/1.35+galaxy1
+    label: selection_multiqc
+    position: {top: 700, left: 1600}
+    in:
+      results_0|software_cond|input: hyphaeon_bundle/multiqc_table_tsv
+    state:
+      results:
+        - software_cond:
+            software: custom_content
+            plot_type: table
+            section_name: "Comparative Selection (HyphAeon)"
+            title: "Per-orthogroup selection, epistasis & DMS summary"
+            description: "HyphAeon (--no-tree) MEME, Epistasis, DMS, and Spectral Splits metrics."
+            xlab: null
+            ylab: null
+      image_content_input: null
+      title: ''
+      comment: ''
+      flat: false
+      export: false
+      png_plots: false

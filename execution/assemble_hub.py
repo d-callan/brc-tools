@@ -13,6 +13,15 @@ def coll_elems(cid):
 # invocation outputs
 inv=api(f"/api/invocations?history_id={KH}")[0]["id"]; iv=api(f"/api/invocations/{inv}")
 DS=iv["outputs"]; CO=iv["output_collections"]
+# the four comparative BigBeds are WF-GH selection_hyphaeon outputs, not WF-K's:
+# scan invocations (newest first) for the one whose outputs carry them
+def inv_out(iid): return api(f"/api/invocations/{iid}")["outputs"]
+ginv=None
+for _i in api(f"/api/invocations?history_id={KH}"):
+    _o=inv_out(_i["id"])
+    if "selection_sites_bb" in _o:
+        ginv=_o; break
+if ginv is None: raise SystemExit("no selection_hyphaeon invocation found in history")
 strains=["PvP01","PvW1","PAM","PvT01","MHC087"]; targets=strains[1:]
 if os.path.exists(HUB): shutil.rmtree(HUB)
 os.makedirs(HUB)
@@ -34,9 +43,8 @@ for s in strains:
 P=f"{HUB}/PvP01"
 bigmaf=coll_elems(CO["bigmaf_track"]["id"]); dl(bigmaf["PvP01"], f"{P}/multiz.bb")
 annot=coll_elems(CO["annotation_track"]["id"]); dl(annot["PvP01"], f"{P}/annotation.bb")
-dl(DS["selection_strict_track"]["id"], f"{P}/selection_strict.bb")
-dl(DS["selection_relaxed_track"]["id"], f"{P}/selection_relaxed.bb")
-dl(DS["orthogroup_track"]["id"], f"{P}/orthogroup.bb")
+dl(ginv["selection_sites_bb"]["id"], f"{P}/selection_sites.bb")
+dl(ginv["orthogroup_bb"]["id"], f"{P}/orthogroup.bb")
 chains=coll_elems(CO["bigchain_track"]["id"]); links=coll_elems(CO["biglink_track"]["id"])
 for t in targets:
     dl(chains[f"PvP01.{t}"], f"{P}/chain_{t}.bb"); dl(links[f"PvP01.{t}"], f"{P}/link_{t}.bb")
@@ -44,9 +52,10 @@ for t in targets:
 tdb=[]
 tdb.append("track multiz\nshortLabel Multiz\nlongLabel Multiz 5-way alignment (PvP01 ref)\ntype bigMaf\nbigDataUrl multiz.bb\nspeciesOrder PvW1 PAM PvT01 MHC087\nvisibility pack\n")
 tdb.append("track annotation\nshortLabel Genes\nlongLabel PvP01 gene models\ntype bigBed 12\nbigDataUrl annotation.bb\nvisibility pack\n")
-tdb.append("track selection_strict\nshortLabel BUSTED strict\nlongLabel BUSTED selection strict (min_intact=4)\ntype bigBed 12 +\nbigDataUrl selection_strict.bb\nvisibility dense\n")
-tdb.append("track selection_relaxed\nshortLabel BUSTED relaxed\nlongLabel BUSTED selection relaxed (min_intact=3)\ntype bigBed 12 +\nbigDataUrl selection_relaxed.bb\nvisibility dense\n")
-tdb.append("track orthogroups\nshortLabel Orthogroups\nlongLabel Orthogroup membership\ntype bigBed 12\nbigDataUrl orthogroup.bb\nvisibility dense\n")
+# comparative composite -- mirrors build_trackdb select_stanza exactly
+tdb.append("track brc_pangenome_select\ncompositeTrack on\nshortLabel Comparative\nlongLabel  HyphAeon selection and orthogroup membership\ntype bigBed\ngroup comparative\nvisibility hide\n")
+tdb.append("    track selection_sites\n    parent brc_pangenome_select off\n    shortLabel Selection (sites)\n    longLabel  HyphAeon codon-resolution episodic selection sites\n    type bigBed 9 +\n    bigDataUrl selection_sites.bb\n    visibility dense\n")
+tdb.append("    track orthogroup_membership\n    parent brc_pangenome_select off\n    shortLabel Orthogroups\n    longLabel  Orthogroup membership per reference gene\n    type bigBed 12\n    bigDataUrl orthogroup.bb\n    visibility dense\n")
 for t in targets:
     tdb.append(f"track chain_{t}\nshortLabel Chain {t}\nlongLabel PvP01-{t} cleaned chain\ntype bigChain {t}\nbigDataUrl chain_{t}.bb\nlinkDataUrl link_{t}.bb\nvisibility hide\n")
 open(f"{P}/trackDb.txt","w").write("\n".join(tdb))

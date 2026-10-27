@@ -196,14 +196,15 @@ def main() -> int:
     for line in partial:
         print(f"PARTIAL  {line}")
     if unstamped:
-        # ⚠ NAME ALL THREE GENERATORS. This used to name build_softmask_udts.py alone, which
+        # ⚠ NAME ALL FOUR GENERATORS. This used to name build_softmask_udts.py alone, which
         # covers 15 of the 22 (11 generated plus 4 hand-written) and reports the other 7 as
         # "checked elsewhere" -- so a reader who followed the note ran one script and believed it
-        # had examined every unstamped file. Coverage across the three is complete; the note has
+        # had examined every unstamped file. Coverage across the four is complete; the note has
         # to say so accurately or it is worse than no note.
         print(f"note: {len(unstamped)} UDT(s) carry no provenance stamp and were not checked "
-              f"here. Between them, build_softmask_udts.py, build_inventory_udts.py and "
-              f"build_projection_udts.py --check cover all of them: {', '.join(unstamped)}")
+              f"here. Between them, build_softmask_udts.py, build_inventory_udts.py, "
+              f"build_projection_udts.py and build_selection_udts.py --check cover all of "
+              f"them: {', '.join(unstamped)}")
     print(f"{checked} stamped UDT(s) checked, {len(stale)} stale, "
           f"{len(partial)} verifiable only in part")
     return 1 if stale else 0

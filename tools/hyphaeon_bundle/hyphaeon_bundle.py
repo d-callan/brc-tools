@@ -1,0 +1,671 @@
+#!/usr/bin/env python3
+"""
+Assemble comparative-genomics assets from HyphAeon results and the
+consensus ortholog table (WF-GH, brc-tools).
+
+Reads the stock-IUC output collections -- one element per orthogroup,
+keyed by the bare ``{og}`` identifier (v0 runs every alignment whole,
+unpartitioned):
+
+  * hyphaeon_meme json_output        -> per-codon selection sites
+  * hyphaeon_epistasis json_output   -> co-selection edges + sectors
+  * hyphaeon_dms json_output         -> in-silico DMS plasticity
+  * hyphaeon_splits newick/csv       -> spectral clade structure
+  * pal2nal FASTA per orthogroup for gap-aware codon->reference
+    coordinate mapping
+
+Projects codon coordinates through the reference BED12 onto genome
+coordinates and emits the UCSC track BEDs + AutoSql schemas, a per-OG
+summary TSV, a MultiQC table, and the TACC static-asset tarball. All
+reported statistics are descriptive (HyphAeon site p/q-values and
+site-call counts) -- v0 ships no gene-level statistic.
+
+Every emitted BED file is guaranteed non-empty (UCSC bedToBigBed exits 255
+on a 0-line input); see SENTINEL handling below. Standard library only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import gzip
+import io
+import json
+import logging
+import math
+import re
+import sys
+import tarfile
+from collections import Counter
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Generic helpers
+# ---------------------------------------------------------------------------
+
+def safe_name(s: str) -> str:
+    """Match group_cds_by_og.py: filenames / element identifiers."""
+    return re.sub(r'[^A-Za-z0-9_.\-]', '_', s)
+
+
+def _num(v, default):
+    """float(v) with a default for None/missing/non-numeric -- unlike
+    ``v or default`` this preserves a legitimate 0.0 (e.g. p-value)."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def read_lines(path):
+    with open(path, encoding='utf-8-sig') as fh:
+        return [ln.strip() for ln in fh if ln.strip()]
+
+
+def read_fasta(path):
+    taxa, seqs, name, buf = [], {}, None, []
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip('\n')
+            if line.startswith('>'):
+                if name is not None:
+                    seqs[name] = ''.join(buf)
+                    buf = []
+                name = line[1:].split()[0]
+                taxa.append(name)
+            else:
+                buf.append(line.strip())
+    if name is not None:
+        seqs[name] = ''.join(buf)
+    return taxa, seqs
+
+
+def load_sizes(path):
+    sizes = {}
+    with open(path) as fh:
+        for line in fh:
+            p = line.strip().split('\t')
+            if len(p) >= 2:
+                sizes[p[0]] = int(p[1])
+    return sizes
+
+
+def base_gene_id(g):
+    """Strip a trailing version suffix (``gene.N`` -> ``gene``).
+
+    Applied to BOTH sides of the ref-gene join -- BED12 names here and
+    ortholog-table candidates in load_ortholog_table -- or a versioned
+    gene ID in one source silently misses its counterpart in the other.
+    """
+    return g.rsplit('.', 1)[0] if '.' in g else g
+
+
+def load_bed12(path):
+    """gene_id (isoform suffix stripped, first isoform wins) -> 12 fields."""
+    bed = {}
+    op = gzip.open if str(path).endswith('.gz') else open
+    with op(path, 'rt') as fh:
+        for line in fh:
+            if line.startswith('#'):
+                continue
+            f = line.rstrip('\n').split('\t')
+            if len(f) < 12:
+                continue
+            bed.setdefault(base_gene_id(f[3]), f[:12])
+    return bed
+
+
+def normalize_gene_id(g):
+    """Collapse a Liftoff extra-copy suffix (g_2 -> g) like group_cds_by_og."""
+    m = re.match(r'^(.+)_(\d{1,2})$', g)
+    if m and not m.group(1).endswith('_'):
+        return m.group(1)
+    return g
+
+
+def load_ortholog_table(path, ref_column, ref_gene_names):
+    """Return (og_rows, og_ref_gene).
+
+    og_rows: og_id -> dict(row) with the TSV fields.
+    og_ref_gene: og_id -> resolved reference gene id. Composite ref-column
+    cells (``id1|id2,id3``) are resolved by set-membership against the
+    reference BED12 names -- first candidate that is a real ref gene wins,
+    else the first candidate (mirrors group_cds_by_og.py).
+    """
+    op = gzip.open if str(path).endswith('.gz') else open
+    og_rows, og_ref_gene = {}, {}
+    with op(path, 'rt') as fh:
+        reader = csv.DictReader(fh, delimiter='\t')
+        if ref_column not in (reader.fieldnames or []):
+            sys.exit(f"ERROR: reference column {ref_column!r} not in ortholog "
+                     f"table; columns: {reader.fieldnames}")
+        for row in reader:
+            og = row.get('orthogroup_id') or row.get('og') or row.get('OG')
+            if not og:
+                continue
+            og_rows[og] = row
+            ref_val = row.get(ref_column, '-')
+            if ref_val in ('-', '', None):
+                og_ref_gene[og] = ''
+                continue
+            cands = [base_gene_id(normalize_gene_id(t.strip()))
+                     for t in re.split(r'[,|]', ref_val) if t.strip()]
+            pick = next((c for c in cands if c in ref_gene_names), '')
+            og_ref_gene[og] = pick or (cands[0] if cands else '')
+    return og_rows, og_ref_gene
+
+
+# ---------------------------------------------------------------------------
+# Stats
+# ---------------------------------------------------------------------------
+
+def bh_fdr_list(pvals):
+    """BH over a list of p-values -> list of q-values aligned to input order."""
+    order = sorted(range(len(pvals)), key=lambda i: pvals[i])
+    n = len(order)
+    q = [1.0] * len(pvals)
+    prev_q = 1.0
+    for rank in range(n - 1, -1, -1):
+        i = order[rank]
+        q[i] = min(pvals[i] * n / (rank + 1), prev_q, 1.0)
+        prev_q = q[i]
+    return q
+
+
+def pval_to_score(p):
+    if p <= 0:
+        return 1000
+    try:
+        s = int(-math.log10(p) * 100)
+    except Exception:  # noqa: BLE001
+        s = 0
+    return max(0, min(1000, s))
+
+
+def rgb_to_int(rgb):
+    r, g, b = map(int, rgb.split(','))
+    return (r << 16) | (g << 8) | b
+
+
+# ---------------------------------------------------------------------------
+# Reference coordinate machinery
+# ---------------------------------------------------------------------------
+
+def cds_genomic_positions(bed_fields):
+    """Ordered 0-based genomic positions of the reference CDS, codon-major.
+
+    Returns (chrom, strand, list[int]) where index 3*(r-1)..3r-1 is the
+    genomic position of the r-th ungapped reference codon.
+    """
+    chrom, start, strand = bed_fields[0], int(bed_fields[1]), bed_fields[5]
+    thick_s, thick_e = int(bed_fields[6]), int(bed_fields[7])
+    sizes = [int(x) for x in bed_fields[10].rstrip(',').split(',') if x]
+    starts = [int(x) for x in bed_fields[11].rstrip(',').split(',') if x]
+    blocks = list(zip(sizes, starts))
+    # On '-' strand the CDS runs last-exon-first: iterate blocks in reverse
+    # genomic order AND positions within each block right-to-left, so the
+    # position list is always in transcription (codon) order.
+    if strand == '-':
+        blocks.reverse()
+    pos = []
+    for bsz, bst in blocks:
+        ex_s, ex_e = start + bst, start + bst + bsz
+        cds_s, cds_e = max(ex_s, thick_s), min(ex_e, thick_e)
+        if cds_s < cds_e:
+            if strand == '-':
+                pos.extend(range(cds_e - 1, cds_s - 1, -1))
+            else:
+                pos.extend(range(cds_s, cds_e))
+    return chrom, strand, pos
+
+
+def aln_to_ref_codon_map(ref_aln_seq, L):
+    """alignment codon i (1..L) -> 1-indexed ungapped reference codon.
+
+    Gapped reference codons ('---') take the nearest flanking reference
+    codon so no alignment site is lost (plan §5.3 step 2).
+    """
+    r_of, counter = {}, 0
+    for i in range(1, L + 1):
+        codon = ref_aln_seq[(i - 1) * 3:i * 3]
+        if codon != '---':
+            counter += 1
+            r_of[i] = counter
+        else:
+            r_of[i] = None
+    known = [i for i, r in r_of.items() if r is not None]
+    if not known:
+        sys.exit('ERROR: reference sequence is all gaps in alignment')
+    for i, r in r_of.items():
+        if r is None:
+            left = max((k for k in known if k < i), default=None)
+            right = min((k for k in known if k > i), default=None)
+            r_of[i] = r_of[left] if left is not None else r_of[right]
+    return r_of
+
+
+def codon_span_to_genome(r_of, cds_pos, c1, c2):
+    """Map 1-indexed inclusive alignment-codon span to (g_start, g_end) 0-half."""
+    nt = []
+    for i in range(c1, c2 + 1):
+        r = r_of.get(i)
+        if r is not None and (r - 1) * 3 + 3 <= len(cds_pos):
+            nt.extend(cds_pos[(r - 1) * 3:r * 3])
+    if not nt:
+        return None
+    return min(nt), max(nt) + 1
+
+
+# ---------------------------------------------------------------------------
+# HyphAeon JSON loaders
+# ---------------------------------------------------------------------------
+
+def load_json(path):
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def load_og_outputs(og, staged):
+    """Collect the HyphAeon outputs for one orthogroup.
+
+    v0 runs each alignment whole, so every staged file is keyed by the
+    bare orthogroup identifier. Recombination-aware partition/merge is
+    upstream work in the HyphAeon monorepo -- its output contract is
+    deliberately NOT anticipated here (speculative fields would just
+    rot if the upstream shape changes).
+    Returns dict with sites (BH q recomputed over the OG's site set),
+    edges, sectors, plasticity, artifacts, splits metadata, focal taxon.
+    """
+    sites, edges, sectors, plasticity, artifacts = [], [], [], [], []
+    splits, focal = {}, None
+
+    meme_p = staged['meme'] / f'{safe_name(og)}.json'
+    if meme_p.exists():
+        m = load_json(meme_p)
+        sites.extend(m.get('sites', []))
+        artifacts.extend(m.get('artifacts_masked', []))
+    epi_p = staged['epistasis'] / f'{safe_name(og)}.json'
+    if epi_p.exists():
+        epi = load_json(epi_p)
+        edges.extend(epi.get('edges', []))
+        sectors.extend(epi.get('sectors', []))
+    dms_p = staged['dms'] / f'{safe_name(og)}.json'
+    if dms_p.exists():
+        d = load_json(dms_p)
+        plasticity.extend(d.get('plasticity', []))
+        focal = d.get('focal_taxon')
+    nwk_p = staged['splits_nwk'] / f'{safe_name(og)}.nwk'
+    if nwk_p.exists():
+        splits['newick'] = nwk_p.read_text().strip()
+    csv_p = staged['splits_csv'] / f'{safe_name(og)}.csv'
+    if csv_p.exists():
+        splits['clade_memberships'] = list(csv.DictReader(
+            io.StringIO(csv_p.read_text())))
+
+    for i, sec in enumerate(sectors, start=1):
+        sec['sector_id'] = i
+
+    sites.sort(key=lambda x: x['site'])
+    pvals = [_num(s.get('p_value'), 1.0) for s in sites]
+    qs = bh_fdr_list(pvals)
+    for s, q in zip(sites, qs):
+        s['q_value'] = q
+
+    return {
+        'sites': sites, 'edges': edges, 'sectors': sectors,
+        'plasticity': plasticity, 'artifacts': artifacts,
+        'splits': splits, 'focal_taxon': focal,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    for name in ('meme', 'epistasis', 'dms', 'splits_nwk', 'splits_csv',
+                 'aln'):
+        ap.add_argument(f"--{name.replace('_', '-')}-dir", required=True,
+                        dest=f'{name}_dir',
+                        help=f'Staged dir of per-element {name} inputs.')
+    ap.add_argument('--element-identifiers', required=True,
+                    help='Identifiers of the staged HyphAeon collection '
+                         'elements (one per analyzed orthogroup, v0).')
+    ap.add_argument('--og-identifiers', required=True)
+    ap.add_argument('--ortholog-table', required=True)
+    ap.add_argument('--ref-bed12', required=True)
+    ap.add_argument('--sizes', required=True)
+    ap.add_argument('--ref-column', required=True)
+    ap.add_argument('--site-p-cutoff', type=float, default=0.05)
+    ap.add_argument('--bundle-id', required=True)
+    ap.add_argument('--bundle-version', default='v1')
+    ap.add_argument('--as-dir', required=True)
+    ap.add_argument('--out-dir', required=True,
+                    help='Directory for the BEDs + TSVs + tarball.')
+    args = ap.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s',
+                        stream=sys.stderr)
+    outdir = Path(args.out_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    staged = {k: Path(getattr(args, f'{k}_dir')) for k in
+              ('meme', 'epistasis', 'dms', 'splits_nwk', 'splits_csv',
+               'aln')}
+    sizes = load_sizes(args.sizes)
+    bed12 = load_bed12(args.ref_bed12)
+    if not bed12:
+        sys.exit(f'ERROR: no BED12 genes parsed from {args.ref_bed12}')
+    og_rows, og_ref_gene = load_ortholog_table(
+        args.ortholog_table, args.ref_column, set(bed12))
+    element_ids = set(read_lines(args.element_identifiers))
+    og_ids = read_lines(args.og_identifiers)
+
+    # ---- per-OG loading ----------------------------------------------------
+    og_data = {}
+    for og in og_ids:
+        if og not in element_ids:
+            logging.warning('%s: no HyphAeon outputs staged, skipped', og)
+            continue
+        og_data[og] = load_og_outputs(og, staged)
+        aln_p = staged['aln'] / f'{safe_name(og)}.fasta'
+        if not aln_p.exists():
+            sys.exit(f'ERROR: no staged codon alignment for {og}')
+        taxa, seqs = read_fasta(aln_p)
+        if args.ref_column not in seqs:
+            sys.exit(f"ERROR: {args.ref_column!r} not in {og} alignment "
+                     f"(headers: {taxa})")
+        L = len(seqs[taxa[0]]) // 3
+        og_data[og]['r_of'] = aln_to_ref_codon_map(
+            seqs[args.ref_column], L)
+        og_data[og]['codon_count'] = L
+
+    # ---- OGs resolvable to a reference gene --------------------------------
+    mapped = [og for og in og_ids
+              if og in og_data and og in og_rows and og_ref_gene.get(og)]
+    logging.info('%d OGs loaded, %d mapped to ortholog table + ref BED12',
+                 len(og_data), len(mapped))
+
+    # ---- genomic projection contexts -------------------------------------
+    for og in mapped:
+        g = og_ref_gene[og]
+        b = bed12.get(g)
+        og_data[og]['bed'] = b
+        if b is not None:
+            og_data[og]['cds_ctx'] = cds_genomic_positions(b)
+
+    # ---- Track 1: selection_sites.bed (BED9+7) ----------------------------
+    site_rows = []
+    for og in mapped:
+        d = og_data[og]
+        if d.get('bed') is None:
+            continue
+        chrom, strand, cds_pos = d['cds_ctx']
+        for s in d['sites']:
+            p, q = _num(s.get('p_value'), 1.0), _num(s.get('q_value'), 1.0)
+            if not (q <= 0.10 or p <= args.site_p_cutoff):
+                continue
+            span = codon_span_to_genome(d['r_of'], cds_pos, s['site'], s['site'])
+            if span is None:
+                continue
+            g_start, g_end = span
+            g_start = max(0, min(g_start, sizes.get(chrom, g_end)))
+            g_end = min(g_end, sizes.get(chrom, g_end))
+            if q < 0.05:
+                rgb = '255,0,0'
+            elif q < 0.10:
+                rgb = '255,128,0'
+            else:
+                rgb = '255,215,0'  # gold: nominal p only
+            attr = ' | '.join(str(s.get(k, '')) for k in
+                              ('evolutionary_epoch', 'adaptation_mode',
+                               'top_mutation') if s.get(k))
+            site_rows.append((chrom, g_start, '\t'.join([
+                chrom, str(g_start), str(g_end),
+                f"{og}:c{s['site']}", str(pval_to_score(p)), strand,
+                str(g_start), str(g_end), str(rgb_to_int(rgb)),
+                og, og_ref_gene[og], str(s['site']),
+                f"{_num(s.get('hyphaeon_lrt'), 0.0):.6g}",
+                f"{p:.6g}", f"{q:.6g}", attr or '.',
+            ])))
+    if not site_rows and mapped:
+        # Fallback: top-scoring variable codon of the first mapped OG that
+        # actually resolved to a reference BED12 feature (a mapped OG whose
+        # ref gene missed the BED has no cds_ctx -- skip it here).
+        og0 = next((og for og in mapped
+                    if og_data[og].get('bed') is not None), None)
+        if og0 is not None:
+            d = og_data[og0]
+            chrom, strand, cds_pos = d['cds_ctx']
+            cand = [s for s in d['sites'] if not s.get('is_invariable')]
+            if cand:
+                s = min(cand, key=lambda x: _num(x.get('p_value'), 1.0))
+                span = codon_span_to_genome(d['r_of'], cds_pos, s['site'], s['site'])
+                if span:
+                    g_start, g_end = span
+                    p, q = _num(s.get('p_value'), 1.0), _num(s.get('q_value'), 1.0)
+                    site_rows.append((chrom, g_start, '\t'.join([
+                        chrom, str(g_start), str(g_end), f"{og0}:c{s['site']}",
+                        '0', strand, str(g_start), str(g_end),
+                        str(rgb_to_int('128,128,128')),
+                        og0, og_ref_gene[og0], str(s['site']),
+                        f"{_num(s.get('hyphaeon_lrt'), 0.0):.6g}",
+                        f"{p:.6g}", f"{q:.6g}", '.',
+                    ])))
+    if not site_rows:
+        g0 = next(iter(bed12.values()))
+        site_rows.append((g0[0], int(g0[1]), '\t'.join([
+            g0[0], g0[1], str(int(g0[1]) + 1), 'NO_SITES', '0', g0[5],
+            g0[1], str(int(g0[1]) + 1), str(rgb_to_int('128,128,128')),
+            'NONE', g0[3], '0', '0', '1', '1', '.',
+        ])))
+    site_rows.sort()
+
+    # ---- Track 2: orthogroup.bed (BED12) ----------------------------------
+    og_rows_bed = []
+    for og in mapped:
+        b = og_data[og]['bed']
+        if b is None or b[0] not in sizes:
+            continue
+        label = og_rows[og].get('label', '')
+        rgb = '31,119,180' if label == 'CORE-1:1' else '128,128,128'
+        og_rows_bed.append((b[0], int(b[1]), '\t'.join([
+            b[0], b[1], b[2], og, '0', b[5], b[6], b[7],
+            str(rgb_to_int(rgb)), b[9], b[10], b[11],
+        ])))
+    if not og_rows_bed:
+        g0 = next(iter(bed12.values()))
+        og_rows_bed.append((g0[0], int(g0[1]), '\t'.join(
+            g0[:4] + ['0', g0[5], g0[6], g0[7], '8421504',
+                      g0[9], g0[10], g0[11]])))
+    og_rows_bed.sort()
+
+    bed_outputs = [('selection_sites.bed', site_rows),
+                   ('orthogroup.bed', og_rows_bed)]
+    for name, rows in bed_outputs:
+        with open(outdir / name, 'w') as fh:
+            for _, _, row in rows:
+                fh.write(row + '\n')
+        logging.info('%s: %d rows', name, len(rows))
+
+    # ---- AutoSql schemas ---------------------------------------------------
+    as_dir = Path(args.as_dir)
+    as_dir.mkdir(parents=True, exist_ok=True)
+    as_outputs = [('bigSelectionSites.as', _AS_SITES)]
+    for name, text in as_outputs:
+        (as_dir / name).write_text(text)
+
+    # ---- gene_selection.tsv + multiqc_table.tsv ---------------------------
+    gene_sel_fields = [
+        'orthogroup_id', 'label', 'ref_gene_id', 'chrom', 'start', 'end',
+        'strand', 'n_strains', 'max_copies', 'clique', 'density',
+        'codon_count',
+        'selected_sites_nominal05', 'selected_sites_fdr10',
+        'epistatic_sectors_count', 'escape_hatch_codons_count',
+        'mean_intrinsic_plasticity', 'primary_split_eigengap',
+        'dominant_epoch',
+    ]
+    summary_rows = []
+    for og in og_ids:
+        if og not in og_data:
+            continue
+        d = og_data[og]
+        row = og_rows.get(og, {})
+        sig = [s for s in d['sites']
+               if _num(s.get('q_value'), 1.0) <= 0.10]
+        nom = [s for s in d['sites']
+               if _num(s.get('p_value'), 1.0) <= 0.05]
+        epochs = [s['evolutionary_epoch'] for s in sig if s.get('evolutionary_epoch')]
+        plast = d['plasticity']
+        # Escape hatch = site where at least one of the 19 mutant ΔLRTs is
+        # non-deleterious (min_delta_lrt >= 0): constrained-looking sites
+        # that still tolerate a substitution. Sites with no DMS plasticity
+        # record (missing key) are not counted.
+        esc = sum(1 for p in plast
+                  if p.get('min_delta_lrt') is not None
+                  and _num(p['min_delta_lrt'], -math.inf) >= 0.0)
+        eig = ''
+        for cm in d['splits'].get('clade_memberships', []):
+            if cm.get('taxon') == args.ref_column:
+                eig = cm.get('split_eigengap', '')
+                break
+        b = d.get('bed')
+        summary_rows.append({
+            'orthogroup_id': og,
+            'label': row.get('label', ''),
+            'ref_gene_id': og_ref_gene.get(og, ''),
+            'chrom': b[0] if b else '',
+            'start': b[1] if b else '',
+            'end': b[2] if b else '',
+            'strand': b[5] if b else '',
+            'n_strains': row.get('n_strains', ''),
+            'max_copies': row.get('max_copies', ''),
+            'clique': row.get('clique', ''),
+            'density': row.get('density', ''),
+            'codon_count': d['codon_count'],
+            # Site-call tallies only -- no min/max statistics over
+            # site p/LRT values, which would read as unvalidated
+            # gene-level selection claims (see README v0 scope).
+            'selected_sites_nominal05': len(nom),
+            'selected_sites_fdr10': len(sig),
+            'epistatic_sectors_count': len(d['sectors']),
+            'escape_hatch_codons_count': esc,
+            'mean_intrinsic_plasticity': (
+                f"{sum(_num(p.get('intrinsic_plasticity'), 0) for p in plast) / len(plast):.6g}"
+                if plast else ''),
+            'primary_split_eigengap': eig,
+            'dominant_epoch': Counter(epochs).most_common(1)[0][0] if epochs else '',
+        })
+    for name in ('gene_selection.tsv', 'multiqc_table.tsv'):
+        with open(outdir / name, 'w') as fh:
+            fh.write('\t'.join(gene_sel_fields) + '\n')
+            for r in summary_rows:
+                fh.write('\t'.join(str(r[f]) for f in gene_sel_fields) + '\n')
+
+    # ---- TACC static-asset tarball ----------------------------------------
+    tar_path = outdir / 'tacc_comparative_bundle.tar.gz'
+    base = f'{args.bundle_id}_{args.bundle_version}'
+    gene_sel_json = []
+    for r in summary_rows:
+        gene_sel_json.append({
+            'chrom': r['chrom'] or None,
+            'clique': _f(r['clique']),
+            'codonCount': _i(r['codon_count']),
+            'density': _f(r['density']),
+            'dominantEpoch': r['dominant_epoch'] or None,
+            'end': _i(r['end']),
+            'epistaticSectorsCount': _i(r['epistatic_sectors_count']),
+            'escapeHatchCodonsCount': _i(r['escape_hatch_codons_count']),
+            'maxCopies': _i(r['max_copies']),
+            'meanIntrinsicPlasticity': _f(r['mean_intrinsic_plasticity']),
+            'nStrains': _i(r['n_strains']),
+            'orthogroupId': r['orthogroup_id'],
+            'orthogroupLabel': r['label'] or None,
+            'primarySplitEigengap': _f(r['primary_split_eigengap']),
+            'refGeneId': r['ref_gene_id'] or None,
+            'selectedSitesFdr10': _i(r['selected_sites_fdr10']),
+            'selectedSitesNominal05': _i(r['selected_sites_nominal05']),
+            'start': _i(r['start']),
+            'strand': r['strand'] or None,
+        })
+    manifest = {
+        'bundleId': args.bundle_id,
+        'bundleVersion': args.bundle_version,
+        'generator': 'brc-hyphaeon-bundle (WF-GH selection_hyphaeon)',
+        'orthogroupCount': len(summary_rows),
+        'tables': ['ortholog_table.tsv.gz', 'gene_selection.json'],
+    }
+
+    def _add_bytes(tf, arcname, data: bytes):
+        info = tarfile.TarInfo(f'{base}/{arcname}')
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+
+    with tarfile.open(tar_path, 'w:gz') as tf:
+        _add_bytes(tf, 'manifest.json',
+                   json.dumps(manifest, indent=1, sort_keys=True).encode())
+        _add_bytes(tf, 'tables/ortholog_table.tsv.gz',
+                   gzip.compress(Path(args.ortholog_table).read_bytes()))
+        _add_bytes(tf, 'tables/gene_selection.json',
+                   json.dumps(gene_sel_json, indent=1,
+                              sort_keys=True).encode())
+        for og in og_ids:
+            if og not in og_data:
+                continue
+            d = og_data[og]
+            payload = {
+                'artifacts_masked': d['artifacts'],
+                'epistasis_edges': d['edges'],
+                'epistasis_sectors': d['sectors'],
+                'focalTaxon': d['focal_taxon'],
+                'orthogroupId': og,
+                'refGeneId': og_ref_gene.get(og),
+                'sites': d['sites'],
+                'splits': d['splits'],
+            }
+            _add_bytes(tf, f'genes/{safe_name(og)}.json.gz',
+                       gzip.compress(json.dumps(
+                           payload, sort_keys=True).encode()))
+    logging.info('wrote %s', tar_path)
+    return 0
+
+
+def _f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _i(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+_AS_SITES = '''table bigSelectionSites
+"HyphAeon episodic positive selection sites mapped to reference genome coordinates"
+(
+string  chrom;              "Reference sequence chromosome or scaffold"
+uint    chromStart;         "Start position in chromosome (0-based)"
+uint    chromEnd;           "End position in chromosome"
+string  name;               "Label: <orthogroup_id>:c<codon_idx>"
+uint    score;              "Score 0-1000 (scaled from -log10(p_value))"
+char[1] strand;             "+ or -"
+uint    thickStart;         "Start position"
+uint    thickEnd;           "End position"
+uint    reserved;           "RGB color (red q<0.05, orange q<0.10, gold p<0.05)"
+string  orthogroup_id;      "Orthogroup ID"
+string  ref_gene_id;        "Reference strain gene ID"
+uint    codon_site;         "1-indexed codon position in alignment"
+float   hyphaeon_lrt;       "HyphAeon neural LRT statistic"
+float   p_value;            "MEME mixture asymptotic p-value"
+float   q_value;            "Within-gene BH-FDR q-value"
+string  attribution;        "Epoch | Adaptation mode | Top driver mutation"
+)
+'''
+
+if __name__ == '__main__':
+    sys.exit(main())
